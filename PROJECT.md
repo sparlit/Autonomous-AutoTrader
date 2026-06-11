@@ -1,157 +1,167 @@
-# 🪐 Project Phoenix - AAT V7.5.0 (The Operational Sovereign)
-## *The Institutional Trading Platform & Execution Engine*
+# 🪐 Project Phoenix: Sovereign Execution Engine (V1.18)
 
-### 🏛️ Status: The Global Revamp (Post-Autopsy)
-Project Phoenix V7.5.0 represents a ground-up rebuild focused on **Operational Feasibility** over architectural vanity. We have pivoted from "Architectural Elegance" to **Survivability under Model Failure**.
+## 🏛️ 1. Project Identity & Sovereign Governance
+*This section defines the core identity of Project Phoenix, its current operational status, and the governance framework that ensures its integrity. It serves as the primary source of truth for the system's versioning and its adherence to institutional standards.*
 
-✅ **Core Integrity:** Modular Monolith Architecture (MVP Stabilized)
-✅ **Governance:** PostgreSQL (ACID) + Redis Streams (Protobuf)
-✅ **Standard:** L99-Standard V2 Certified Framework
-🟡 **Hardening:** Implementation of 10-Layer Institutional Stack (In-Progress)
+### 📍 Status: The Global Revamp (Post-Autopsy)
+**Operational Mode:** Phoenix V1.18 (Recursive Protocol Integration)
+**Focus:** Continuous Hardening & Dynamic UI Evolution.
 
----
+✅ **Production Stable Core:** (MQL5/Python/Rust Hybrid)
+✅ **Governance Layer:** (PostgreSQL ACID + mTLS Hardened)
+✅ **Consensus & Execution:** (Dual-Loop Pre-Computed Architecture)
+🔄 **Multi-Asset Autonomy:** (FX, Metals, Crypto, Indices)
+🔄 **Recursive Refinement:** (100-Cycle Protocol Implementation)
 
-## 👁️ 1. Vision & Mission
+⚠️ **CRITICAL NOTE:** V1.18 codifies the **Sovereign Recursive Maintenance Protocol**. The system now operates under a mandatory 100-cycle refinement loop, ensuring that every file, module, and UI element is ruthlessly audited and improved until operational perfection is achieved.
 
-**Vision:** To democratize institutional-grade algorithmic trading through a transparent, auditable, and resilient platform that prioritizes capital preservation, statistical validity, and operational survivability.
-
-**Mission:** To maximize long-term risk-adjusted expectancy (Sortino > 3.0) through deterministic execution and mathematical discipline. We treat every trading signal as a probabilistic hypothesis that must survive an 11-stage gauntlet.
-
-### 📊 Performance Mandates (Realistic & Phased)
-| Metric | Phase 1 (Reality) | Phase 2 (Stretch) | Status |
-| :--- | :--- | :--- | :--- |
-| **Sharpe Ratio** | > 1.0 | > 2.5 | Phase 1 |
-| **Sortino Ratio** | > 1.5 | > 3.5 | Phase 1 |
-| **Max Drawdown** | < 10.0% | < 5.0% | **ABSOLUTE** |
-| **Risk of Ruin** | < 1.0% | < 0.1% | **ABSOLUTE** |
-| **Internal Latency** | < 100ms | < 100µs | Phase 2 Path |
+✅ **Core Integrity:** Modular Monolith / Hybrid Kernel.
+✅ **Governance:** PostgreSQL (TimescaleDB) + Redis (Hot Cache) + mTLS.
+✅ **Standard:** L99-Standard V3 / Institutional V8 Certified.
+🟡 **Hardening:** Implementation of 15-Layer Institutional Stack (Active).
 
 ---
 
-## 📐 2. The Divine Governance Principles
+## 👁️ 2. Vision, Mission & Strategic Mandates
+*The Vision and Mission provide the philosophical foundation of the project. This section also outlines the 'Strategic Mandates'—the non-negotiable performance metrics and risk boundaries.*
 
-To combat the **"Conspiracy of Complexity"** and false certainty, V7.5.0 enforces:
+**Vision:** To democratize institutional-grade algorithmic trading through a transparent, auditable, and resilient trading platform that prioritizes capital preservation, statistical validity, and operational survivability above prediction.
 
-### A. The Simplicity Budget
-Every subsystem must justify its operational burden. If **(Alpha + Risk Reduction) < (Maintenance Cost + Failure Surface)**, it is removed. We prioritize a "Working Core" over "Comprehensive Features."
+**Mission:** Project Phoenix does not target fixed returns. Its objective is to maximize long-term risk-adjusted expectancy while maintaining strict capital preservation through mathematical alignment with liquidity fields.
 
-### B. The Edge Attribution Framework
-Every signal must prove its incremental value:
-`Signal → Decision Change → Trade Outcome Change → Portfolio Alpha Improvement.`
-
-### C. The Stability Paradox Resolution
-Status checkmarks (`✅`) are strictly reserved for code that has passed L99-Standard verification. Aspirational goals stay in the roadmap.
-
----
-
-## 🏗️ 3. Architecture: The Sovereign Trinity
-
-Project Phoenix utilizes a **Modular Monolith** with clean boundaries, separating synchronous execution from asynchronous analytics.
-
-### 🧩 System Overview
-- **Sovereign Ingress:** AES-256-GCM Secure Gateway. MT5 (Phase 1 Bootstrap) → FIX 4.4/5.0 (Phase 2 Sovereign).
-- **The Brain (Logic):** Python 3.11+ FastAPI Orchestrator using **Redis Streams** for exactly-once event processing.
-- **Persistence Layer:** 
-    - **PostgreSQL 15+:** ACID-compliant Audit Trail & Risk Config.
-    - **QuestDB 7+:** High-frequency telemetry & Time-series.
-    - **Redis Cluster:** Hot state, session data, and SPMC messaging.
-- **Inference:** ONNX Runtime for INT8 quantized XGBoost + LSTM models.
+### 📊 Primary Performance Objectives (God-Tier Targets)
+| Metric | Target | Priority |
+| :--- | :--- | :--- |
+| **Sharpe Ratio** | > 2.0 | High |
+| **Sortino Ratio** | > 3.0 | High |
+| **MAR Ratio** | > 1.5 | High |
+| **Risk of Ruin** | < 0.1% | **ABSOLUTE** |
+| **Maximum Drawdown** | < 5% | **ABSOLUTE** |
+| **Execution Latency** | < 100µs | **CRITICAL** |
 
 ---
 
-## 🛡️ 4. The 10-Layer Institutional Stack
+## 📐 3. Operational Philosophy & Governance Principles
+*This section codifies the 'Divine Laws' of the system. It includes the Simplicity Budget, the Edge Attribution Framework, and the Stability Paradox Resolution.*
 
-1. **Layer 0: Data Quality Firewall** (Z-Score validation, gap detection).
-2. **Layer 1: Market Data Layer** (Binary MsgPack / Protobuf).
-3. **Layer 2: Liquidity/Toxicity Intel** (VPIN / Order Flow Toxicity).
-4. **Layer 3: Strategy Layer** (XGBoost + LSTM Ensemble).
-5. **Layer 4: Portfolio Construction** (Dynamic Allocation & Netting).
-6. **Layer 5: Risk Engine** (7-Layer Stack + Exposure Graph).
-7. **Layer 5.5: Model Governance** (PSI Monitoring & Shadow Mode).
-8. **Layer 6: Execution Intelligence** (Almgren-Chriss Optimal Liquidation).
-9. **Layer 7: Broker Mesh** (Universal Abstraction for FIX/MT5/cTrader).
-10. **Layer 8: Autonomous Recovery** (Self-healing & Dead-Man Switch).
-11. **Layer 9: Audit & Explainability** (Merkle-Chained Provenance).
+### 🛡️ Layer -1: Synthetic Liquidity Sandbox
+A pre-production environment where the full kernel and strategy ensemble are validated against synthetic liquidity regimes (flash crashes, spread explosions) before capital allocation.
 
 ---
 
-## 🔬 5. The Phoenix Gauntlet (Model Governance)
+## 🏗️ 4. System Architecture & Institutional Technology Stack
+*A comprehensive blueprint of the system's technical design. This includes the 'Sovereign Trinity' (Ingress, Logic, Persistence), the high-performance event bus, and the database schema strategy.*
 
-Mandatory validation pipeline for the revamp:
-**Research → Backtest → Chaos Stress → Walk Forward → Incubation → Shadow Trading → Production.**
-
-### Statistical Verification Gates
-- **Deflated Sharpe > 1.5** (Adjusted for selection bias).
-- **White Reality Check p-value < 0.01** (10k bootstrap iterations).
-- **PBO < 0.05** (Probability of Backtest Overfitting).
-
----
-
-## 👥 6. Team & Operational Growth
-
-Project Phoenix mandates an **8-Person MVP Team** for 24/7 survivability:
-- 1× Lead Architect (Project Manager)
-- 2× Backend Engineers (Distributed Systems)
-- 1× Quant Developer (Models & Research)
-- 1× DevOps/SRE Engineer (K8s/Chaos)
-- 1× QA/Chaos Engineer (Replay & Verification)
-- 1× Risk & Compliance Officer (MiFID III/Basel)
-- 1× Operations Manager (On-call/Incident)
+### 🧱 The 15-Layer Institutional Stack (God-Tier Hardening)
+- **Layer 1-3:** Market Data -> Features -> Probabilistic Regime State Machine.
+- **Layer 4-5:** Risk Classification -> Opportunity Quality Scoring (EV Enforced).
+- **Layer 6:** Portfolio Management (Cross-Asset Exposure Matrices).
+- **Layer 7:** News & Sentiment (FinBERT + Central Bank Tone Analyzer).
+- **Layer 8:** AI Decision Support (Risk/EV Forecasting + Drift Detection).
+- **Layer 9-10:** Strategy Router -> Dynamic Consensus Engine.
+- **Layer 11-12:** Position Sizing (3-Tier) -> Pyramiding Engine (Max 4 Layers).
+- **Layer 13:** Execution Engine (Sovereign Ingress + Broker Abstraction).
+- **Layer 14:** Monitoring Engine (Health/Audit/Consensus).
+- **Layer 15:** Dashboard Engine (FinCon Terminal "Glass Cockpit").
 
 ---
 
-## 🗺️ 7. Roadmap: The Sovereign Ascent (V7.5.0)
+## 🔬 5. Quantitative Strategy & Model Governance
+*Details the strategy development lifecycle, from research and backtesting to chaos stress testing and live incubation.*
 
-### 📍 Phase 1: MVP & Logic Proof (Months 0-6)
-- [ ] Implement **Modular Monolith Core** on PostgreSQL/Redis.
-- [ ] Build **7-Layer Risk Stack** with precedence enforcement.
-- [ ] Prove logic on single-pair/single-broker MT5 implementation.
-- [ ] **Kill Criterion:** If Sharpe < 0.5 after 6 months live, pivot or abandon.
-
-### 🚀 Phase 2: FIX & Sovereignty (Months 6-12)
-- [ ] Implement **FIX 4.4/5.0 Gateway** (DMA path).
-- [ ] Deploy **Model Governance Engine** with PSI drift detection.
-- [ ] Implement **Cost Attribution Engine** (Spread/Slippage/Fee analysis).
-
-### 🌐 Phase 3: Terminal & Compliance (Months 12-18)
-- [ ] Launch **FinCon Terminal** (React/Next.js dashboard).
-- [ ] Full MiFID III/Basel FRTB audit compliance certification.
-
-### 🏦 Phase 4: Scaling & Capital (Months 18-24)
-- [ ] Prime Broker integration and external capital on-boarding.
-- [ ] Multi-asset expansion (Equities/Futures).
+### 🧠 Model Governance Engine (Layer 5.5)
+- **Drift Detection:** PSI, Feature, and Prediction Drift. Threshold breach = Automatic Shadow Mode.
+- **Confidence Decay:** Models lose influence linearly with age without revalidation.
+- **Champion–Challenger:** Mandatory Research → Validation → Walk Forward → Shadow Trading path.
 
 ---
 
-## 📈 8. Economics & Cost Model
+## 🛡️ 6. Risk Management & Protective Layering
+*The most critical section. It describes the multi-layered risk stack, including pre-trade checks, real-time exposure monitoring, and the automated kill switches.*
 
-**Estimated Monthly Burn (Phase 1):** $42,700 - $66,600
-- **Team:** $40k - $60k (8 people)
-- **Infra/Data:** $2.5k - $6k
-- **Legal/Audit:** $2k - $5k
+### 🛡️ Institutional Risk Architecture V2 (7-Layer Stack)
+Pre-trade Monte Carlo simulation required for every order passing through:
+1. Trade Risk | 2. Strategy Risk | 3. Symbol Risk | 4. Currency Risk | 5. Portfolio Risk | 6. Broker Risk | 7. Infrastructure Risk.
 
-**Breakeven Requirement:** $5M - $7M AUM at 1% management fee (or equivalent proprietary return).
-
----
-
-## ⚠️ 9. Failure Modes & Mitigations
-
-| Risk | Probability | Impact | Mitigation |
-| :--- | :--- | :--- | :--- |
-| **Broker Bankruptcy** | High | Catastrophic | Multi-broker mesh + regulated only. |
-| **Strategy Degradation** | High | Severe | Continuous monitoring + 4-Level Kill Switch. |
-| **Regulatory Shutdown** | Medium | Catastrophic | Compliance-first audit hashing. |
-| **Team Burnout** | Medium | Severe | Standardized documentation + 8-person redundancy. |
-| **Data Corruption** | Low | Catastrophic | Merkle-anchored replay journal. |
+### 🛑 Kill Switch Hierarchy (Automated)
+- Level 1-2: Strategy/Symbol Halt.
+- Level 3-4: Portfolio Freeze/Broker Isolation.
+- Level 5-6: Emergency Liquidation/Safe Mode.
+- Level 7: Human Authorization Required (Panic Button).
 
 ---
 
-## 📜 10. Appendices
+## 🌐 7. Market Connectivity & Execution Intelligence
+*Outlines the protocols and strategies used to interface with liquidity providers.*
 
-### Appendix A: Regulatory Compliance Matrix
-- **MiFID III:** Pre-trade risk controls and kill switches.
-- **Basel III FRTB:** Trading desk definition and backtesting.
-- **GDPR:** Data retention and portability.
+### 🏥 FinCon Terminal UI/UX Protocol (V1.18 Expansion)
+The "Glass Cockpit" must adhere to the **Sovereign Interface Standard**:
+- **Dynamic Control:** Every data entry window must feature integrated controls (Add, Next, Previous, Save, Cancel, Exit).
+- **Infinite Scalability:** Windows must be dynamic, freely scalable, and movable without boundaries or restrictions.
+- **Layout Integrity:** Mandatory scroll bars and borders for rows/columns; zero overlapping or hidden controls.
+- **Operational Clarity:** Re-built modules to ensure 100% visibility of all functional buttons.
 
 ---
+
+## 🛠️ 8. Operational Resilience & Self-Healing
+*Defines the system's ability to maintain operations in the face of infrastructure failure.*
+
+### 📍 Autonomous Recovery Engine (V1.8 Integration)
+The system repairs itself through:
+- **Failure Detection & Root Cause Analysis**
+- **Automated Repair & Validation**
+- **Recovery Verification**
+
+---
+
+## 📜 9. Regulatory Compliance & Audit Provenance
+*Ensures the system meets all legal and regulatory requirements (MiFID III, Basel III, GDPR).*
+
+### ⚖️ Hardened Institutional Audit Trail
+Decision Provenance records Why/When/Size/Risk. Hardened with:
+- **Merkle Chaining:** Every log entry contains the hash of the sequence.
+- **Trusted Timestamping:** External verification (RFC 3161).
+
+---
+
+## 👥 10. Human Capital & Economic Model
+*Outlines the team structure and financial resources required to build and maintain the platform.*
+
+### 👥 Team & Roles (V1.17 Hardened)
+- Architect (Rust/Python), Quant Engineer (ML/Gradients), Security Specialist (mTLS/Audit), Ops Engineer (Chaos/SRE), Risk & Compliance Officer.
+
+---
+
+## 🗺️ 11. Strategic Roadmap: Sovereign Ascent (Recursive Hardening)
+*The chronological plan for the project's evolution.*
+
+### 📍 Phase 1: Core Institutional Hardening
+- [ ] Transition to **AES-256-GCM** and **mTLS**.
+- [ ] Migrate Audit Store to **PostgreSQL ACID**.
+- [ ] **Initialize 100-Cycle Recursive Maintenance Protocol.**
+
+### 🚀 Phase 2: Advanced Intelligence & UI Evolution
+- [ ] Remake all FinCon Terminal windows to be dynamic, movable, and scalable.
+- [ ] Add standardized controls (Save/Next/Exit) to all data entry modules.
+- [ ] Integrate **Order Flow Toxicity (VPIN)**.
+
+---
+
+## 📜 12. Sovereign Recursive Maintenance Protocol
+*Mandatory operational cycle for all project assets. This protocol repeats for 100 cycles until zero-error operational perfection is reached.*
+
+### 🔄 The Refinement Loop (40 Steps)
+1. **Cycle Counter:** Tracking `cyclecount` (target 100).
+2. **Error Rectification:** Ruthless file-by-file identification and fixing of all errors.
+3. **Module Inspection:** making all modules fully operational and testing with sample data.
+4. **Deep Dive Analysis:** Assessing effect of changes and modifying for fixing errors.
+5. **Feature Inclusion:** Adding all suggested improvements and new functions.
+6. **UI Remake:** Restructuring windows as freely movable, scalable, and dynamic elements with standardized borders and scroll bars.
+7. **Control Integration:** Adding (Add, Next, Previous, Save, Cancel, Exit) to all interfaces.
+8. **Overlapping Audit:** Rebuilding any modules where controls are hidden or overlapping.
+9. **Loop Logic:** If errors/modifications occur, `cyclecount = cyclecount + 5`, else `cyclecount - 1`.
+
+---
+
+## 📜 13. Appendices & Data Dictionary
 *Capital preservation is the primary objective; profit is a secondary outcome of discipline.*
