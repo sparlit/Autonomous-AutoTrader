@@ -1,40 +1,30 @@
-# Project Phoenix Revamp TODO - V1.14 (Multi-Asset V2)
+# Project Phoenix Revamp TODO - V1.17 (God-Tier Engineering)
 
-## Epic 1 — Architectural Alignment (Priority 1)
-- [x] Design 15-Layer Institutional Stack architecture.
-- [ ] Implement Communication Protocol between Python Brain and MT5 Terminals.
-- [ ] Design PostgreSQL / TimescaleDB schema for multi-asset ticks and features.
-- [ ] Port Rust Hybrid Kernel to support multi-terminal management.
+## Epic 1 — Foundational Cryptography & Persistence
+- [ ] Implement **AES-256-GCM** across all ingress/egress.
+- [ ] Enforce **mTLS (Mutual TLS)** for Terminal-to-Kernel handshakes.
+- [ ] Migrate Audit & Governance store from SQLite to **PostgreSQL ACID**.
+- [ ] Implement **RFC 3161 Trusted Timestamping** for audit logs.
 
-## Epic 2 — Intelligence & Consensus (Priority 2)
-- [ ] Build 10-state Market Regime Classifier (V2).
-- [ ] Implement Dynamic Consensus Engine with regime-based weighting.
-- [ ] Deploy Expectancy Engine (EV formula validation).
-- [ ] Integrate Multi-Timeframe Analysis Matrix (MN to M1).
+## Epic 2 — Decision Engine & Intelligence
+- [ ] Transition from centralized bus to **Lock-free Domain Buses** (Rust).
+- [ ] Implement **Layer 5.5: Model Governance Engine** (PSI-based drift).
+- [ ] Build **Order Flow Toxicity (VPIN)** detection module.
+- [ ] Deploy **Layer -1: Synthetic Liquidity Sandbox** for failure testing.
 
-## Epic 3 — Risk & Portfolio (Priority 3)
-- [ ] Implement Risk Budget Tree (Account to Trade levels).
-- [ ] Build Exposure Graph with Currency/Sector/Factor enforcement.
-- [ ] Deploy 3-Tier Position Sizing Engine (Fixed, Dynamic, Advanced).
-- [ ] Implement Pyramiding Engine with profit-lock validation.
+## Epic 3 — Risk & Exposure construction
+- [ ] Implement **Exposure Graph Engine** (Cross-asset netting).
+- [ ] Automate **Pre-trade Monte Carlo** simulations (100k paths).
+- [ ] Build **Kill Switch Decision Tree** (Liquidate vs. Hedge).
+- [ ] Integrate **Macro Intelligence Matrix** for event-based risk scaling.
 
-## Epic 4 — Execution & Safety (Priority 4)
-- [ ] Build Universal Execution Engine with retry and duplicate prevention.
-- [ ] Implement Circuit Breakers (Disconnect, Spread, Daily Breach).
-- [ ] Deploy Global Panic Button (Kill Switch).
-- [ ] Implement Broker Compatibility Layer (Symbol mapping, Margin rules).
-
-## Epic 5 — Strategy & AI (Priority 5)
-- [ ] Populate Strategy Library (Trend, Mean Reversion, Volatility Expansion).
-- [ ] Integrate News & Sentiment Engine (FinBERT).
-- [ ] Deploy Model Drift Detection (PSI) and Shadow Mode.
-
-## Epic 6 — Visualization & Monitoring
-- [ ] Launch Executive Dashboard (Balance, Equity, Risk).
-- [ ] Launch Trading Dashboard (Regime, Consensus, Pyramids).
-- [ ] Build MT5 Dashboard features for on-chart monitoring.
+## Epic 4 — Production Readiness & L99 Certification
+- [ ] L99-A/B: Code Integrity and HA verification.
+- [ ] L99-C/D: Risk and Execution quality metrics.
+- [ ] L99-E/F: Research Validation and Resilience proofs.
+- [ ] Final Platform Certification (Institutional Grade).
 
 ## Success Metrics
-- Expected Value (EV) > Minimum Threshold across all regimes.
-- Sharpe > 1.0 in live multi-asset shadow for 3 months.
-- Zero breaches of the Portfolio Risk Engine.
+- Internal Latency < 100µs (P99).
+- 100% Cryptographic Integrity of Audit Trail (Merkle Sequence Verified).
+- Sharpe Ratio > 2.0 in Synthetic Sandbox stress tests.
