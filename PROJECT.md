@@ -1,23 +1,23 @@
-# 🪐 Project Phoenix: Sovereign Execution Engine (V1.19)
+# 🪐 Project Phoenix: Sovereign Execution Engine (V1.20)
 
 ## 🏛️ 1. Project Identity & Sovereign Governance
 *This section defines the core identity of Project Phoenix, its current operational status, and the governance framework that ensures its integrity. It serves as the primary source of truth for the system's versioning and its adherence to institutional standards.*
 
 ### 📍 Status: The Global Revamp (Post-Autopsy)
-**Operational Mode:** Phoenix V1.19 (Meta-Cognitive Alignment)
-**Focus:** Continuous Hardening, Dynamic UI, & Expert Reasoning.
+**Operational Mode:** Phoenix V1.20 (Standardized Refinement Loop)
+**Focus:** Continuous Hardening, UI Standardization, & Error Zero-Tolerance.
 
 ✅ **Production Stable Core:** (MQL5/Python/Rust Hybrid)
 ✅ **Governance Layer:** (PostgreSQL ACID + mTLS Hardened)
 ✅ **Consensus & Execution:** (Dual-Loop Pre-Computed Architecture)
 🔄 **Multi-Asset Autonomy:** (FX, Metals, Crypto, Indices)
-🔄 **Expert Reasoning:** (Meta-Cognitive Protocol Integration)
+🔄 **Standardized Refinement:** (41-Step Phoenix Protocol Implementation)
 
-⚠️ **CRITICAL NOTE:** V1.19 integrates the **Meta-Cognitive Reasoning Expert** protocol. Every complex problem within the system—from strategy development to architectural shifts—must be decomposed, solved with explicit confidence (0.0-1.0), verified from multiple angles, and reflected upon if confidence is low.
+⚠️ **CRITICAL NOTE:** V1.20 formalizes the **Standardized Project Refinement Protocol**. The system operates under a 6-phase iterative loop designed to achieve a zero-error state and absolute UI consistency. No feature is considered "Institutional" until it passes Phase 6 validation.
 
 ✅ **Core Integrity:** Modular Monolith / Hybrid Kernel.
 ✅ **Governance:** PostgreSQL (TimescaleDB) + Redis (Hot Cache) + mTLS.
-✅ **Standard:** L99-Standard V3 / Institutional V8 Certified.
+✅ **Standard:** L99-Standard V3 / Phoenix Protocol V1 Certified.
 🟡 **Hardening:** Implementation of 15-Layer Institutional Stack (Active).
 
 ---
@@ -44,19 +44,14 @@
 ## 📐 3. Operational Philosophy & Governance Principles
 *This section codifies the 'Divine Laws' of the system. It includes the Simplicity Budget, the Edge Attribution Framework, and the Stability Paradox Resolution.*
 
-### 🧠 Meta-Cognitive Reasoning Protocol (V1.19)
-For every complex problem, the system (and its engineers) must:
-1. **Decompose:** Break the problem into atomic sub-problems.
-2. **Solve:** Address each piece with explicit confidence scores (0.0 - 1.0).
-3. **Verify:** Multi-angle check of logic, facts, completeness, and bias.
-4. **Synthesize:** Combine sub-solutions using weighted confidence.
-5. **Reflect:** If synthesis confidence < 0.8, identify weaknesses and retry.
-
-**Decision Mandates:**
-- Think step by step.
-- Flag uncertainty and score confidence on every claim.
-- Actually verify logic before committing to files.
-- Dial the depth: Spend more time on deep thinking than on shallow code changes.
+### 🧠 Phoenix Refinement Protocol (V1.20)
+The project adheres to a 6-Phase iterative lifecycle:
+- **Phase 1: Initial Analysis:** Scanning for syntax/logic errors and documentation.
+- **Phase 2: Error Correction Loop:** Iterative fixing until zero errors remain.
+- **Phase 3: Enhancement Integration:** Suggesting and incorporating new features.
+- **Phase 4: Comprehensive Testing:** Multi-module functionality validation.
+- **Phase 5: UI/UX Standardization:** Rebuilding windows for dynamic scalability.
+- **Phase 6: Final Validation:** End-to-end production-like testing.
 
 ---
 
@@ -105,10 +100,12 @@ Pre-trade Monte Carlo simulation required for every order passing through:
 ## 🌐 7. Market Connectivity & Execution Intelligence
 *Outlines the protocols and strategies used to interface with liquidity providers.*
 
-### 🏥 FinCon Terminal UI/UX Protocol (V1.18 Expansion)
-- **Dynamic Control:** Every data entry window must feature integrated controls (Add, Next, Previous, Save, Cancel, Exit).
-- **Infinite Scalability:** Windows must be dynamic, freely scalable, and movable without boundaries or restrictions.
-- **Production-Level UI Builder:** Reusable, accessible, and production-ready components designed for loading states and responsive layouts.
+### 🏥 FinCon Terminal UI/UX Standard (V1.20)
+Every data entry window must be rebuilt to the following standard:
+- **Standard Controls:** (Add, Next, Previous, Save, Cancel, Exit) must be present on every window.
+- **Visibility:** No overlapping elements or hidden controls; zero fixed-size restrictions.
+- **Dynamic Layout:** Windows must be freely scalable and movable without boundaries.
+- **Scroll Integrity:** Mandatory scrollbars and borders for rows/columns where content exceeds viewport.
 
 ---
 
@@ -137,47 +134,35 @@ Decision Provenance records Why/When/Size/Risk. Hardened with:
 *Outlines the team structure and specialized thinking modes required to maintain a sovereign institutional platform.*
 
 ### 👥 Specialized Engineering Roles (V1.19)
-- **Senior Full-Stack Engineer:** Architecture design, file structure, and scalable version control.
-- **System Architect:** Component structure, data flow, caching strategies, and schema design.
-- **Senior Debugging Engineer:** Investigating production bugs via step-by-step root cause analysis.
-- **Performance Engineer:** Optimizing speed, memory, and rendering to find bottlenecks.
-- **Clean Architecture Specialist:** Separating concerns and increasing modularity while reducing coupling.
-- **Frontend Specialist:** Building reusable, accessible, and production-level UI components.
-- **Risk & Compliance Officer:** Oversight of regulatory alignment and risk enforcement.
+- Senior Full-Stack, System Architect, Senior Debugging Engineer, Performance Engineer, Clean Architecture Specialist, Frontend Specialist, Risk & Compliance Officer.
 
 ---
 
-## 🗺️ 11. Strategic Roadmap: Sovereign Ascent (Recursive Hardening)
+## 🗺️ 11. Strategic Roadmap: Sovereign Ascent (Iterative Refinement)
 *The chronological plan for the project's evolution.*
 
 ### 📍 Phase 1: Core Institutional Hardening
 - [ ] Transition to **AES-256-GCM** and **mTLS**.
 - [ ] Migrate Audit Store to **PostgreSQL ACID**.
-- [ ] **Initialize 100-Cycle Recursive Maintenance Protocol.**
+- [ ] **Execute Phase 1 & 2 of the Refinement Protocol (Error Rectification).**
 
-### 🚀 Phase 2: Advanced Intelligence & Multi-Agent Evolution
-- [ ] Implement **Multi-Agent Workflow** (Architect, Engineer, Reviewer, Optimizer).
+### 🚀 Phase 2: Intelligence & UI Evolution
+- [ ] Implement **Phase 5 of the Refinement Protocol (UI Standardization).**
 - [ ] Remake all FinCon Terminal windows to be dynamic and freely movable.
 - [ ] Integrate **Order Flow Toxicity (VPIN)**.
 
 ---
 
-## 📜 12. Sovereign Recursive Maintenance Protocol
-*Mandatory operational cycle for all project assets. This protocol repeats for 100 cycles until zero-error operational perfection is reached.*
+## 📜 12. Phoenix Standardized Refinement Protocol (41 Steps)
+*Mandatory operational lifecycle for achieving project-wide technical excellence.*
 
-### 🔄 The Multi-Agent Refinement Loop (40 Steps)
-The refinement loop utilizes four collaborating agents:
-1. **Architect:** Design system changes.
-2. **Engineer:** Develop and implement changes.
-3. **Reviewer:** Quality control and multi-angle logic verification.
-4. **Optimizer:** Performance improvement and speed/memory tuning.
-
-**Protocol Core:**
-- Identify and rectify all project-wide file errors.
-- Correct and fix all identified errors.
-- Suggest and include all improvements and new functions.
-- Remake all windows dynamic, scalable, and movable without boundaries.
-- Rebuild any modules with overlapping controls.
+### 🔄 Phase Execution (Summary)
+1. **Scanning:** project-wide file scan for syntax/logic errors.
+2. **Correction Loop:** Iterative fixes with zero-error termination criteria.
+3. **Enhancement:** Suggestion and integration of features based on current capabilities.
+4. **Validation:** Comprehensive multi-module functionality tests with diverse sample data.
+5. **UI/UX Rebuild:** standardizing controls (Add/Save/Exit) and ensuring dynamic scalability.
+6. **Deployment:** Production-like validation and completion report generation.
 
 ---
 
