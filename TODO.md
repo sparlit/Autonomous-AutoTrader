@@ -1,69 +1,40 @@
-# 🛠️ Project Phoenix: Master TODO Tracker (V7.5.0 Re-Make)
+# Project Phoenix Revamp TODO - V1.14 (Multi-Asset V2)
 
-> **Status:** 300+ Tasks Across 4 Phases
-> **Objective:** Institutional Operational Excellence
+## Epic 1 — Architectural Alignment (Priority 1)
+- [x] Design 15-Layer Institutional Stack architecture.
+- [ ] Implement Communication Protocol between Python Brain and MT5 Terminals.
+- [ ] Design PostgreSQL / TimescaleDB schema for multi-asset ticks and features.
+- [ ] Port Rust Hybrid Kernel to support multi-terminal management.
 
-## 🔴 PHASE 1: MVP & LOGIC PROOF (MONTHS 0-6)
-*Focus: One Strategy, One Broker, One Pair. Prove Alpha.*
+## Epic 2 — Intelligence & Consensus (Priority 2)
+- [ ] Build 10-state Market Regime Classifier (V2).
+- [ ] Implement Dynamic Consensus Engine with regime-based weighting.
+- [ ] Deploy Expectancy Engine (EV formula validation).
+- [ ] Integrate Multi-Timeframe Analysis Matrix (MN to M1).
 
-### 1.1. Foundation & Core (40 Tasks)
-- [ ] Set up dev/prod parity with Docker & Kubernetes (K3s).
-- [ ] Initialize PostgreSQL 15+ cluster with streaming replication.
-- [ ] Set up Redis Cluster for Event Bus (Redis Streams).
-- [ ] Define **Protobuf** schemas for all domain events.
-- [ ] Integrate **Buf Schema Registry** for contract management.
+## Epic 3 — Risk & Portfolio (Priority 3)
+- [ ] Implement Risk Budget Tree (Account to Trade levels).
+- [ ] Build Exposure Graph with Currency/Sector/Factor enforcement.
+- [ ] Deploy 3-Tier Position Sizing Engine (Fixed, Dynamic, Advanced).
+- [ ] Implement Pyramiding Engine with profit-lock validation.
 
-### 1.2. Risk & Governance (30 Tasks)
-- [ ] Build the 7-Layer Risk Stack with explicit precedence.
-- [ ] Implement Level 1-4 automatic Kill Switch triggers.
-- [ ] Create pre-trade Monte Carlo simulator (100k runs).
-- [ ] Implement Merkle-Chained Audit logging in PostgreSQL.
+## Epic 4 — Execution & Safety (Priority 4)
+- [ ] Build Universal Execution Engine with retry and duplicate prevention.
+- [ ] Implement Circuit Breakers (Disconnect, Spread, Daily Breach).
+- [ ] Deploy Global Panic Button (Kill Switch).
+- [ ] Implement Broker Compatibility Layer (Symbol mapping, Margin rules).
 
-### 1.3. Strategy & Execution (50 Tasks)
-- [ ] Implement **XGBoost + LSTM** production ensemble.
-- [ ] Build the MT5 Adapter (Phase 1 legacy gateway).
-- [ ] Implement VPIN (Volume-Synchronized Probability of Informed Trading).
-- [ ] **Task:** Execute first live trade through the Modular Monolith.
+## Epic 5 — Strategy & AI (Priority 5)
+- [ ] Populate Strategy Library (Trend, Mean Reversion, Volatility Expansion).
+- [ ] Integrate News & Sentiment Engine (FinBERT).
+- [ ] Deploy Model Drift Detection (PSI) and Shadow Mode.
 
----
+## Epic 6 — Visualization & Monitoring
+- [ ] Launch Executive Dashboard (Balance, Equity, Risk).
+- [ ] Launch Trading Dashboard (Regime, Consensus, Pyramids).
+- [ ] Build MT5 Dashboard features for on-chart monitoring.
 
-## 🟠 PHASE 2: FIX & SOVEREIGNTY (MONTHS 6-12)
-*Focus: Exit the Retail Trap. Institutional Connectivity.*
-
-### 2.1. FIX Gateway Implementation
-- [ ] Build high-performance FIX 4.4/5.0 protocol engine in Rust sidecar.
-- [ ] Certify FIX connection with Tier-1 Liquidity Provider.
-- [ ] Implement B-book conflict detection & slippage analytics.
-
-### 2.2. Model Governance Engine
-- [ ] Implement PSI (Population Stability Index) drift monitoring.
-- [ ] Build Shadow Mode promotion/demotion pipelines.
-- [ ] Automate confidence decay logic for models.
-
----
-
-## 🟡 PHASE 3: TERMINAL & COMPLIANCE (MONTHS 12-18)
-*Focus: Transparency & Regulatory Readiness.*
-
-### 3.1. FinCon Terminal
-- [ ] Develop Next.js institutional dashboard.
-- [ ] Implement WebSocket telemetry for <10ms UI updates.
-- [ ] Build the "Audit Explorer" for provenance visualization.
-
-### 3.2. Regulatory Stack
-- [ ] Implement MiFID III circuit breaker triggers.
-- [ ] Finalize Basel III FRTB capital allocation reporting.
-
----
-
-## 🟢 PHASE 4: SCALING & CAPITAL (MONTHS 18-24)
-- [ ] Integrate with Prime Brokerage (Goldman/Citi).
-- [ ] Implement Multi-Asset support (Equities/Futures/Options).
-- [ ] Complete full regulatory licensing (SEC/FCA/NFA).
-
----
-
-## 🩺 CONTINUOUS TASKS
-- [ ] Weekly Chaos Engineering "Game Days" (Latency/Failures).
-- [ ] Monthly "Simplicity Budget" review (Kill over-engineering).
-- [ ] Quarterly "Kill Criteria" review (Sharpe > 0.5 Check).
+## Success Metrics
+- Expected Value (EV) > Minimum Threshold across all regimes.
+- Sharpe > 1.0 in live multi-asset shadow for 3 months.
+- Zero breaches of the Portfolio Risk Engine.
