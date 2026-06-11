@@ -1,36 +1,34 @@
-# 🛠️ Project Phoenix: Engineering TODO (V7.1 Revamp)
+# Project Phoenix Revamp TODO - V1.13 (V7.0.0 Alignment)
 
-> **Status:** Critical Path Engineering
-> **Focus:** Hybrid Kernel Implementation & Rust Integration
+## Epic 1 — Core Institutional Governance
+- [ ] Implement **Layer 5.5: Model Governance Engine** (PSI, Feature Drift, Shadow Mode).
+- [ ] Deploy **Confidence Decay** logic for aging models.
+- [ ] Finalize **DataHub HA Architecture** with RAID-class Event Journaling.
+- [ ] Resolve EventBus circular dependencies in hybrid kernel.
 
-## 🎯 Quarter 1: The Kernel Rewrite (Foundational)
-- [ ] Initialize Rust project workspace (`phoenix-core`, `phoenix-bridge`).
-- [ ] Set up `Cargo.toml` with dependencies: `tokio`, `pyo3`, `ring`, `crossbeam`.
-- [ ] Design and implement **Lock-Free Event Bus** (`RingBuffer`) in Rust.
-- [ ] Implement **AES-256-GCM** encryption module in Rust.
-- [ ] Create Python-Rust bridge using `maturin` and PyO3.
-- [ ] Implement data serialization using Cap'n Proto or MsgPack.
+## Epic 2 — Data Integrity & Intelligence
+- [ ] Implement **Layer 0: Data Quality Firewall** (Tick/Gap/Spread validation).
+- [ ] Integrate **Macro Intelligence Layer** (Deterministic risk reduction).
+- [ ] Automate **Wyckoff Phase Detection** and FAISS Signature Retrieval.
+- [ ] Deploy **Alpha Validation Engine** for incremental MAR checks.
 
-## ⚙️ Quarter 2: The Abstraction & Persistence
-- [ ] Define Rust Trait `BrokerAdapter` and implement `MT5Adapter`.
-- [ ] Set up **PostgreSQL** (Relational) and **Redis Cluster** (Hot State).
-- [ ] Write DB Abstraction Layer in Rust for async persistence.
-- [ ] Build Python Asyncio `ContextManager` for the **Slow Loop** (Regimes, Macro).
-- [ ] Remove SQLite dependency from production build.
+## Epic 3 — Risk & Portfolio Construction
+- [ ] Implement **Exposure Graph Engine** (Net currency exposure limits).
+- [ ] Deploy **7-Layer Risk Stack** with hard-coded veto logic.
+- [ ] Build **Pre-trade Monte Carlo Sandbox** (100k runs).
+- [ ] Implement **Kill Switch Hierarchy** (Strategy -> Global -> Safe Mode).
 
-## 🚀 Quarter 3: The "Fast Loop" & Toxicity
-- [ ] Implement **Order Flow Toxicity** (VPIN, Imbalance Ratio) in Rust.
-- [ ] Build the **Fast Loop** Execution Engine in Rust (<100µs).
-- [ ] Integrate **ONNX Runtime** C-API in Rust for zero-copy AI inference.
-- [ ] Implement thread-safe Atomic counters for position sizing.
+## Epic 4 — Execution & Broker Health
+- [ ] Implement **Broker Health Engine** (Continuous quality scoring).
+- [ ] Build **Execution Analytics Engine** (Fill rate, Slippage, Latency).
+- [ ] Transition to **FIX 4.4/5.0 Gateway** priority.
 
-## 🛡️ Quarter 4: Resilience & UI
-- [ ] Build `ChaosMonkey` service for process kills and latency injection.
-- [ ] Launch **FinCon Terminal V2** (Next.js/WebSockets).
-- [ ] Automate L99 Certification (CSCV/Deflated Sharpe scripts).
-- [ ] Dockerize the entire stack for one-click deployment.
+## Epic 5 — Operations & Resilience
+- [ ] Automate **Chaos Engineering Framework** (MT5 disconnect, Network split).
+- [ ] Launch **FinCon Terminal** (React/Next.js "Audit Explorer").
+- [ ] Establish **Decision Provenance Graphs** in Audit Trail.
 
-## 📝 Engineering Debt & Cleanup
-- [ ] Deprecate legacy `src/shared/utils/bus.py`.
-- [ ] Replace `print()` with `tracing` (Rust) and `structlog` (Python).
-- [ ] Standardize Error Handling with `anyhow` (Rust).
+## Epic 6 — Production Readiness (L99 V2)
+- [ ] L99-A: Code Integrity | L99-B: HA Reliability.
+- [ ] L99-C: Risk Management | L99-D: Execution Quality.
+- [ ] L99-E: Research Validation | L99-F: Resilience.
