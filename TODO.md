@@ -1,36 +1,36 @@
-# Project Phoenix Revamp TODO - V1.11 (Technical Protocol)
+# 🛠️ Project Phoenix: Engineering TODO (V7.1 Revamp)
 
-## Epic 1 — MQL5 Autonomous Implementation
-- [ ] **Task 1:** Extend SymbolContext structure in `Symbols.mqh` with `dailyPnL`, `lotSize`, `stopLoss`, `atrValue`, and signal flags.
-- [ ] **Task 2:** Add global risk variables in `AutoTraderPro.mq5` (`dailyStartEquity`, `tradingEnabled`).
-- [ ] **Task 3:** Initialize daily loss tracking in `OnInit()`.
-- [ ] **Task 4:** Create `RiskManagement.mqh` with `ResetDailyLossIfNeeded()` and `CheckDailyLossLimit()` (2% cap).
-- [ ] **Task 5:** Integrate daily loss checks into `OnTick()` loop.
-- [ ] **Task 6:** Implement `CalculateLotSize()` using fixed 1% risk of equity and stop loss distance.
-- [ ] **Task 7:** Implement `CalculateATRAndLevels()` for SL (1.5x ATR) and TP (3.0x ATR).
-- [ ] **Task 8:** Refactor `AnalyzeAndTrade()` for full autonomous signal execution (MA Cross 9/21).
-- [ ] **Task 9:** Update `OpenTrade()` to use `ctx->magicBase` for symbol-independent tracking.
-- [ ] **Task 10:** Implement ATR-based Trailing Stops (1.0x ATR) and 24-hour time exits in `ManagePositions()`.
-- [ ] **Task 11:** Enhance Dashboard with real-time portfolio risk metrics and trading status.
-- [ ] **Task 12:** Full Strategy Tester validation across major pairs (EURUSD, GBPUSD, USDJPY).
+> **Status:** Critical Path Engineering
+> **Focus:** Hybrid Kernel Implementation & Rust Integration
 
-## Epic 2 — Foundation & Core Integrity
-- [x] Audit EventBus circular dependencies; refactor to explicit contracts.
-- [ ] Implement Event Sourcing (CQRS) with Snapshotting.
-- [ ] Set up Docker/K8s dev/prod parity.
+## 🎯 Quarter 1: The Kernel Rewrite (Foundational)
+- [ ] Initialize Rust project workspace (`phoenix-core`, `phoenix-bridge`).
+- [ ] Set up `Cargo.toml` with dependencies: `tokio`, `pyo3`, `ring`, `crossbeam`.
+- [ ] Design and implement **Lock-Free Event Bus** (`RingBuffer`) in Rust.
+- [ ] Implement **AES-256-GCM** encryption module in Rust.
+- [ ] Create Python-Rust bridge using `maturin` and PyO3.
+- [ ] Implement data serialization using Cap'n Proto or MsgPack.
 
-## Epic 3 — Risk & Resilience Hardening
-- [ ] Build Exposure Graph for currency/factor correlations.
-- [ ] Implement Pre-trade Monte Carlo Sandbox.
+## ⚙️ Quarter 2: The Abstraction & Persistence
+- [ ] Define Rust Trait `BrokerAdapter` and implement `MT5Adapter`.
+- [ ] Set up **PostgreSQL** (Relational) and **Redis Cluster** (Hot State).
+- [ ] Write DB Abstraction Layer in Rust for async persistence.
+- [ ] Build Python Asyncio `ContextManager` for the **Slow Loop** (Regimes, Macro).
+- [ ] Remove SQLite dependency from production build.
 
-## Epic 4 — Execution & Broker Health
-- [ ] Implement Broker Health Scorer.
-- [ ] Build dual-broker failover prototype.
+## 🚀 Quarter 3: The "Fast Loop" & Toxicity
+- [ ] Implement **Order Flow Toxicity** (VPIN, Imbalance Ratio) in Rust.
+- [ ] Build the **Fast Loop** Execution Engine in Rust (<100µs).
+- [ ] Integrate **ONNX Runtime** C-API in Rust for zero-copy AI inference.
+- [ ] Implement thread-safe Atomic counters for position sizing.
 
-## Epic 5 — Operations & Documentation
-- [ ] Define on-call runbooks.
-- [ ] Establish post-trade review rituals.
+## 🛡️ Quarter 4: Resilience & UI
+- [ ] Build `ChaosMonkey` service for process kills and latency injection.
+- [ ] Launch **FinCon Terminal V2** (Next.js/WebSockets).
+- [ ] Automate L99 Certification (CSCV/Deflated Sharpe scripts).
+- [ ] Dockerize the entire stack for one-click deployment.
 
-## Success Metrics
-- Zero critical bugs in shadow trading for 1 month.
-- 5-10% Monthly Return with < 10% Drawdown.
+## 📝 Engineering Debt & Cleanup
+- [ ] Deprecate legacy `src/shared/utils/bus.py`.
+- [ ] Replace `print()` with `tracing` (Rust) and `structlog` (Python).
+- [ ] Standardize Error Handling with `anyhow` (Rust).
