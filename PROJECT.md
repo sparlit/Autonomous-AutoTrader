@@ -1,11 +1,10 @@
-# 🪐 Project Phoenix: Sovereign Execution Engine (V1.2)
-# 🪐 Project Phoenix: Sovereign Execution Engine (V1.0)
+# 🪐 Project Phoenix: Sovereign Execution Engine (V1.3)
 
 ## 🏛️ 1. Project Identity & Sovereign Governance
 *This section defines the core identity of Project Phoenix, its current operational status, and the governance framework that ensures its integrity. It serves as the primary source of truth for the system's versioning and its adherence to institutional standards.*
 
 ### 📍 Status: The Global Revamp (Post-Autopsy)
-**Operational Mode:** Phoenix V1.2 (Institutional Realignment)
+**Operational Mode:** Phoenix V1.3 (Cognitive Logic Integration)
 **Focus:** Operational Feasibility over Architectural Elegance.
 
 ✅ **Production Stable Core (MVP Scope)**
@@ -13,9 +12,7 @@
 🔄 **Adaptive Multi-Asset Trading Platform (FX Focus Phase 1)**
 🔄 **Research Extensions Under Continuous Validation**
 
-⚠️ **CRITICAL NOTE:** V1.2 represents a ground-up rebuild focused on operational feasibility over architectural elegance. All features must directly contribute to capital preservation or regulatory compliance.
-**Operational Mode:** Phoenix V1.0 (Master Blueprint)
-**Focus:** Survivability under Model Failure & Operational Feasibility.
+⚠️ **CRITICAL NOTE:** V1.3 represents a ground-up rebuild focused on operational feasibility over architectural elegance. All features must directly contribute to capital preservation or regulatory compliance.
 
 ✅ **Core Integrity:** Modular Monolith Architecture (MVP Stabilized)
 ✅ **Governance:** PostgreSQL (ACID) + Redis Streams (Protobuf)
@@ -48,9 +45,6 @@ Project Phoenix is architecturally ambitious but operationally naive. It reads l
 
 ### 📊 Performance Mandates (Realistic & Phased)
 | Metric | Target | Reality Check | Status |
-*Defines the key performance indicators (KPIs) for the trading engine. These metrics are the yardstick for project success.*
-
-| Metric | Phase 1 (Reality) | Phase 2 (Stretch) | Status |
 | :--- | :--- | :--- | :--- |
 | **Sharpe Ratio** | > 1.0 | > 2.0 aspirational after 2 years live | Phase 1 |
 | **Sortino Ratio** | > 1.5 | > 3.0 aspirational after 2 years live | Phase 1 |
@@ -86,8 +80,19 @@ The Sharpe > 2.0, Sortino > 3.0, and Max DD < 5% targets are described as mathem
 - **Institutional Discipline:** Capital preservation is the primary objective; profit is a secondary outcome of discipline.
 - **Regulatory Compliance:** Built-in compliance from day one, not as an afterthought.
 
-To combat the **"Conspiracy of Complexity"** and false certainty, V1.2 enforces:
-To combat the **"Conspiracy of Complexity"** and false certainty, V1.0 enforces:
+### 🧠 Cognitive Decision Heuristics (Integration V1.3)
+Professional trading logic is built on **Thinking Structures**, not just strategies. The engine implements the following cognitive reverse-engineered principles:
+- **Uncertainty over Prediction:** The system does not ask "will this work?" but "does this setup have positive expectancy?"
+- **Invalidation-First Thinking:** Every trade logic begins with "Where is the thesis wrong?" rather than "Where is the entry?"
+- **Probabilistic Reasoning:** Outcomes are treated as variance; consistency is a long-term statistical result.
+- **Environmental Awareness:** Volatility state, session timing, and macro context are assessed *before* considering trade triggers.
+
+**Common "Mental" Bugs Removed from Logic:**
+- **Prediction Addiction:** Replaced with "What conditions must happen for liquidity to be unlocked?"
+- **Over-Activity Reflex:** Replaced with strict environmental requirement checks.
+- **Activity Bias:** Confusing number of trades with progress; corrected by the Simplicity Budget.
+
+To combat the **"Conspiracy of Complexity"** and false certainty, V1.3 enforces:
 
 ### A. The Simplicity Budget
 Every subsystem must justify its operational burden. If **(Alpha + Risk Reduction) < (Maintenance Cost + Failure Surface)**, it is removed. We prioritize a "Working Core" over "Comprehensive Features."
@@ -134,14 +139,6 @@ Project Phoenix utilizes a **Modular Monolith** architecture with clean service 
 - **Data Encryption:** At-rest (AES-256-GCM), in-transit (TLS 1.3), in-use (memory encryption).
 - **Audit Security:** Cryptographic hash chains (SHA-256) with Merkle tree verification.
 
-### 🚨 Devil's Advocate Deep Dive (Integration V1.1)
-**Persistence Layer & Event Bus Gaps:**
-- **Audit Layer:** Move from SQLite to PostgreSQL with streaming replication (minimum 2 replicas).
-- **Telemetry:** QuestDB + automated partitioning by date.
-- **Event Store:** Replace custom bus with Redis Streams or Apache Kafka; use Buf Schema Registry for Protobuf.
-- **Snapshot Store:** Redis Cluster for fast state recovery.
-- **Data Quality:** Implement multi-broker feed cross-validation and automated checks for outliers/inconsistencies.
-
 ---
 
 ## 🔬 5. Quantitative Strategy & Model Governance
@@ -167,11 +164,11 @@ Promotion path with explicit gates:
 - **Confidence Decay:** Dynamic scores decay with age (5%/month after 6 months).
 - **Reality Verification Engine:** Continuous error measurement; degradation threshold = 2 months.
 
-### 🚨 Devil's Advocate Deep Dive (Integration V1.1)
-**Model Governance & Statistical Mirage:**
-- **Explicit Gates:** Research (5y data), Validation (Deflated Sharpe > 1.0, PBO < 0.1), Walk Forward (10-fold), Shadow (200 trades/90 days).
-- **ML Architecture:** Start simple with XGBoost (direction) and LSTM (volatility). Remove FinBERT and RL from production until proven.
-- **Validation Parallelization:** Run research/backtest/validation simultaneously; use temporal holdout.
+### 🧠 Pattern Recognition Framework (Integration V1.3)
+Pattern recognition is **structural**, not visual. The engine identifies:
+- **Liquidity Pools:** Stop-loss clusters and breakout trigger zones.
+- **Compression Zones:** Areas of inefficient price action or liquidity compression.
+- **Expansion Triggers:** Conditions that force liquidity to be unlocked or trapped traders to exit.
 
 ---
 
@@ -207,18 +204,20 @@ Computes global exposure using **delta-adjusted notional**, **volatility-adjuste
 *Outlines the protocols and strategies used to interface with liquidity providers. This includes FIX protocol implementation, slippage analytics, and the Almgren-Chriss model for optimal order execution. It ensures the system minimizes transaction costs.*
 
 ### 🏛️ Liquidity Inference & Decision Framework
-- **Liquidity Framework:** Observed (L2), Estimated (Spread/Tick), Hypothesized (Structural). V7.1.0 uses Observed/Estimated.
+- **Liquidity Framework:** Observed (L2), Estimated (Spread/Tick), Hypothesized (Structural). V1.3 uses **Liquidity Mapping** to find stop-loss clusters and breakout trigger zones.
+- **Decision Engine sequence:**
+  1. **Market Condition Assessment:** Trending / Ranging / Expansion / Compression.
+  2. **Liquidity Mapping:** Identifying where liquidity is likely resting and where the market is incentivized to go.
+  3. **Incentive Analysis:** Where does liquidity *force* movement?
+  4. **Invalidation Check:** What price level proves the thesis wrong instantly?
+  5. **Execution Qualification:** Is there an A+ condition worth risking capital?
+
 - **8-Stage Decision Process:** Regime ID → Liquidity → Macro → Portfolio → Strategy → Risk → Broker → Position Manager. **Failure at any stage = Immediate Veto.**
 - **Market Regime Engine V2:** HMM with GARCH. States include Trend, Range, Compression, Expansion, Crisis, etc.
 
 ### 🏥 Broker Health & Execution Analytics
 - **Health Engine:** Monitors spread stability, slippage, rejection rate, and **conflict of interest** (A-book vs B-book).
 - **Execution Optimization:** Pre-trade fill probability, Almgren-Chriss liquidation model, smart order routing (Phase 2).
-
-### 🚨 Devil's Advocate Deep Dive (Integration V1.1)
-**The MQL5 Dependency & Broker Health:**
-- **Sovereign Solution:** Add FIX 4.4/5.0 gateway as primary path; MT5 as fallback only. Integrate with institutional ECNs.
-- **Conflict Detection:** Monitor for systematic adverse selection.
 
 ---
 
@@ -249,12 +248,6 @@ Records: Why Trade? Why Now? Why Size? Why Confidence? Why Regime? Why Exposure?
 - **Technical:** JSON/Avro, append-only WORM, SHA-256 hash chains, HSM-protected ECDSA signatures.
 - **Retention:** 7 years minimum, S3 Glacier archival.
 
-### 🚨 Devil's Advocate Deep Dive (Integration V1.1)
-**Compliance Matrix:**
-- **MiFID III:** Pre-trade risk controls, kill switches, order-to-trade ratios.
-- **Basel III FRTB:** Trading desk definition, backtesting, PLA tests.
-- **GDPR:** Data classification, retention, deletion policies.
-
 ---
 
 ## 👥 10. Human Capital & Economic Model
@@ -262,11 +255,6 @@ Records: Why Trade? Why Now? Why Size? Why Confidence? Why Regime? Why Exposure?
 
 ### 👥 Minimum Viable Team (8 People)
 1x Lead Architect, 2x Backend, 1x Quant Dev, 1x DevOps, 1x QA, 1x Risk/Compliance, 1x Operations.
-
-### 📈 Economics & Revenue (V7.1.0)
-- **Monthly Burn:** $42,700 - $66,600 (Phase 1).
-- **Breakeven:** $5M - $7M AUM at 1% management fee.
-- **Prop Target:** $1M - $2M capital requires 60-80% annual return.
 
 ---
 
@@ -285,100 +273,6 @@ Records: Why Trade? Why Now? Why Size? Why Confidence? Why Regime? Why Exposure?
 
 ### 🏛️ Phase 4: The Sovereign Platform (Months 18-24)
 - Prime Brokerage (Goldman/Citi), Regulatory licenses (SEC/FCA/NFA).
-### 🧱 The 10-Layer Institutional Stack
-1. **Layer 0: Data Quality Firewall** (Z-Score validation, gap detection).
-2. **Layer 1: Market Data Layer** (Binary MsgPack / Protobuf).
-3. **Layer 2: Liquidity/Toxicity Intel** (VPIN / Order Flow Toxicity).
-4. **Layer 3: Strategy Layer** (XGBoost + LSTM Ensemble).
-5. **Layer 4: Portfolio Construction** (Dynamic Allocation & Netting).
-6. **Layer 5: Risk Engine** (7-Layer Stack + Exposure Graph).
-7. **Layer 5.5: Model Governance** (PSI Monitoring & Shadow Mode).
-8. **Layer 6: Execution Intelligence** (Almgren-Chriss Optimal Liquidation).
-9. **Layer 7: Broker Mesh** (Universal Abstraction for FIX/MT5/cTrader).
-10. **Layer 8: Autonomous Recovery** (Self-healing & Dead-Man Switch).
-11. **Layer 9: Audit & Explainability** (Merkle-Chained Provenance).
-
----
-
-## 🔬 5. Quantitative Strategy & Model Governance
-*Details the strategy development lifecycle, from research and backtesting to chaos stress testing and live incubation. This section ensures that all trading models are statistically sound and have a high probability of success in live markets.*
-
-### 🧠 The Strategy Layer (XGBoost + LSTM Ensemble)
-The core logic utilizes an ensemble of gradient-boosted trees and long short-term memory networks to identify probabilistic edges in market data.
-
-### 🔬 The Phoenix Gauntlet (Model Governance)
-Mandatory validation pipeline for the revamp:
-**Research → Backtest → Chaos Stress → Walk Forward → Incubation → Shadow Trading → Production.**
-
-### 📊 Statistical Verification Gates
-- **Deflated Sharpe > 1.5** (Adjusted for selection bias).
-- **White Reality Check p-value < 0.01** (10k bootstrap iterations).
-- **PBO < 0.05** (Probability of Backtest Overfitting).
-
----
-
-## 🛡️ 6. Risk Management & Protective Layering
-*The most critical section of the blueprint. It describes the multi-layered risk stack, including pre-trade checks, real-time exposure monitoring, and the automated kill switches (Levels 1-4). This is the 'Shield' of the sovereign engine.*
-
-### 🛡️ The 7-Layer Risk Stack
-The system enforces a strict 7-layer risk stack with explicit precedence to ensure capital preservation under all market conditions.
-
-### 🛑 Kill Switch Protocols
-Implement Level 1-4 automatic Kill Switch triggers based on drawdown, latency, or connectivity loss.
-
----
-
-## 🌐 7. Market Connectivity & Execution Intelligence
-*Outlines the protocols and strategies used to interface with liquidity providers. This includes FIX protocol implementation, slippage analytics, and the Almgren-Chriss model for optimal order execution. It ensures the system minimizes transaction costs.*
-
-- **Layer 6: Execution Intelligence** (Almgren-Chriss Optimal Liquidation).
-- **Layer 7: Broker Mesh** (Universal Abstraction for FIX/MT5/cTrader).
-- **Slippage Analytics:** Real-time monitoring of B-book conflict detection and execution quality.
-
----
-
-## 🛠️ 8. Operational Resilience & Self-Healing
-*Defines the system's ability to maintain operations in the face of infrastructure failure. This includes the 'Dead-Man Switch', autonomous recovery procedures, and the use of chaos engineering to proactively identify weaknesses.*
-
-- **Layer 8: Autonomous Recovery:** Self-healing and Dead-Man Switch.
-- **Chaos Engineering:** Weekly "Game Days" to test system resilience under simulated failure modes.
-
----
-
-## 📜 9. Regulatory Compliance & Audit Provenance
-*Ensures the system meets all legal and regulatory requirements (MiFID III, Basel III, GDPR). This section details the cryptographic hashing of the audit trail (Merkle Chains) to provide undeniable proof of execution.*
-
-- **Layer 9: Audit & Explainability** (Merkle-Chained Provenance).
-- **Compliance Matrix:** MiFID III Pre-trade controls, Basel III FRTB reporting, GDPR data retention.
-
----
-
-## 👥 10. Human Capital & Economic Model
-*Outlines the team structure and financial resources required to build and maintain the platform. This ensures the project is adequately staffed and funded for long-term sustainability.*
-
-### 👥 Team Structure (8-Person MVP)
-- 1× Lead Architect, 2× Backend Engineers, 1× Quant Dev, 1× DevOps/SRE, 1× QA/Chaos, 1× Risk/Compliance, 1× Ops Manager.
-
-### 📈 Economics (Phase 1)
-- **Monthly Burn:** $42,700 - $66,600.
-- **Breakeven:** $5M - $7M AUM at 1% management fee.
-
----
-
-## 🗺️ 11. Strategic Roadmap & Phase Progression
-*The chronological plan for the project's evolution. It provides a clear path from the initial MVP to a fully scaled, multi-asset institutional trading platform.*
-
-### 📍 Phase 1: MVP & Logic Proof (Months 0-6)
-- Core Logic Proof on MT5, 7-Layer Risk Stack, Modular Monolith.
-
-### 🚀 Phase 2: FIX & Sovereignty (Months 6-12)
-- FIX Gateway, Model Governance Engine, Cost Attribution.
-
-### 🌐 Phase 3: Terminal & Compliance (Months 12-18)
-- FinCon Terminal, Full Audit certification.
-
-### 🏦 Phase 4: Scaling & Capital (Months 18-24)
-- Prime Brokerage, Multi-asset expansion.
 
 ---
 
@@ -401,6 +295,14 @@ Implement Level 1-4 automatic Kill Switch triggers based on drawdown, latency, o
 
 ## 📜 13. Appendices & Data Dictionary
 
+### 🧠 Appendix D: Cognitive Training & Heuristics (V1.3)
+The following mental drills are used to calibrate the system's "Expert Logic" and maintain "Pro Trader" thinking structures:
+- **No-Trade Detection:** Training the logic to reject low-quality setups faster than it accepts them.
+- **Liquidity Hunt:** Mapping trapped traders and stop-loss clusters before every execution.
+- **Session Awareness Scan:** Continuous assessment of session-specific volatility and liquidity density.
+- **Detachment Protocol:** Decoupling trade outcome (P&L) from execution quality (Rule adherence).
+- **100-Outcome Simulation:** Modeling 100 possible paths (fakeouts, slow moves) before commitment.
+
 ### Appendix A: Regulatory Compliance Matrix (V7.1.0)
 | Regulation | Jurisdiction | Requirement | Phase |
 | :--- | :--- | :--- | :--- |
@@ -412,11 +314,5 @@ Implement Level 1-4 automatic Kill Switch triggers based on drawdown, latency, o
 - **API:** FastAPI | **DB:** PostgreSQL, QuestDB | **Cache:** Redis Cluster
 - **ML:** XGBoost, PyTorch | **Inference:** ONNX Runtime
 - **Infra:** Terraform, Pulumi, Kubernetes (Phase 2)
-
-### Appendix C: Glossary
-- **A-book/B-book:** Broker routing/conflict model.
-- **CSCV/PBO:** Overfitting metrics.
-- **WORM:** Write Once Read Many (immutable storage).
-*A repository for technical details, regulatory matrices, and definitions of terms used throughout the document. It provides the granular data necessary for implementation.*
 
 *Capital preservation is the primary objective; profit is a secondary outcome of discipline.*
