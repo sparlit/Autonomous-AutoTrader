@@ -1,5 +1,4 @@
 # 🪐 Project Phoenix: Sovereign Execution Engine (V1.2)
-# 🪐 Project Phoenix: Sovereign Execution Engine (V1.0)
 
 ## 🏛️ 1. Project Identity & Sovereign Governance
 *This section defines the core identity of Project Phoenix, its current operational status, and the governance framework that ensures its integrity. It serves as the primary source of truth for the system's versioning and its adherence to institutional standards.*
