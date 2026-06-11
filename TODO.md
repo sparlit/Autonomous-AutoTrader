@@ -1,26 +1,27 @@
-# Project Phoenix Revamp TODO - V1.23 (Advanced Computation)
+# Project Phoenix Revamp TODO - V1.24 (Hardened Thresholds)
 
-## Epic 1 — Liquidity Topology & Advanced Computation
-- [ ] Develop **4D Liquidity Gravity Well** mapping (Price, Volume, Time, Probability).
-- [ ] Implement **Least-Cost Solution Path** algorithm for order routing.
-- [ ] Build **Distributed Optimization** engine for continuous capital rebalancing.
-- [ ] Integrate **Terrain of Necessity** constraints into the Strategy Router.
+## Epic 1 — High-Precision Resilience
+- [ ] Implement **RTO < 5s** failover for MT5 Disconnect scenarios.
+- [ ] Configure **RPO = 0** event journaling for the risk path.
+- [ ] Automate **Position Reconciliation** (30s frequency) with broker-side APIs.
+- [ ] Build **Phantom Position Handler** for internal-to-broker divergence.
 
-## Epic 2 — Signal Filtering & Alignment
-- [ ] Codify the **Positioning Alignment Mandate** (Aligning with inevitable flows).
-- [ ] Build the **Ruthless Signal Filter** (Filtering insufficient signals vs. finding more).
-- [ ] Implement **Adaptation Cycle Monitoring** (Tracking signal decay and adaptation).
-- [ ] Automate **Model Perception Optimization** (Internal reality vs Market reality).
+## Epic 2 — Statistical Verification Engine
+- [ ] Automate **10,000 bootstrap iterations** for White Reality Check.
+- [ ] Build **Deflated Sharpe Ratio** calculator with 2024 deflation factors.
+- [ ] Implement **expanding window walk-forward** (10-fold) for all strategies.
+- [ ] Integrate **half-Kelly sizing** constraints into the Sizing Engine.
 
-## Epic 3 — Sovereign Refinement & Rituals
-- [ ] **Phase 1-2:** Continue 100-cycle refinement loop.
-- [ ] Integrate **Advanced Intelligence Axioms** into the Meta-Cognitive synthesis.
+## Epic 3 — Broker & Market Impact
+- [ ] Calibrate **Square-Root Market Impact** model for H1 major pairs.
+- [ ] Implement **Adverse Selection Monitor** (Rejection rate vs. Profitability).
+- [ ] Design **Broker Diversification** layer (Min 3 brokers connectivity).
 
-## Epic 4 — Infrastructure & Security
-- [ ] Deploy **AES-256-GCM** and **mTLS** across all terminals.
-- [ ] Execute L99-Standard V3 certification.
+## Epic 4 — Sovereign Hardening
+- [ ] Finalize **L99-A/B/C/D/E/F** certifications with new hardened metrics.
+- [ ] Deploy **RAFT consensus** (etcd/Consul) for kernel high-availability.
 
 ## Success Metrics
-- Signal Filtering Ratio > 95% (Ignoring noise).
-- Positioning Alignment Accuracy > 75%.
-- Internal Perception vs. Market Reality Deviation < 2%.
+- P99 RTO < 5s for all critical infrastructure failures.
+- Zero data loss (RPO=0) on risk-related events.
+- 100% compliance with Hardened Statistical Verification Gates.
