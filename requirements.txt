@@ -1,0 +1,6 @@
+# Python requirements for AAT backend
+numpy>=1.24.0
+pandas>=2.0.0
+cryptography>=41.0.0
+# Note: MetaTrader 5 Python package would be needed for full integration
+# but is not available via pip - must be installed separately from MetaTrader 5
