@@ -1,0 +1,18 @@
+{
+  "bridge": {
+    "host": "127.0.0.1",
+    "port": 5555,
+    "heartbeat_interval": 10.0,
+    "timeout": 30.0
+  },
+  "risk": {
+    "daily_loss_limit_pct": 2.0,
+    "max_drawdown_pct": 5.0,
+    "risk_per_trade_pct": 1.0,
+    "min_lot_size": 0.01
+  },
+  "brains": {
+    "parallel_workers": 4,
+    "consensus_threshold": 0.7
+  }
+}
