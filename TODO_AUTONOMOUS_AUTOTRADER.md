@@ -1,88 +1,40 @@
-# Autonomous Autotrader System - Comprehensive Todo List
+# 📝 GRANULAR TODO LIST: AAT PHASE 1 (IMPLEMENTATION)
 
-## Core System Architecture
-- [ ] Design and implement multi-symbol trading framework using SymbolContext structure
-- [ ] Create robust initialization system for symbol tracking (max 10 symbols)
-- [ ] Implement symbol-specific magic number isolation for position management
-- [ ] Build dynamic dashboard system with multi-column, multi-row grid format
-- [ ] Create real-time status update system for all trading parameters
+## 🏗️ INFRASTRUCTURE (Week 1)
+- [ ] **[INF-01]** Restructure repository to match `FINAL_ARCHITECTURE.md`.
+- [ ] **[INF-02]** Initialize `config/main_config.json` with defaults.
+- [ ] **[INF-03]** Implement `src/python/bridge/server.py` (Asyncio TCP).
+- [ ] **[INF-04]** Implement `src/mql5/Include/AAT_BridgeClient.mqh` with Windows Sockets.
+- [ ] **[INF-05]** Create PING/PONG heartbeat protocol between EA and Python.
+- [ ] **[INF-06]** Build `src/python/hive/coordinator.py` for state management.
 
-## Data Integration & Analysis
-- [ ] Integrate multiple data sources (MetaTrader, OANDA, Dukascopy, Histdata, Twelve Data, TraderMade, Bloomberg, Refinitiv Eikon, CME Group)
-- [ ] Implement real-time data feed processing and validation
-- [ ] Create market data ingestion pipeline with error handling and fallback mechanisms
-- [ ] Develop multi-timeframe analysis system (M1, M5, M15, M30, H1, H4, D1, W1, MN)
-- [ ] Implement timeframe correlation and conclusion derivation algorithms
+## 🧠 BRAIN ENGINE (Week 2)
+- [ ] **[BRN-01]** Implement `src/python/brains/base_brain.py` (Abstract interface).
+- [ ] **[BRN-02]** Implement `SequentialBrain.py` for Stage 1 signals.
+- [ ] **[BRN-03]** Implement `ConsensusBrain.py` for Stage 2 voting logic.
+- [ ] **[BRN-04]** Build Strategy Registry to dynamically load strategy plugins.
+- [ ] **[BRN-05]** Implement first 3 strategies (EMA Cross, RSI, ADX).
 
-## Trading Strategy Implementation
-- [ ] Implement ALL major trading strategies with confirmation/re-confirmation logic
-- [ ] High probability trade filtering system
-- [ ] Risk analysis module for each trade signal
-- [ ] Pre-trade verification system with multiple validation layers
-- [ ] Autonomous scalping strategy implementation
-- [ ] Strategy performance tracking and optimization
+## 🛡️ RISK & TRADE (Week 3)
+- [ ] **[RSK-01]** Implement `src/python/risk/arbiter.py` (DD, Daily Loss, Sizing).
+- [ ] **[RSK-02]** Implement ATR-based position sizing logic.
+- [ ] **[TRD-01]** Implement `src/mql5/Include/AAT_TradeExecutor.mqh` (CTrade wrapper).
+- [ ] **[TRD-02]** Implement SL/TP logic (fixed dollar + trailing).
+- [ ] **[TRD-03]** Build `OnTradeTransaction` handler for position tracking.
 
-## Position Management
-- [ ] Advanced trailing stop loss system (IMPLEMENTED)
-- [ ] Advanced trailing take profit system (IMPLEMENTED)
-- [ ] Dynamic position sizing based on account equity and risk parameters
-- [ ] Partial position closing system (50% at target profit)
-- [ ] Time-based exit mechanisms
-- [ ] Break-even and profit protection systems
+## 📊 DASHBOARD & MONITORING (Week 4)
+- [ ] **[DSH-01]** Implement `src/mql5/Include/AAT_UI_Grid.mqh` (CCanvas).
+- [ ] **[DSH-02]** Create `AAT_GlobalDashboard.mq5` (Aggregator EA).
+- [ ] **[DSH-03]** Implement real-time P&L and Risk telemetry push to Dash.
+- [ ] **[MON-01]** Implement SQLite logging in `src/python/data/audit_logger.py`.
 
-## Risk Management
-- [ ] Maximum drawdown protection system
-- [ ] Daily loss limits and circuit breakers
-- [ ] Position correlation analysis to prevent overexposure
-- [ ] Volatility-based position sizing adjustment
-- [ ] News event detection and trading suspension
-- [ ] Slippage and spread monitoring
+## 🧪 TESTING & HARDENING (Week 5)
+- [ ] **[TST-01]** Write `tests/python/test_brains.py` for consensus accuracy.
+- [ ] **[TST-02]** Write `tests/python/test_bridge_latency.py`.
+- [ ] **[TST-03]** Perform L99 Verification Test #1: Python Crash Handling.
+- [ ] **[TST-04]** Perform L99 Verification Test #2: Multi-Symbol Throughput.
 
-## Automation Features
-- [ ] Set-it-and-forget-it operational model
-- [ ] Auto-calculation of all trading parameters
-- [ ] Auto-trade execution with confirmation systems
-- [ ] 24/5 autonomous operation capability
-- [ ] Self-healing and error recovery systems
-- [ ] Automatic strategy adaptation based on market conditions
-
-## Dashboard & Monitoring
-- [ ] Multi-column, multi-row table grid format dashboard
-- [ ] Real-time P&L tracking per symbol and overall
-- [ ] Trade history and performance analytics display
-- [ ] Configurable alert system (visual, audio, email)
-- [ ] Strategy performance comparison metrics
-- [ ] Risk exposure visualization
-- [ ] Market condition indicators (trend, ranging, volatility)
-
-## Configuration & Customization
-- [ ] Fully manual configurable parameters for all system aspects
-- [ ] Brief description tooltips for each configurable item
-- [ ] Save/load configuration profiles
-- [ ] Strategy enable/disable toggles
-- [ ] Risk parameter adjustment interface
-- [ ] Symbol selection and timeframe configuration
-
-## Testing & Validation
-- [ ] Comprehensive backtesting framework
-- [ ] Forward testing with simulated live data
-- [ ] Stress testing under various market conditions
-- [ ] Edge case and error condition testing
-- [ ] Performance benchmarking and optimization
-- [ ] Security audit and vulnerability assessment
-
-## Documentation & Deployment
-- [ ] Complete system documentation
-- [ ] User guide and configuration manual
-- [ ] Installation and setup instructions
-- [ ] Version control and changelog management
-- [ ] Deployment package creation
-- [ ] System requirements specification
-
-## Advanced Features (Phase 2)
-- [ ] Machine learning integration for strategy optimization
-- [ ] Sentiment analysis from news and social media
-- [ ] Economic calendar integration
-- [ ] Correlation trading pairs system
-- [ ] Hedging and arbitrage strategies
-- [ ] Portfolio rebalancing algorithms
+## 🚀 DEMO & HANDOVER (Week 6)
+- [ ] **[DEM-01]** Deploy to Demo account (EURUSD, XAUUSD).
+- [ ] **[DEM-02]** Finalize `README.md` with accurate installation commands.
+- [ ] **[DEM-03]** Prepare `DEEP_AUDIT_REPORT_FINAL.md`.
