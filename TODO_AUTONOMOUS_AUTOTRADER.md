@@ -1,88 +1,119 @@
-# Autonomous Autotrader System - Comprehensive Todo List
+# 📝 DEEP-DIVE GRANULAR TODO LIST: AAT PHASE 1
 
-## Core System Architecture
-- [ ] Design and implement multi-symbol trading framework using SymbolContext structure
-- [ ] Create robust initialization system for symbol tracking (max 10 symbols)
-- [ ] Implement symbol-specific magic number isolation for position management
-- [ ] Build dynamic dashboard system with multi-column, multi-row grid format
-- [ ] Create real-time status update system for all trading parameters
+## 🏗️ LAYER 1: INFRASTRUCTURE & CONNECTIVITY (WEEK 1)
 
-## Data Integration & Analysis
-- [ ] Integrate multiple data sources (MetaTrader, OANDA, Dukascopy, Histdata, Twelve Data, TraderMade, Bloomberg, Refinitiv Eikon, CME Group)
-- [ ] Implement real-time data feed processing and validation
-- [ ] Create market data ingestion pipeline with error handling and fallback mechanisms
-- [ ] Develop multi-timeframe analysis system (M1, M5, M15, M30, H1, H4, D1, W1, MN)
-- [ ] Implement timeframe correlation and conclusion derivation algorithms
+### [INF-01] Repository Restructuring
+- [ ] Create directory structure: `config/`, `src/python/hive/`, `src/python/brains/`, `src/python/bridge/`, `src/mql5/Agents/`, `src/mql5/Dash/`, `src/mql5/Include/`.
+- [ ] Move existing design docs to `docs/`.
+- [ ] Migrate `requirements.txt` to root and add: `asyncio`, `pyyaml`, `pydantic`, `numpy`, `pandas`.
 
-## Trading Strategy Implementation
-- [ ] Implement ALL major trading strategies with confirmation/re-confirmation logic
-- [ ] High probability trade filtering system
-- [ ] Risk analysis module for each trade signal
-- [ ] Pre-trade verification system with multiple validation layers
-- [ ] Autonomous scalping strategy implementation
-- [ ] Strategy performance tracking and optimization
+### [INF-02] Configuration System
+- [ ] Create `config/main_config.json` with schema for: `bridge_port`, `heartbeat_interval`, `risk_params`, `brain_parallelism`.
+- [ ] Create `config/symbols.json` mapping MT5 symbols to Yahoo tickers.
+- [ ] Implement `src/python/hive/config_loader.py` with Pydantic validation.
 
-## Position Management
-- [ ] Advanced trailing stop loss system (IMPLEMENTED)
-- [ ] Advanced trailing take profit system (IMPLEMENTED)
-- [ ] Dynamic position sizing based on account equity and risk parameters
-- [ ] Partial position closing system (50% at target profit)
-- [ ] Time-based exit mechanisms
-- [ ] Break-even and profit protection systems
+### [INF-03] Async TCP Bridge (Python)
+- [ ] Implement `src/python/bridge/server.py` using `asyncio.start_server`.
+- [ ] Create `MessageCodec` for JSON/Protobuf serialization.
+- [ ] Implement `ClientHandler` class to manage multiple MT5 Agent connections.
 
-## Risk Management
-- [ ] Maximum drawdown protection system
-- [ ] Daily loss limits and circuit breakers
-- [ ] Position correlation analysis to prevent overexposure
-- [ ] Volatility-based position sizing adjustment
-- [ ] News event detection and trading suspension
-- [ ] Slippage and spread monitoring
+### [INF-04] Socket Bridge Client (MQL5)
+- [ ] Implement `src/mql5/Include/AAT_SocketClient.mqh` using WinAPI `ws2_32.dll`.
+- [ ] Functions: `Connect()`, `Disconnect()`, `Send()`, `Receive()`, `IsConnected()`.
+- [ ] Logic for non-blocking I/O to prevent chart freezing.
 
-## Automation Features
-- [ ] Set-it-and-forget-it operational model
-- [ ] Auto-calculation of all trading parameters
-- [ ] Auto-trade execution with confirmation systems
-- [ ] 24/5 autonomous operation capability
-- [ ] Self-healing and error recovery systems
-- [ ] Automatic strategy adaptation based on market conditions
+### [INF-05] Heartbeat & Watchdog
+- [ ] Implement 10s PING/PONG in `AAT_SocketClient.mqh`.
+- [ ] Implement `src/python/bridge/watchdog.py` to detect stale agents.
+- [ ] Logic in MQL5 to switch to "Safe Mode" (Move SL to BE) if heartbeat fails.
 
-## Dashboard & Monitoring
-- [ ] Multi-column, multi-row table grid format dashboard
-- [ ] Real-time P&L tracking per symbol and overall
-- [ ] Trade history and performance analytics display
-- [ ] Configurable alert system (visual, audio, email)
-- [ ] Strategy performance comparison metrics
-- [ ] Risk exposure visualization
-- [ ] Market condition indicators (trend, ranging, volatility)
+---
 
-## Configuration & Customization
-- [ ] Fully manual configurable parameters for all system aspects
-- [ ] Brief description tooltips for each configurable item
-- [ ] Save/load configuration profiles
-- [ ] Strategy enable/disable toggles
-- [ ] Risk parameter adjustment interface
-- [ ] Symbol selection and timeframe configuration
+## 🧠 LAYER 2: THE MULTI-BRAIN ENGINE (WEEK 2)
 
-## Testing & Validation
-- [ ] Comprehensive backtesting framework
-- [ ] Forward testing with simulated live data
-- [ ] Stress testing under various market conditions
-- [ ] Edge case and error condition testing
-- [ ] Performance benchmarking and optimization
-- [ ] Security audit and vulnerability assessment
+### [BRN-01] Brain Interface & Registry
+- [ ] Create `src/python/brains/base.py` (Abstract Base Class).
+- [ ] Implement `BrainRegistry` for dynamic loading of .py strategy files.
+- [ ] Define `SignalPayload` schema (symbol, tf, direction, confidence).
 
-## Documentation & Deployment
-- [ ] Complete system documentation
-- [ ] User guide and configuration manual
-- [ ] Installation and setup instructions
-- [ ] Version control and changelog management
-- [ ] Deployment package creation
-- [ ] System requirements specification
+### [BRN-02] Sequential Brain (Stage 1: Fast-Path)
+- [ ] Implement `src/python/brains/sequential_brain.py`.
+- [ ] Logic: Iterative execution of `S01-S05`. Return first non-neutral signal.
+- [ ] Integration with Veto Filters (Spread, News).
 
-## Advanced Features (Phase 2)
-- [ ] Machine learning integration for strategy optimization
-- [ ] Sentiment analysis from news and social media
-- [ ] Economic calendar integration
-- [ ] Correlation trading pairs system
-- [ ] Hedging and arbitrage strategies
-- [ ] Portfolio rebalancing algorithms
+### [BRN-03] Consensus Brain (Stage 2: Voting-Path)
+- [ ] Implement `src/python/brains/consensus_brain.py`.
+- [ ] Logic: Parallel execution of `S06-S20` using `asyncio.gather`.
+- [ ] Weight-weighted summation: `Score = Σ (Signal * Weight)`.
+- [ ] Threshold check: `|Score| >= 0.7`.
+
+### [BRN-04] Core Strategies (Initial Set)
+- [ ] `S01_VetoFilter`: Spread check + Master kill switch.
+- [ ] `S06_EMACross`: M5 Trend signal.
+- [ ] `S07_RSI_Momentum`: H1 Overbought/Oversold.
+
+---
+
+## 🛡️ LAYER 3: RISK & TRADE EXECUTION (WEEK 3)
+
+### [RSK-01] The Risk Arbiter
+- [ ] Implement `src/python/risk/arbiter.py`.
+- [ ] Global Daily Loss check (2% threshold).
+- [ ] Max Drawdown check (5% threshold).
+- [ ] Multi-symbol correlation filter (don't overexpose to USD).
+
+### [RSK-02] Dynamic Position Sizing
+- [ ] Implement ATR-based sizing: `Lots = (Equity * Risk%) / (ATR * PipValue)`.
+- [ ] Logic to round lots to broker steps (e.g., 0.01).
+- [ ] Minimum lot size validation.
+
+### [TRD-01] Trade Executor (MQL5)
+- [ ] Implement `src/mql5/Include/AAT_Trade.mqh`.
+- [ ] Wrapper for `CTrade`: `ExecuteBUY()`, `ExecuteSELL()`, `ModifyPosition()`.
+- [ ] Handle `TRADE_RETCODE_DONE` and common error codes.
+
+---
+
+## 📊 LAYER 4: DASHBOARD & TELEMETRY (WEEK 4)
+
+### [DSH-01] Dashboard Engine (MQL5)
+- [ ] Implement `src/mql5/Include/AAT_Dashboard.mqh` using `CCanvas`.
+- [ ] 3-Tab System: [HEALTH] [BRAINS] [RISK].
+- [ ] High-FPS rendering (throttle to 500ms).
+
+### [DSH-02] Global Dashboard EA
+- [ ] Create `src/mql5/Dash/AAT_GlobalDashboard.mq5`.
+- [ ] Logic to aggregate state from the Python Coordinator.
+- [ ] Visual signal alerts (Neon Green/Red).
+
+### [MON-01] Audit Logger (SQLite)
+- [ ] Implement `src/python/data/audit_logger.py`.
+- [ ] Table schema: `timestamp, symbol, brain_type, signal, confidence, decision, risk_reason`.
+- [ ] Automatic daily log rotation.
+
+---
+
+## 🧪 LAYER 5: HARDENING & L99 VALIDATION (WEEK 5)
+
+### [TST-01] Integration Testing
+- [ ] Script to spawn Mock Agent and verify Python Coordinator response.
+- [ ] Test: Network Disconnect recovery.
+- [ ] Test: 3 Consecutive Losses → Cooldown activation.
+
+### [TST-02] L99 Verification
+- [ ] **L99-01**: Kill Python process while Agent has open trade → Agent moves SL to BE.
+- [ ] **L99-02**: Simulate 10% slippage → Risk Arbiter rejects trade.
+- [ ] **L99-03**: Multi-symbol stress test (6 symbols, high frequency).
+
+---
+
+## 🚀 LAYER 6: ROLLOUT & HANDOVER (WEEK 6)
+
+### [DEM-01] Demo Deployment
+- [ ] Set up VPS with Python 3.10 and MT5 Terminal.
+- [ ] Deploy EURUSD Agent on H1 chart.
+- [ ] 24/5 Live monitoring and log audit.
+
+### [DEM-02] Final Handover
+- [ ] Finalize `README.md` with "Zero-Stub" verification instructions.
+- [ ] Prepare Phase 2 Roadmap.
