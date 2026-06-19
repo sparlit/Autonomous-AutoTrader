@@ -9,16 +9,20 @@
 
 #include <AAT_NativeSockets.mqh>
 #include <AAT_Protocol.mqh>
+#include <Trade\Trade.mqh>
 
 class CAATBridgeClient
 {
 private:
    CAATNativeSocket  m_socket;
+   CTrade            m_trade;
    string            m_host;
    int               m_port;
    uint              m_last_heartbeat;
    uint              m_last_data_push;
    uint              m_heartbeat_interval;
+   double            m_last_push_price;
+   double            m_push_threshold;
 
 public:
                      CAATBridgeClient();
@@ -28,10 +32,13 @@ public:
    void              OnTick();
    void              ProcessMessages();
    void              DrawObjects(string draw_json);
+   void              HandleTrade(string msg);
+   bool              ShouldPushData(double current_price);
 };
 
-CAATBridgeClient::CAATBridgeClient() : m_last_heartbeat(0), m_last_data_push(0), m_heartbeat_interval(10000)
+CAATBridgeClient::CAATBridgeClient() : m_last_heartbeat(0), m_last_data_push(0), m_heartbeat_interval(10000), m_last_push_price(0), m_push_threshold(0.0005)
 {
+   m_trade.SetExpertMagicNumber(123456);
 }
 
 CAATBridgeClient::~CAATBridgeClient()
@@ -43,8 +50,19 @@ bool CAATBridgeClient::Init(string host, int port, int hb_interval_sec=10)
    m_host = host;
    m_port = port;
    m_heartbeat_interval = hb_interval_sec * 1000;
-
    return m_socket.Connect(m_host, m_port);
+}
+
+bool CAATBridgeClient::ShouldPushData(double current_price)
+{
+   // Push if price moved > threshold or if it is the first push
+   if(m_last_push_price == 0) return true;
+   if(MathAbs(current_price - m_last_push_price) >= m_push_threshold) return true;
+
+   // Safety: push at least every 60 seconds even if price is flat
+   if(GetTickCount() - m_last_data_push > 60000) return true;
+
+   return false;
 }
 
 void CAATBridgeClient::OnTick()
@@ -56,6 +74,7 @@ void CAATBridgeClient::OnTick()
    }
 
    uint now = GetTickCount();
+   double current_price = SymbolInfoDouble(_Symbol, SYMBOL_BID);
 
    if(now - m_last_heartbeat > m_heartbeat_interval)
    {
@@ -63,10 +82,15 @@ void CAATBridgeClient::OnTick()
       if(m_socket.Send(hb)) m_last_heartbeat = now;
    }
 
-   if(now - m_last_data_push > 5000)
+   // Event-driven push based on price movement
+   if(ShouldPushData(current_price))
    {
       string data = CAATProtocol::BuildDATA_PUSH(_Symbol, _Period, 100);
-      if(m_socket.Send(data)) m_last_data_push = now;
+      if(m_socket.Send(data))
+      {
+         m_last_data_push = now;
+         m_last_push_price = current_price;
+      }
    }
 
    ProcessMessages();
@@ -86,15 +110,38 @@ void CAATBridgeClient::ProcessMessages()
          string action = CAATProtocol::GetValue(msg, "act");
          if(action != "WAIT" && action != "")
          {
-            Print("AAT TRADE Decision: ", action, " Lots: ", CAATProtocol::GetValue(msg, "lts"));
+            HandleTrade(msg);
          }
       }
    }
 }
 
+void CAATBridgeClient::HandleTrade(string msg)
+{
+   int id = (int)StringToInteger(CAATProtocol::GetValue(msg, "id"));
+   string action = CAATProtocol::GetValue(msg, "act");
+   double lots = StringToDouble(CAATProtocol::GetValue(msg, "lts"));
+   double sl = StringToDouble(CAATProtocol::GetValue(msg, "sl"));
+   double tp = StringToDouble(CAATProtocol::GetValue(msg, "tp"));
+
+   bool res = false;
+   if(action == "BUY")
+      res = m_trade.Buy(lots, _Symbol, SymbolInfoDouble(_Symbol, SYMBOL_ASK), sl, tp, StringFormat("AAT:%d", id));
+   else if(action == "SELL")
+      res = m_trade.Sell(lots, _Symbol, SymbolInfoDouble(_Symbol, SYMBOL_BID), sl, tp, StringFormat("AAT:%d", id));
+
+   uint ticket = (uint)m_trade.ResultDeal();
+   if(ticket == 0) ticket = (uint)m_trade.ResultOrder();
+
+   string err = "";
+   if(!res) err = IntegerToString(m_trade.ResultRetcode());
+
+   string ack = CAATProtocol::BuildTRADE_ACK(id, (int)ticket, err);
+   m_socket.Send(ack);
+}
+
 void CAATBridgeClient::DrawObjects(string draw_json)
 {
-   // Basic drawing logic: if it contains RECTANGLE
    if(StringFind(draw_json, "RECTANGLE") >= 0)
    {
       string name = CAATProtocol::GetValue(draw_json, "name");

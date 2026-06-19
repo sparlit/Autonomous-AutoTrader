@@ -13,6 +13,7 @@ public:
    static string     BuildPING();
    static string     BuildHEARTBEAT(string symbol, double equity, double dd);
    static string     BuildDATA_PUSH(string symbol, ENUM_TIMEFRAMES tf, int count);
+   static string     BuildTRADE_ACK(int id, int ticket, string err);
 
    static string     GetMsgType(string json);
    static string     GetValue(string json, string key);
@@ -38,7 +39,6 @@ string CAATProtocol::BuildDATA_PUSH(string symbol, ENUM_TIMEFRAMES tf, int count
    ArraySetAsSeries(rates, true);
    int copied = CopyRates(symbol, tf, 0, count, rates);
 
-   // Use minified keys to save bandwidth: o, h, l, c, t
    string history = "[";
    for(int i=copied-1; i>=0; i--)
    {
@@ -48,8 +48,13 @@ string CAATProtocol::BuildDATA_PUSH(string symbol, ENUM_TIMEFRAMES tf, int count
    }
    history += "]";
 
-   return StringFormat("{\"t\":\"DP\",\"s\":\"%s\",\"tf\":%d,\"h\":%s}",
-                       symbol, (int)tf, history);
+   return StringFormat("{\"t\":\"DP\",\"s\":\"%s\",\"tf\":%d,\"bi\":%.5f,\"as\":%.5f,\"h\":%s}",
+                       symbol, (int)tf, SymbolInfoDouble(symbol, SYMBOL_BID), SymbolInfoDouble(symbol, SYMBOL_ASK), history);
+}
+
+string CAATProtocol::BuildTRADE_ACK(int id, int ticket, string err)
+{
+   return StringFormat("{\"t\":\"T_ACK\",\"id\":%d,\"tk\":%d,\"err\":\"%s\"}", id, ticket, err);
 }
 
 string CAATProtocol::GetMsgType(string json)
@@ -59,12 +64,12 @@ string CAATProtocol::GetMsgType(string json)
    if(t == "DP") return "DATA_PUSH";
    if(t == "PNG") return "PING";
    if(t == "DEC") return "DECISION";
+   if(t == "T_ACK") return "TRADE_ACK";
    return t;
 }
 
 string CAATProtocol::GetValue(string json, string key)
 {
-   // Robust value extraction for minified JSON
    string search = "\"" + key + "\":";
    int pos = StringFind(json, search);
    if(pos < 0) return "";
@@ -73,12 +78,12 @@ string CAATProtocol::GetValue(string json, string key)
    uchar first_char = StringGetCharacter(json, start);
 
    int end = -1;
-   if(first_char == '\"') // String
+   if(first_char == '\"')
    {
       start++;
       end = StringFind(json, "\"", start);
    }
-   else if(first_char == '[') // Array
+   else if(first_char == '[')
    {
       int depth = 0;
       for(int i = start; i < StringLen(json); i++)
@@ -89,7 +94,7 @@ string CAATProtocol::GetValue(string json, string key)
          if(depth == 0) { end = i + 1; break; }
       }
    }
-   else // Number/Boolean
+   else
    {
       end = StringFind(json, ",", start);
       if(end < 0) end = StringFind(json, "}", start);
