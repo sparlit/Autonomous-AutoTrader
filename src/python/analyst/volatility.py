@@ -1,12 +1,16 @@
 import pandas as pd
+<<<<<<< HEAD
 import numpy as np
 from typing import Dict, Any
+=======
+>>>>>>> origin/main
 
 class VolatilityAnalyst:
     def is_spread_safe(self, current_spread: float, avg_spread: float, threshold_multiplier: float = 2.0) -> bool:
         return current_spread <= (avg_spread * threshold_multiplier)
 
     def get_regime(self, df: pd.DataFrame) -> str:
+<<<<<<< HEAD
         atr = (df['h'] - df['l']).rolling(20).mean()
         curr_atr = atr.iloc[-1]
         avg_atr = atr.mean()
@@ -36,3 +40,15 @@ class VolatilityAnalyst:
             anomaly = "ABSORPTION"
 
         return {"effort": effort, "result": result, "anomaly": anomaly, "volume_ratio": last_volume/avg_volume}
+=======
+        # Simple volatility-based regime detection
+        atr = (df['h'] - df['l']).rolling(20).mean()
+        curr_atr = atr.iloc[-1]
+        avg_atr = atr.mean()
+
+        if curr_atr > avg_atr * 1.5:
+            return "HIGH_VOLATILITY"
+        elif curr_atr < avg_atr * 0.5:
+            return "LOW_VOLATILITY"
+        return "NORMAL"
+>>>>>>> origin/main

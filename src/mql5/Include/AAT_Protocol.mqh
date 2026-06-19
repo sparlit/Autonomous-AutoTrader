@@ -16,6 +16,7 @@ public:
    static string     BuildPING();
    static string     BuildHEARTBEAT(string symbol, double equity, double dd);
 <<<<<<< HEAD
+<<<<<<< HEAD
    static string     BuildDATA_PUSH(string symbol, ENUM_TIMEFRAMES ltf, int count);
    static string     BuildTRADE_ACK(int id, int ticket, string err);
    static string     BuildSYNC(string symbol);
@@ -31,6 +32,12 @@ private:
 
    static string     GetMsgType(string json);
 >>>>>>> origin/aat-phase1-design-final-8550167587809497732
+=======
+   static string     BuildDATA_PUSH(string symbol, ENUM_TIMEFRAMES tf, int count);
+
+   static string     GetMsgType(string json);
+   static string     GetValue(string json, string key);
+>>>>>>> origin/main
 };
 
 string CAATProtocol::BuildPING()
@@ -49,6 +56,7 @@ string CAATProtocol::BuildHEARTBEAT(string symbol, double equity, double dd)
                        symbol, equity, dd);
 }
 
+<<<<<<< HEAD
 string CAATProtocol::BuildHistoryJSON(string symbol, ENUM_TIMEFRAMES tf, int count)
 {
    MqlRates rates[];
@@ -115,10 +123,30 @@ string CAATProtocol::BuildOHLC(string symbol, ENUM_TIMEFRAMES tf, double o, doub
           "\"l\":"+DoubleToString(l, 5)+","+
           "\"c\":"+DoubleToString(c, 5)+"}";
 >>>>>>> origin/aat-phase1-design-final-8550167587809497732
+=======
+string CAATProtocol::BuildDATA_PUSH(string symbol, ENUM_TIMEFRAMES tf, int count)
+{
+   MqlRates rates[];
+   ArraySetAsSeries(rates, true);
+   int copied = CopyRates(symbol, tf, 0, count, rates);
+
+   string history = "[";
+   for(int i=copied-1; i>=0; i--)
+   {
+      history += StringFormat("{\"o\":%.5f,\"h\":%.5f,\"l\":%.5f,\"c\":%.5f,\"t\":%lld}",
+                              rates[i].open, rates[i].high, rates[i].low, rates[i].close, rates[i].time);
+      if(i > 0) history += ",";
+   }
+   history += "]";
+
+   return StringFormat("{\"type\":\"DATA_PUSH\",\"symbol\":\"%s\",\"tf\":%d,\"history\":%s}",
+                       symbol, (int)tf, history);
+>>>>>>> origin/main
 }
 
 string CAATProtocol::GetMsgType(string json)
 {
+<<<<<<< HEAD
 <<<<<<< HEAD
    string t = GetValue(json, "t");
    if(t == "HB") return "HEARTBEAT";
@@ -128,10 +156,14 @@ string CAATProtocol::GetMsgType(string json)
    if(t == "T_ACK") return "TRADE_ACK";
    if(t == "SYNC") return "SYNC";
    return t;
+=======
+   return GetValue(json, "type");
+>>>>>>> origin/main
 }
 
 string CAATProtocol::GetValue(string json, string key)
 {
+<<<<<<< HEAD
    string search = "\"" + key + "\":";
    int pos = StringFind(json, search);
    if(pos < 0) return "";
@@ -183,4 +215,23 @@ string CAATProtocol::CleanValue(string val)
 
    return valid ? type : "";
 >>>>>>> origin/aat-phase1-design-final-8550167587809497732
+=======
+   string search = "\"" + key + "\":\"";
+   int pos = StringFind(json, search);
+   if(pos < 0)
+   {
+      search = "\"" + key + "\":";
+      pos = StringFind(json, search);
+      if(pos < 0) return "";
+      int start = pos + StringLen(search);
+      int end = StringFind(json, ",", start);
+      if(end < 0) end = StringFind(json, "}", start);
+      if(end < 0) end = StringFind(json, "]", start);
+      return StringSubstr(json, start, end - start);
+   }
+
+   int start = pos + StringLen(search);
+   int end = StringFind(json, "\"", start);
+   return StringSubstr(json, start, end - start);
+>>>>>>> origin/main
 }

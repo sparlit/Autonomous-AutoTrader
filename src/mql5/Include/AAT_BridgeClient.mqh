@@ -20,7 +20,11 @@ private:
    CAATDashboard     m_dash;
    string            m_host;
    int               m_port;
+<<<<<<< HEAD
    uint              m_last_heartbeat_rx;
+=======
+   uint              m_last_heartbeat;
+>>>>>>> origin/main
    uint              m_last_data_push;
    uint              m_heartbeat_interval;
    double            m_last_push_price;
@@ -37,6 +41,7 @@ public:
    void              OnTick();
    void              ProcessMessages();
    void              DrawObjects(string draw_json);
+<<<<<<< HEAD
    void              HandleTrade(string msg);
    void              HandleManagement(string mgmt_json);
    void              HandleTelemetry(string tlm_json);
@@ -46,6 +51,11 @@ public:
 };
 
 CAATBridgeClient::CAATBridgeClient() : m_last_heartbeat_rx(0), m_last_data_push(0), m_heartbeat_interval(10000), m_last_push_price(0), m_push_threshold(0.0005), m_synced(false), m_failsafe_active(false), m_use_dash(false)
+=======
+};
+
+CAATBridgeClient::CAATBridgeClient() : m_last_heartbeat(0), m_last_data_push(0), m_heartbeat_interval(10000)
+>>>>>>> origin/main
 {
    m_trade.SetExpertMagicNumber(123456);
 }
@@ -123,6 +133,7 @@ void CAATBridgeClient::OnTick()
    }
 
    uint now = GetTickCount();
+<<<<<<< HEAD
    double current_price = SymbolInfoDouble(_Symbol, SYMBOL_BID);
 
    if(now - m_last_data_push > 10000)
@@ -135,6 +146,19 @@ void CAATBridgeClient::OnTick()
    {
       string data = CAATProtocol::BuildDATA_PUSH(_Symbol, _Period, 100);
       if(m_socket.Send(data)) { m_last_data_push = now; m_last_push_price = current_price; }
+=======
+
+   if(now - m_last_heartbeat > m_heartbeat_interval)
+   {
+      string hb = CAATProtocol::BuildHEARTBEAT(_Symbol, AccountInfoDouble(ACCOUNT_EQUITY), 0.0);
+      if(m_socket.Send(hb)) m_last_heartbeat = now;
+   }
+
+   if(now - m_last_data_push > 5000)
+   {
+      string data = CAATProtocol::BuildDATA_PUSH(_Symbol, _Period, 100);
+      if(m_socket.Send(data)) m_last_data_push = now;
+>>>>>>> origin/main
    }
 
    ProcessMessages();
@@ -150,6 +174,7 @@ void CAATBridgeClient::ProcessMessages()
       string type = CAATProtocol::GetMsgType(msg);
       if(type == "DECISION")
       {
+<<<<<<< HEAD
          string draw = CAATProtocol::GetValue(msg, "drw");
          if(draw != "") DrawObjects(draw);
 
@@ -161,10 +186,21 @@ void CAATBridgeClient::ProcessMessages()
 
          string action = CAATProtocol::GetValue(msg, "act");
          if(action != "WAIT" && action != "") HandleTrade(msg);
+=======
+         string draw = CAATProtocol::GetValue(msg, "draw");
+         if(draw != "") DrawObjects(draw);
+
+         string action = CAATProtocol::GetValue(msg, "action");
+         if(action != "WAIT")
+         {
+            Print("AAT TRADE Decision: ", action);
+         }
+>>>>>>> origin/main
       }
    }
 }
 
+<<<<<<< HEAD
 void CAATBridgeClient::HandleTelemetry(string tlm_json)
 {
    if(!m_use_dash) return;
@@ -221,16 +257,26 @@ void CAATBridgeClient::HandleTrade(string msg)
 
 void CAATBridgeClient::DrawObjects(string draw_json)
 {
+=======
+void CAATBridgeClient::DrawObjects(string draw_json)
+{
+   // Basic drawing logic: if it contains RECTANGLE
+>>>>>>> origin/main
    if(StringFind(draw_json, "RECTANGLE") >= 0)
    {
       string name = CAATProtocol::GetValue(draw_json, "name");
       double top = StringToDouble(CAATProtocol::GetValue(draw_json, "top"));
       double bottom = StringToDouble(CAATProtocol::GetValue(draw_json, "bottom"));
+<<<<<<< HEAD
       if(!ObjectCreate(0, name, OBJ_RECTANGLE, 0, TimeCurrent(), top, TimeCurrent() - 3600*24, bottom))
       {
          ObjectMove(0, name, 0, TimeCurrent(), top);
          ObjectMove(0, name, 1, TimeCurrent() - 3600*24, bottom);
       }
+=======
+
+      ObjectCreate(0, name, OBJ_RECTANGLE, 0, TimeCurrent(), top, TimeCurrent() - 3600*24, bottom);
+>>>>>>> origin/main
       ObjectSetInteger(0, name, OBJPROP_COLOR, clrDodgerBlue);
       ObjectSetInteger(0, name, OBJPROP_BACK, true);
    }

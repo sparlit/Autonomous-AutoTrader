@@ -1,13 +1,18 @@
 import datetime
+<<<<<<< HEAD
 import json
 import os
 from typing import Dict, Any, List
+=======
+from typing import Dict, Any
+>>>>>>> origin/main
 
 class RiskManager:
     def __init__(self, config):
         self.config = config
         self.daily_trades = 0
         self.last_trade_time = None
+<<<<<<< HEAD
         self.news_events: List[Dict[str, Any]] = []
         self.peak_equity = 0.0
         self.load_news_from_file()
@@ -18,11 +23,19 @@ class RiskManager:
                 self.news_events = json.load(f)
 
     def is_session_active(self) -> bool:
+=======
+
+    def is_session_active(self) -> bool:
+        """Check if London or New York session is active."""
+        # For testing purposes, we can allow a bypass or just return True if mocked
+        # In production, this uses UTC time
+>>>>>>> origin/main
         now = datetime.datetime.now(datetime.UTC).time()
         london_start = datetime.time(8, 0)
         london_end = datetime.time(16, 0)
         ny_start = datetime.time(13, 0)
         ny_end = datetime.time(21, 0)
+<<<<<<< HEAD
         return (london_start <= now <= london_end) or (ny_start <= now <= ny_end)
 
     def is_news_safe(self) -> bool:
@@ -78,6 +91,30 @@ class RiskManager:
             "lots": params["lots"],
             "sl_pts": params["sl_pts"],
             "tp_pts": params["tp_pts"],
+=======
+
+        return (london_start <= now <= london_end) or (ny_start <= now <= ny_end)
+
+    def is_news_safe(self) -> bool:
+        return True
+
+    def validate_trade(self, symbol: str, action: str, current_equity: float, ignore_session: bool = False) -> Dict[str, Any]:
+        if not ignore_session and not self.is_session_active():
+            return {"safe": False, "reason": "Outside trading sessions"}
+
+        if not self.is_news_safe():
+            return {"safe": False, "reason": "High impact news pending"}
+
+        if self.daily_trades >= 5:
+            return {"safe": False, "reason": "Daily trade limit reached"}
+
+        risk_amount = current_equity * (self.config.risk.risk_per_trade_pct / 100)
+        lots = 0.1
+
+        return {
+            "safe": True,
+            "lots": lots,
+>>>>>>> origin/main
             "action": action,
             "symbol": symbol
         }
