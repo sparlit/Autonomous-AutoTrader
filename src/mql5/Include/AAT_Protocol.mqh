@@ -1,7 +1,10 @@
 //+------------------------------------------------------------------+
 //|                                              AAT_Protocol.mqh |
 //|                                  Copyright 2024, Jules (God Mode)|
+<<<<<<< HEAD
 //|                                       https://autonomous trader |
+=======
+>>>>>>> origin/aat-phase1-design-final-8550167587809497732
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, Jules (God Mode)"
 #property link      "https://autonomous trader"
@@ -12,6 +15,7 @@ class CAATProtocol
 public:
    static string     BuildPING();
    static string     BuildHEARTBEAT(string symbol, double equity, double dd);
+<<<<<<< HEAD
    static string     BuildDATA_PUSH(string symbol, ENUM_TIMEFRAMES ltf, int count);
    static string     BuildTRADE_ACK(int id, int ticket, string err);
    static string     BuildSYNC(string symbol);
@@ -22,15 +26,25 @@ public:
 private:
    static string     BuildHistoryJSON(string symbol, ENUM_TIMEFRAMES tf, int count);
    static string     CleanValue(string val);
+=======
+   static string     BuildOHLC(string symbol, ENUM_TIMEFRAMES tf, double o, double h, double l, double c);
+
+   static string     GetMsgType(string json);
+>>>>>>> origin/aat-phase1-design-final-8550167587809497732
 };
 
 string CAATProtocol::BuildPING()
 {
+<<<<<<< HEAD
    return "{\"t\":\"PNG\"}";
+=======
+   return "{\"type\":\"PING\"}";
+>>>>>>> origin/aat-phase1-design-final-8550167587809497732
 }
 
 string CAATProtocol::BuildHEARTBEAT(string symbol, double equity, double dd)
 {
+<<<<<<< HEAD
    return StringFormat("{\"t\":\"HB\",\"s\":\"%s\",\"e\":%.2f,\"d\":%.2f}",
                        symbol, equity, dd);
 }
@@ -86,10 +100,26 @@ string CAATProtocol::BuildSYNC(string symbol)
    }
    tickets += "]";
    return StringFormat("{\"t\":\"SYNC\",\"s\":\"%s\",\"tk\":%s}", symbol, tickets);
+=======
+   return "{\"type\":\"HEARTBEAT\",\"symbol\":\""+symbol+"\","+
+          "\"equity\":"+DoubleToString(equity, 2)+","+
+          "\"drawdown\":"+DoubleToString(dd, 2)+"}";
+}
+
+string CAATProtocol::BuildOHLC(string symbol, ENUM_TIMEFRAMES tf, double o, double h, double l, double c)
+{
+   return "{\"type\":\"OHLC_PUSH\",\"symbol\":\""+symbol+"\","+
+          "\"tf\":"+IntegerToString((int)tf)+","+
+          "\"o\":"+DoubleToString(o, 5)+","+
+          "\"h\":"+DoubleToString(h, 5)+","+
+          "\"l\":"+DoubleToString(l, 5)+","+
+          "\"c\":"+DoubleToString(c, 5)+"}";
+>>>>>>> origin/aat-phase1-design-final-8550167587809497732
 }
 
 string CAATProtocol::GetMsgType(string json)
 {
+<<<<<<< HEAD
    string t = GetValue(json, "t");
    if(t == "HB") return "HEARTBEAT";
    if(t == "DP") return "DATA_PUSH";
@@ -134,4 +164,23 @@ string CAATProtocol::CleanValue(string val)
    string cleaned = val;
    StringReplace(cleaned, "\"", "");
    return cleaned;
+=======
+   int key_pos = StringFind(json, "\"type\":\"");
+   if(key_pos < 0) return "";
+
+   int val_start = key_pos + 8;
+   int val_end = StringFind(json, "\"", val_start);
+   if(val_end < 0) return "";
+
+   string type = StringSubstr(json, val_start, val_end - val_start);
+
+   bool valid = false;
+   if(key_pos == 1) valid = true;
+   else {
+      string prev = StringSubstr(json, key_pos - 1, 1);
+      if(prev == "," || prev == "{") valid = true;
+   }
+
+   return valid ? type : "";
+>>>>>>> origin/aat-phase1-design-final-8550167587809497732
 }

@@ -117,6 +117,7 @@
 ### [DEM-02] Final Handover
 - [ ] Finalize `README.md` with "Zero-Stub" verification instructions.
 - [ ] Prepare Phase 2 Roadmap.
+<<<<<<< HEAD
 # 📝 GRANULAR TODO LIST: AAT PHASE 1 (IMPLEMENTATION)
 
 ## 🏗️ INFRASTRUCTURE (Week 1)
@@ -157,3 +158,5 @@
 - [ ] **[DEM-01]** Deploy to Demo account (EURUSD, XAUUSD).
 - [ ] **[DEM-02]** Finalize `README.md` with accurate installation commands.
 - [ ] **[DEM-03]** Prepare `DEEP_AUDIT_REPORT_FINAL.md`.
+=======
+>>>>>>> origin/aat-phase1-design-final-8550167587809497732
