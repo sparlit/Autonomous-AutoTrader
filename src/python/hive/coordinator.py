@@ -132,7 +132,7 @@ class HiveCoordinator:
     async def run(self):
         logger.info("Starting Multi-Threaded Hybrid Coordinator...")
         await self.ledger.init_db()
-        self.risk_manager.peak_equity = await self.ledger.get_cached_peak_equity()
+        self.risk_manager.peak_equity = self.ledger.get_cached_peak_equity()
         asyncio.create_task(self.watchdog.run()); asyncio.create_task(self.context_brain.update_global_context())
         await self.server.start()
 
