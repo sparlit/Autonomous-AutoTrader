@@ -7,11 +7,27 @@ logger = logging.getLogger("AAT_ConsensusBrain")
 
 class ConsensusBrain:
     def __init__(self, strategies: List[BaseBrain], threshold: float = 0.7):
+        """
+        Initialize a ConsensusBrain with multiple strategy instances and a consensus threshold.
+        
+        Parameters:
+        	strategies (List[BaseBrain]): Strategy brains to run in parallel.
+        	threshold (float): Score cutoff for consensus determination (default 0.7).
+        """
         self.strategies = strategies
         self.threshold = threshold
 
     async def process(self, data: dict) -> Optional[SignalPayload]:
-        """Stage 2: Parallel weighted voting."""
+        """
+        Aggregates strategy signals to determine consensus.
+        
+        If voting agreement exceeds the configured threshold, returns a consensus signal;
+        otherwise returns None.
+        
+        Returns:
+        	A SignalPayload representing the consensus if the threshold is met,
+        	None otherwise. The returned signal's confidence reflects the agreement level.
+        """
         tasks = [strat.process(data) for strat in self.strategies]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 

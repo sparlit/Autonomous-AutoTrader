@@ -8,10 +8,23 @@ logger = logging.getLogger("AAT_BrainRegistry")
 
 class BrainRegistry:
     def __init__(self, strategy_dir: str = "src/python/brains/strategies"):
+        """
+        Initialize a BrainRegistry instance.
+        
+        Parameters:
+            strategy_dir (str): Directory path containing strategy modules to be loaded.
+                Defaults to "src/python/brains/strategies".
+        """
         self.strategy_dir = strategy_dir
         self.strategies: Dict[str, BaseBrain] = {}
 
     def load_strategies(self):
+        """
+        Discover and instantiate strategy classes from the configured directory.
+        
+        Scans the strategy directory for Python modules and registers any BaseBrain
+        subclasses found by module name. Creates the directory if it does not exist.
+        """
         if not os.path.exists(self.strategy_dir):
             os.makedirs(self.strategy_dir)
 
@@ -30,4 +43,10 @@ class BrainRegistry:
                     logger.error(f"Failed to load strategy {module_name}: {e}")
 
     def get_strategy(self, name: str) -> Optional[BaseBrain]:
+        """
+        Retrieve a registered strategy by name.
+        
+        Returns:
+            A `BaseBrain` instance if the strategy is registered, `None` otherwise.
+        """
         return self.strategies.get(name)

@@ -7,11 +7,24 @@ logger = logging.getLogger("AAT_Watchdog")
 
 class SystemWatchdog:
     def __init__(self, agent_states: Dict[str, Dict[str, Any]], timeout: float = 30.0):
+        """
+        Initialize a SystemWatchdog to monitor client staleness.
+        
+        Parameters:
+        	agent_states (Dict[str, Dict[str, Any]]): Shared dictionary mapping client IDs to state dictionaries.
+        	timeout (float): Staleness threshold in seconds. Defaults to 30.0.
+        """
         self.agent_states = agent_states
         self.timeout = timeout
         self.running = False
 
     async def run(self):
+        """
+        Periodically check agent states and remove entries for clients exceeding the staleness timeout.
+        
+        This method runs indefinitely until stop() is called, continuously monitoring the shared agent_states
+        dictionary and removing entries for clients whose last_seen timestamp exceeds the configured timeout.
+        """
         self.running = True
         logger.info("Watchdog started.")
         while self.running:
@@ -29,4 +42,7 @@ class SystemWatchdog:
             await asyncio.sleep(10.0) # Check every 10s
 
     def stop(self):
+        """
+        Stop the watchdog loop.
+        """
         self.running = False

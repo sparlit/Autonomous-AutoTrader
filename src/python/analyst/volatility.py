@@ -4,9 +4,21 @@ from typing import Dict, Any
 
 class VolatilityAnalyst:
     def is_spread_safe(self, current_spread: float, avg_spread: float, threshold_multiplier: float = 2.0) -> bool:
+        """
+        Determines if a spread is within safe limits.
+        
+        Returns:
+            bool: `True` if the current spread is within the threshold, `False` otherwise.
+        """
         return current_spread <= (avg_spread * threshold_multiplier)
 
     def get_regime(self, df: pd.DataFrame) -> str:
+        """
+        Classify the current volatility regime.
+        
+        Returns:
+        	str: "HIGH_VOLATILITY" if current volatility exceeds 1.5 times the average, "LOW_VOLATILITY" if below 0.5 times the average, otherwise "NORMAL".
+        """
         atr = (df['h'] - df['l']).rolling(20).mean()
         curr_atr = atr.iloc[-1]
         avg_atr = atr.mean()
@@ -15,6 +27,21 @@ class VolatilityAnalyst:
         return "NORMAL"
 
     def analyze_vsa(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """
+        Analyzes volume and spread dynamics using a 20-bar rolling window to classify trading patterns.
+        
+        Compares the latest bar's volume and spread against their 20-bar averages, classifying
+        effort (volume) as HIGH/NORMAL/LOW and result (price movement) as STRONG/NORMAL/WEAK.
+        Identifies absorption anomalies when volume is high but price movement is weak. For
+        DataFrames with fewer than 20 rows, returns neutral results.
+        
+        Parameters:
+        	df (pd.DataFrame): OHLCV data with columns 'v' (volume), 'c' (close), 'o' (open)
+        
+        Returns:
+        	dict: Dictionary with keys 'effort', 'result', 'anomaly' ('ABSORPTION' or False), and
+        	      'volume_ratio' (the ratio of latest to average volume)
+        """
         if len(df) < 20: return {"effort": "NEUTRAL", "result": "NEUTRAL", "anomaly": False, "volume_ratio": 1.0}
         avg_v = df['v'].rolling(20).mean().iloc[-1]
         last_v = df['v'].iloc[-1]
