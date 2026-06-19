@@ -9,6 +9,7 @@ class RiskManager:
         self.daily_trades = 0
         self.last_trade_time = None
         self.news_events: List[Dict[str, Any]] = []
+        self.peak_equity = 0.0
         self.load_news_from_file()
 
     def load_news_from_file(self, path: str = "config/news_schedule.json"):
@@ -34,31 +35,29 @@ class RiskManager:
             except Exception: continue
         return True
 
-    def calculate_trade_params(self, equity: float, atr: float, symbol: str, action: str, current_price: float, tick_val: float = 10.0, tick_size: float = 0.0001) -> Dict[str, Any]:
-        if atr <= 0: return {"lots": self.config.risk.min_lot_size, "sl": 0, "tp": 0}
+    def calculate_trade_params(self, equity: float, atr: float, symbol: str, action: str, tick_val: float = 10.0, tick_size: float = 0.0001) -> Dict[str, Any]:
+        """Calculate lots and point-based SL/TP offsets."""
+        if atr <= 0: return {"lots": self.config.risk.min_lot_size, "sl_pts": 0, "tp_pts": 0}
 
         risk_currency = equity * (self.config.risk.risk_per_trade_pct / 100.0)
         sl_dist = atr * 2
 
-        if action == "BUY":
-            sl = current_price - sl_dist
-            tp = current_price + (sl_dist * 2)
-        else:
-            sl = current_price + sl_dist
-            tp = current_price - (sl_dist * 2)
-
-        # Lots = Risk / ((SL_Price - Open_Price) / TickSize * TickValue)
-        # Note: (sl_dist / tick_size) is the number of ticks
+        # Calculate number of ticks for SL
         num_ticks = sl_dist / tick_size if tick_size > 0 else 0
         lots = risk_currency / (num_ticks * tick_val) if num_ticks > 0 and tick_val > 0 else self.config.risk.min_lot_size
 
+        # Convert distances to points (integers for MT5)
+        # Assumes points = tick_size
+        sl_pts = int(sl_dist / tick_size)
+        tp_pts = int((sl_dist * 2) / tick_size) # 2R
+
         return {
             "lots": max(self.config.risk.min_lot_size, round(lots, 2)),
-            "sl": round(sl, 5),
-            "tp": round(tp, 5)
+            "sl_pts": sl_pts,
+            "tp_pts": tp_pts
         }
 
-    def validate_trade(self, symbol: str, action: str, current_equity: float, current_price: float = 0.0, atr: float = 0.0, tick_val: float = 10.0, tick_size: float = 0.0001, ignore_session: bool = False) -> Dict[str, Any]:
+    def validate_trade(self, symbol: str, action: str, current_equity: float, atr: float = 0.0, tick_val: float = 10.0, tick_size: float = 0.0001, ignore_session: bool = False) -> Dict[str, Any]:
         if not ignore_session and not self.is_session_active():
             return {"safe": False, "reason": "Outside trading sessions"}
         if not self.is_news_safe():
@@ -66,13 +65,19 @@ class RiskManager:
         if self.daily_trades >= 5:
             return {"safe": False, "reason": "Daily trade limit reached"}
 
-        params = self.calculate_trade_params(current_equity, atr, symbol, action, current_price, tick_val, tick_size)
+        # Relative Drawdown Check
+        if self.peak_equity > 0:
+            current_dd = (self.peak_equity - current_equity) / self.peak_equity * 100.0
+            if current_dd > self.config.risk.max_drawdown_pct:
+                return {"safe": False, "reason": f"Max Relative Drawdown reached ({current_dd:.2f}%)"}
+
+        params = self.calculate_trade_params(current_equity, atr, symbol, action, tick_val, tick_size)
 
         return {
             "safe": True,
             "lots": params["lots"],
-            "sl": params["sl"],
-            "tp": params["tp"],
+            "sl_pts": params["sl_pts"],
+            "tp_pts": params["tp_pts"],
             "action": action,
             "symbol": symbol
         }

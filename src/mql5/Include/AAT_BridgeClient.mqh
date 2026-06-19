@@ -37,6 +37,7 @@ public:
    void              HandleTrade(string msg);
    void              HandleManagement(string mgmt_json);
    void              ActivateFailsafe();
+   void              CleanupObjects();
    bool              ShouldPushData(double current_price);
 };
 
@@ -57,7 +58,7 @@ bool CAATBridgeClient::Init(string host, int port, int hb_interval_sec=10)
 void CAATBridgeClient::ActivateFailsafe()
 {
    if(m_failsafe_active) return;
-   Print("AAT: !!! FAILSAFE ACTIVATED - LOST PYTHON HEARTBEAT !!!");
+   Print("AAT: !!! FAILSAFE ACTIVATED !!!");
    for(int i=PositionsTotal()-1; i>=0; i--)
    {
       if(PositionGetSymbol(i) == _Symbol)
@@ -66,15 +67,29 @@ void CAATBridgeClient::ActivateFailsafe()
          double entry = PositionGetDouble(POSITION_PRICE_OPEN);
          double sl = PositionGetDouble(POSITION_SL);
          double tp = PositionGetDouble(POSITION_TP);
-         // Move to BE if profit > 5 pips
-         double cur_price = PositionGetDouble(POSITION_PRICE_CURRENT);
-         if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY && cur_price > entry + 50*_Point)
+         double cur = PositionGetDouble(POSITION_PRICE_CURRENT);
+         if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY && cur > entry + 50*_Point)
             m_trade.PositionModify(ticket, entry + 10*_Point, tp);
-         else if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL && cur_price < entry - 50*_Point)
+         else if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL && cur < entry - 50*_Point)
             m_trade.PositionModify(ticket, entry - 10*_Point, tp);
       }
    }
    m_failsafe_active = true;
+}
+
+void CAATBridgeClient::CleanupObjects()
+{
+   // Remove objects older than 50 bars
+   datetime limit = iTime(_Symbol, _Period, 50);
+   for(int i=ObjectsTotal(0)-1; i>=0; i--)
+   {
+      string name = ObjectName(0, i);
+      if(StringFind(name, "OB_") == 0 || StringFind(name, "AAT_") == 0)
+      {
+         datetime obj_time = (datetime)ObjectGetInteger(0, name, OBJPROP_TIME, 0);
+         if(obj_time < limit) ObjectDelete(0, name);
+      }
+   }
 }
 
 bool CAATBridgeClient::ShouldPushData(double current_price)
@@ -106,7 +121,7 @@ void CAATBridgeClient::OnTick()
    uint now = GetTickCount();
    double current_price = SymbolInfoDouble(_Symbol, SYMBOL_BID);
 
-   if(now - m_last_data_push > 10000) // Periodic Ping if no data
+   if(now - m_last_data_push > 10000)
    {
       string hb = CAATProtocol::BuildHEARTBEAT(_Symbol, AccountInfoDouble(ACCOUNT_EQUITY), 0.0);
       if(m_socket.Send(hb)) m_last_data_push = now;
@@ -119,6 +134,7 @@ void CAATBridgeClient::OnTick()
    }
 
    ProcessMessages();
+   if(GetTickCount() % 100 == 0) CleanupObjects();
 }
 
 void CAATBridgeClient::ProcessMessages()
@@ -166,14 +182,31 @@ void CAATBridgeClient::HandleTrade(string msg)
    int id = (int)StringToInteger(CAATProtocol::GetValue(msg, "id"));
    string action = CAATProtocol::GetValue(msg, "act");
    double lots = StringToDouble(CAATProtocol::GetValue(msg, "lts"));
-   double sl = StringToDouble(CAATProtocol::GetValue(msg, "sl"));
-   double tp = StringToDouble(CAATProtocol::GetValue(msg, "tp"));
-   bool res = false;
-   if(action == "BUY") res = m_trade.Buy(lots, _Symbol, SymbolInfoDouble(_Symbol, SYMBOL_ASK), sl, tp, StringFormat("AAT:%d", id));
-   else if(action == "SELL") res = m_trade.Sell(lots, _Symbol, SymbolInfoDouble(_Symbol, SYMBOL_BID), sl, tp, StringFormat("AAT:%d", id));
-   uint ticket = (uint)m_trade.ResultDeal();
-   if(ticket == 0) ticket = (uint)m_trade.ResultOrder();
-   string ack = CAATProtocol::BuildTRADE_ACK(id, (int)ticket, res ? "" : IntegerToString(m_trade.ResultRetcode()));
+   int sl_p = (int)StringToInteger(CAATProtocol::GetValue(msg, "sl_p"));
+   int tp_p = (int)StringToInteger(CAATProtocol::GetValue(msg, "tp_p"));
+
+   double entry = (action == "BUY") ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   double sl = (action == "BUY") ? entry - sl_p * _Point : entry + sl_p * _Point;
+   double tp = (action == "BUY") ? entry + tp_p * _Point : entry - tp_p * _Point;
+
+   // Institutional: Async Order Send for simultaneous symbol entries
+   MqlTradeRequest request={0};
+   MqlTradeResult  result={0};
+   request.action   = TRADE_ACTION_DEAL;
+   request.symbol   = _Symbol;
+   request.volume   = lots;
+   request.type     = (action == "BUY") ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
+   request.price    = entry;
+   request.sl       = sl;
+   request.tp       = tp;
+   request.deviation= 10;
+   request.magic    = 123456;
+   request.comment  = StringFormat("AAT:%d", id);
+
+   bool res = OrderSendAsync(request, result);
+   uint ticket = result.order;
+
+   string ack = CAATProtocol::BuildTRADE_ACK(id, (int)ticket, res ? "" : IntegerToString(result.retcode));
    m_socket.Send(ack);
 }
 

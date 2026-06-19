@@ -24,7 +24,28 @@ class TradeLedger:
                     close_time TIMESTAMP
                 )
             """)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS account_stats (
+                    key TEXT PRIMARY KEY,
+                    val REAL
+                )
+            """)
             await conn.commit()
+
+    async def update_peak_equity(self, equity: float):
+        async with aiosqlite.connect(self.db_path) as conn:
+            await conn.execute(
+                "INSERT INTO account_stats (key, val) VALUES ('peak_equity', ?) "
+                "ON CONFLICT(key) DO UPDATE SET val = MAX(val, excluded.val)",
+                (equity,)
+            )
+            await conn.commit()
+
+    async def get_peak_equity(self) -> float:
+        async with aiosqlite.connect(self.db_path) as conn:
+            async with conn.execute("SELECT val FROM account_stats WHERE key = 'peak_equity'") as cursor:
+                row = await cursor.fetchone()
+                return row[0] if row else 0.0
 
     async def record_intent(self, symbol: str, action: str, lots: float, sl: float, tp: float) -> int:
         async with aiosqlite.connect(self.db_path) as conn:

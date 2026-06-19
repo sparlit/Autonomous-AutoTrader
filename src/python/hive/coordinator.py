@@ -54,7 +54,7 @@ class HiveCoordinator:
         if m_type == "DP":
             return {
                 "type": "DATA_PUSH", "symbol": message.get("s"), "tf": message.get("tf"),
-                "history": self._parse_history(message.get("ltf", [])),
+                "history": self._parse_history(message.get("ltf", []) or message.get("h", [])),
                 "h1": self._parse_history(message.get("h1", [])),
                 "h4": self._parse_history(message.get("h4", [])),
                 "bid": message.get("bi"), "ask": message.get("as"),
@@ -74,11 +74,15 @@ class HiveCoordinator:
 
         if msg_type == "HEARTBEAT":
             symbol = message.get("symbol", "UNKNOWN")
+            equity = float(message.get("equity", 0.0))
+            await self.ledger.update_peak_equity(equity)
+            self.risk_manager.peak_equity = await self.ledger.get_peak_equity()
+
             self.agent_states[client_id] = {
                 "symbol": symbol,
                 "last_seen": asyncio.get_event_loop().time(),
                 "status": "HEALTHY",
-                "equity": float(message.get("equity", 0.0)),
+                "equity": equity,
                 "drawdown": float(message.get("drawdown", 0.0))
             }
             return {"t": "HB_ACK"}
@@ -89,10 +93,8 @@ class HiveCoordinator:
             active_trades = await self.ledger.get_active_trades(symbol)
             for trade in active_trades:
                 if trade["ticket"] not in mt5_tickets:
-                    # Reconciliation: Assume SL hit if closed and last price was near SL
                     await self.ledger.close_trade(trade["ticket"])
                     self.cooldowns[symbol] = datetime.datetime.now() + datetime.timedelta(hours=4)
-                    logger.info(f"Synchronized closed trade: {trade['ticket']}. 4h Cooldown activated for {symbol}")
             return {"t": "SYNC_ACK"}
 
         if msg_type == "TRADE_ACK":
@@ -125,30 +127,23 @@ class HiveCoordinator:
 
             if analysis_results.get("action") in ["BUY", "SELL"]:
                 action = analysis_results["action"]
-
-                if symbol in self.cooldowns and datetime.datetime.now() < self.cooldowns[symbol]:
-                    logger.info(f"Symbol {symbol} in cooldown. Waiting.")
-                    return response
+                if symbol in self.cooldowns and datetime.datetime.now() < self.cooldowns[symbol]: return response
 
                 active_trades = await self.ledger.get_active_trades()
                 corr_check = self.corr_brain.check_exposure(symbol, action, active_trades)
-                if not corr_check["safe"]:
-                    logger.info(f"Correlation rejection: {corr_check['reason']}")
-                    return response
+                if not corr_check["safe"]: return response
 
-                price = ask if action == "BUY" else bid
                 validation = self.risk_manager.validate_trade(
                     symbol, action, equity,
-                    current_price=price, atr=atr, tick_val=tick_val, tick_size=tick_size
+                    atr=atr, tick_val=tick_val, tick_size=tick_size
                 )
                 if validation["safe"]:
                     internal_id = await self.ledger.record_intent(
-                        symbol, action, validation["lots"],
-                        validation["sl"], validation["tp"]
+                        symbol, action, validation["lots"], validation["sl_pts"], validation["tp_pts"]
                     )
                     response.update({
                         "id": internal_id, "act": action, "lts": validation["lots"],
-                        "sl": validation["sl"], "tp": validation["tp"]
+                        "sl_p": validation["sl_pts"], "tp_p": validation["tp_pts"]
                     })
             return response
 
@@ -157,6 +152,7 @@ class HiveCoordinator:
     async def run(self):
         logger.info("Starting Hive Coordinator...")
         await self.ledger.init_db()
+        self.risk_manager.peak_equity = await self.ledger.get_peak_equity()
         await self.server.start()
 
 if __name__ == "__main__":
