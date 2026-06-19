@@ -7,45 +7,101 @@
 #property link      "https://autonomous trader"
 #property strict
 
-// Basic Protocol Definitions
-// Minimal JSON-like string builders for zero-dependency serialization
-
 class CAATProtocol
 {
 public:
    static string     BuildPING();
    static string     BuildHEARTBEAT(string symbol, double equity, double dd);
-   static string     BuildOHLC(string symbol, ENUM_TIMEFRAMES tf, double o, double h, double l, double c);
+   static string     BuildDATA_PUSH(string symbol, ENUM_TIMEFRAMES tf, int count);
 
    static string     GetMsgType(string json);
+   static string     GetValue(string json, string key);
+
+private:
+   static string     CleanValue(string val);
 };
 
 string CAATProtocol::BuildPING()
 {
-   return "{\"type\":\"PING\"}";
+   return "{\"t\":\"PNG\"}";
 }
 
 string CAATProtocol::BuildHEARTBEAT(string symbol, double equity, double dd)
 {
-   return StringFormat("{\"type\":\"HEARTBEAT\",\"symbol\":\"%s\",\"equity\":%.2f,\"drawdown\":%.2f}",
+   return StringFormat("{\"t\":\"HB\",\"s\":\"%s\",\"e\":%.2f,\"d\":%.2f}",
                        symbol, equity, dd);
 }
 
-string CAATProtocol::BuildOHLC(string symbol, ENUM_TIMEFRAMES tf, double o, double h, double l, double c)
+string CAATProtocol::BuildDATA_PUSH(string symbol, ENUM_TIMEFRAMES tf, int count)
 {
-   return StringFormat("{\"type\":\"OHLC_PUSH\",\"symbol\":\"%s\",\"tf\":%d,\"o\":%.5f,\"h\":%.5f,\"l\":%.5f,\"c\":%.5f}",
-                       symbol, (int)tf, o, h, l, c);
+   MqlRates rates[];
+   ArraySetAsSeries(rates, true);
+   int copied = CopyRates(symbol, tf, 0, count, rates);
+
+   // Use minified keys to save bandwidth: o, h, l, c, t
+   string history = "[";
+   for(int i=copied-1; i>=0; i--)
+   {
+      history += StringFormat("[%.5f,%.5f,%.5f,%.5f,%lld]",
+                              rates[i].open, rates[i].high, rates[i].low, rates[i].close, rates[i].time);
+      if(i > 0) history += ",";
+   }
+   history += "]";
+
+   return StringFormat("{\"t\":\"DP\",\"s\":\"%s\",\"tf\":%d,\"h\":%s}",
+                       symbol, (int)tf, history);
 }
 
 string CAATProtocol::GetMsgType(string json)
 {
-   // Very basic type extraction for zero-stub parser
-   int pos = StringFind(json, "\"type\":\"");
+   string t = GetValue(json, "t");
+   if(t == "HB") return "HEARTBEAT";
+   if(t == "DP") return "DATA_PUSH";
+   if(t == "PNG") return "PING";
+   if(t == "DEC") return "DECISION";
+   return t;
+}
+
+string CAATProtocol::GetValue(string json, string key)
+{
+   // Robust value extraction for minified JSON
+   string search = "\"" + key + "\":";
+   int pos = StringFind(json, search);
    if(pos < 0) return "";
 
-   int start = pos + 8;
-   int end = StringFind(json, "\"", start);
-   if(end < 0) return "";
+   int start = pos + StringLen(search);
+   uchar first_char = StringGetCharacter(json, start);
 
-   return StringSubstr(json, start, end - start);
+   int end = -1;
+   if(first_char == '\"') // String
+   {
+      start++;
+      end = StringFind(json, "\"", start);
+   }
+   else if(first_char == '[') // Array
+   {
+      int depth = 0;
+      for(int i = start; i < StringLen(json); i++)
+      {
+         uchar c = StringGetCharacter(json, i);
+         if(c == '[') depth++;
+         if(c == ']') depth--;
+         if(depth == 0) { end = i + 1; break; }
+      }
+   }
+   else // Number/Boolean
+   {
+      end = StringFind(json, ",", start);
+      if(end < 0) end = StringFind(json, "}", start);
+   }
+
+   if(end < 0) return "";
+   return CleanValue(StringSubstr(json, start, end - start));
+}
+
+string CAATProtocol::CleanValue(string val)
+{
+   string cleaned = val;
+   StringReplace(cleaned, "\"", "");
+   return cleaned;
 }

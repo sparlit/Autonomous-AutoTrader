@@ -17,6 +17,7 @@ private:
    string            m_host;
    int               m_port;
    uint              m_last_heartbeat;
+   uint              m_last_data_push;
    uint              m_heartbeat_interval;
 
 public:
@@ -25,12 +26,11 @@ public:
 
    bool              Init(string host, int port, int hb_interval_sec=10);
    void              OnTick();
-
-   bool              SendSignal(string symbol, double o, double h, double l, double c);
    void              ProcessMessages();
+   void              DrawObjects(string draw_json);
 };
 
-CAATBridgeClient::CAATBridgeClient() : m_last_heartbeat(0), m_heartbeat_interval(10000)
+CAATBridgeClient::CAATBridgeClient() : m_last_heartbeat(0), m_last_data_push(0), m_heartbeat_interval(10000)
 {
 }
 
@@ -55,15 +55,18 @@ void CAATBridgeClient::OnTick()
       return;
    }
 
-   // Heartbeat logic
    uint now = GetTickCount();
+
    if(now - m_last_heartbeat > m_heartbeat_interval)
    {
       string hb = CAATProtocol::BuildHEARTBEAT(_Symbol, AccountInfoDouble(ACCOUNT_EQUITY), 0.0);
-      if(m_socket.Send(hb))
-      {
-         m_last_heartbeat = now;
-      }
+      if(m_socket.Send(hb)) m_last_heartbeat = now;
+   }
+
+   if(now - m_last_data_push > 5000)
+   {
+      string data = CAATProtocol::BuildDATA_PUSH(_Symbol, _Period, 100);
+      if(m_socket.Send(data)) m_last_data_push = now;
    }
 
    ProcessMessages();
@@ -75,23 +78,35 @@ void CAATBridgeClient::ProcessMessages()
    if(msg != "")
    {
       string type = CAATProtocol::GetMsgType(msg);
-      if(type == "PONG" || type == "HEARTBEAT_ACK")
+      if(type == "DECISION")
       {
-         // Connection alive
-      }
-      else if(type == "ACK")
-      {
-         Print("AAT: Python ACK: ", msg);
-      }
-      else
-      {
-         Print("AAT: Unknown message from Python: ", msg);
+         string draw = CAATProtocol::GetValue(msg, "drw");
+         if(draw != "") DrawObjects(draw);
+
+         string action = CAATProtocol::GetValue(msg, "act");
+         if(action != "WAIT" && action != "")
+         {
+            Print("AAT TRADE Decision: ", action, " Lots: ", CAATProtocol::GetValue(msg, "lts"));
+         }
       }
    }
 }
 
-bool CAATBridgeClient::SendSignal(string symbol, double o, double h, double l, double c)
+void CAATBridgeClient::DrawObjects(string draw_json)
 {
-   string ohlc = CAATProtocol::BuildOHLC(symbol, Period(), o, h, l, c);
-   return m_socket.Send(ohlc);
+   // Basic drawing logic: if it contains RECTANGLE
+   if(StringFind(draw_json, "RECTANGLE") >= 0)
+   {
+      string name = CAATProtocol::GetValue(draw_json, "name");
+      double top = StringToDouble(CAATProtocol::GetValue(draw_json, "top"));
+      double bottom = StringToDouble(CAATProtocol::GetValue(draw_json, "bottom"));
+
+      if(!ObjectCreate(0, name, OBJ_RECTANGLE, 0, TimeCurrent(), top, TimeCurrent() - 3600*24, bottom))
+      {
+         ObjectMove(0, name, 0, TimeCurrent(), top);
+         ObjectMove(0, name, 1, TimeCurrent() - 3600*24, bottom);
+      }
+      ObjectSetInteger(0, name, OBJPROP_COLOR, clrDodgerBlue);
+      ObjectSetInteger(0, name, OBJPROP_BACK, true);
+   }
 }
