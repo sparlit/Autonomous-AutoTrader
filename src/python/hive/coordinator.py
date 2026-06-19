@@ -52,6 +52,7 @@ class HiveCoordinator:
         if m_type == "PNG": return {"type": "PING"}
         if m_type == "HB":
             return {"type": "HEARTBEAT", "symbol": message.get("s"), "equity": message.get("e"), "drawdown": message.get("d")}
+        if m_type == "DP": return message
         if m_type == "T_ACK":
             return {"type": "TRADE_ACK", "id": message.get("id"), "ticket": message.get("tk"), "err": message.get("err")}
         if m_type == "SYNC":
@@ -96,15 +97,23 @@ class HiveCoordinator:
 
         loop = asyncio.get_event_loop()
         try:
-            # Self-Healing Execution: Attempt analysis
             analysis = await loop.run_in_executor(self.executor, process_task, raw_msg)
         except Exception as e:
-            logger.error(f"Worker Failure for {symbol}: {e}. Restarting Pool.")
-            self.executor.shutdown(wait=False); self.executor = ProcessPoolExecutor(max_workers=self.config.brains.parallel_workers, initializer=worker_init)
+            logger.error(f"Analysis Failed for {symbol}: {e}")
             return {"t": "DEC", "s": symbol, "act": "WAIT", "m": "RECOVERY"}
 
         atr = analysis.get("atr", 0.0); mgmt = await self.pos_manager.monitor_and_manage(symbol, (bid+ask)/2, atr)
-        response = {"t": "DEC", "s": symbol, "act": "WAIT"}
+
+        # Dashboard Telemetry Bundle
+        response = {
+            "t": "DEC", "s": symbol, "act": "WAIT",
+            "tlm": { # Telemetry
+                "scr": analysis.get("score", 0),
+                "htf": analysis.get("htf_trend", "NEUTRAL"),
+                "st": "HEALTHY",
+                "dd": round((self.risk_manager.peak_equity - equity)/self.risk_manager.peak_equity*100, 2) if self.risk_manager.peak_equity > 0 else 0
+            }
+        }
         if mgmt: response["mgmt"] = mgmt
         if "draw" in analysis: response["drw"] = analysis["draw"]
 
@@ -113,6 +122,7 @@ class HiveCoordinator:
             if symbol in self.cooldowns and datetime.datetime.now() < self.cooldowns[symbol]: return response
             active_trades = self.ledger.get_cached_active_trades()
             if not self.corr_brain.check_exposure(symbol, action, active_trades)["safe"]: return response
+
             v = self.risk_manager.validate_trade(symbol, action, equity, atr=atr, tick_val=raw_msg.get("tv", 10.0), tick_size=raw_msg.get("ts", 0.0001))
             if v["safe"]:
                 iid = await self.ledger.record_intent(symbol, action, v["lots"], v["sl_pts"], v["tp_pts"])
@@ -120,7 +130,7 @@ class HiveCoordinator:
         return response
 
     async def run(self):
-        logger.info("Starting Self-Healing Multi-Threaded Hybrid Coordinator...")
+        logger.info("Starting Multi-Threaded Coordinator with Telemetry...")
         await self.ledger.init_db()
         self.risk_manager.peak_equity = self.ledger.get_cached_peak_equity()
         asyncio.create_task(self.watchdog.run()); asyncio.create_task(self.context_brain.update_global_context())

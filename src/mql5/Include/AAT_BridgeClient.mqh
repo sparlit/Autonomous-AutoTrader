@@ -10,12 +10,14 @@
 #include <AAT_NativeSockets.mqh>
 #include <AAT_Protocol.mqh>
 #include <Trade\Trade.mqh>
+#include <AAT_Dashboard.mqh>
 
 class CAATBridgeClient
 {
 private:
    CAATNativeSocket  m_socket;
    CTrade            m_trade;
+   CAATDashboard     m_dash;
    string            m_host;
    int               m_port;
    uint              m_last_heartbeat_rx;
@@ -25,33 +27,37 @@ private:
    double            m_push_threshold;
    bool              m_synced;
    bool              m_failsafe_active;
+   bool              m_use_dash;
 
 public:
                      CAATBridgeClient();
                     ~CAATBridgeClient();
 
-   bool              Init(string host, int port, int hb_interval_sec=10);
+   bool              Init(string host, int port, bool use_dash=false, int hb_interval_sec=10);
    void              OnTick();
    void              ProcessMessages();
    void              DrawObjects(string draw_json);
    void              HandleTrade(string msg);
    void              HandleManagement(string mgmt_json);
+   void              HandleTelemetry(string tlm_json);
    void              ActivateFailsafe();
    void              CleanupObjects();
    bool              ShouldPushData(double current_price);
 };
 
-CAATBridgeClient::CAATBridgeClient() : m_last_heartbeat_rx(0), m_last_data_push(0), m_heartbeat_interval(10000), m_last_push_price(0), m_push_threshold(0.0005), m_synced(false), m_failsafe_active(false)
+CAATBridgeClient::CAATBridgeClient() : m_last_heartbeat_rx(0), m_last_data_push(0), m_heartbeat_interval(10000), m_last_push_price(0), m_push_threshold(0.0005), m_synced(false), m_failsafe_active(false), m_use_dash(false)
 {
    m_trade.SetExpertMagicNumber(123456);
 }
 
 CAATBridgeClient::~CAATBridgeClient() {}
 
-bool CAATBridgeClient::Init(string host, int port, int hb_interval_sec=10)
+bool CAATBridgeClient::Init(string host, int port, bool use_dash=false, int hb_interval_sec=10)
 {
-   m_host = host; m_port = port; m_heartbeat_interval = hb_interval_sec * 1000;
+   m_host = host; m_port = port; m_use_dash = use_dash;
+   m_heartbeat_interval = hb_interval_sec * 1000;
    m_last_heartbeat_rx = GetTickCount();
+   if(m_use_dash) m_dash.Create("AAT_Dash", 320, 400);
    return m_socket.Connect(m_host, m_port);
 }
 
@@ -65,7 +71,6 @@ void CAATBridgeClient::ActivateFailsafe()
       {
          ulong ticket = PositionGetInteger(POSITION_TICKET);
          double entry = PositionGetDouble(POSITION_PRICE_OPEN);
-         double sl = PositionGetDouble(POSITION_SL);
          double tp = PositionGetDouble(POSITION_TP);
          double cur = PositionGetDouble(POSITION_PRICE_CURRENT);
          if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY && cur > entry + 50*_Point)
@@ -79,7 +84,6 @@ void CAATBridgeClient::ActivateFailsafe()
 
 void CAATBridgeClient::CleanupObjects()
 {
-   // Remove objects older than 50 bars
    datetime limit = iTime(_Symbol, _Period, 50);
    for(int i=ObjectsTotal(0)-1; i>=0; i--)
    {
@@ -134,7 +138,7 @@ void CAATBridgeClient::OnTick()
    }
 
    ProcessMessages();
-   if(GetTickCount() % 100 == 0) CleanupObjects();
+   if(GetTickCount() % 500 == 0) CleanupObjects();
 }
 
 void CAATBridgeClient::ProcessMessages()
@@ -148,12 +152,27 @@ void CAATBridgeClient::ProcessMessages()
       {
          string draw = CAATProtocol::GetValue(msg, "drw");
          if(draw != "") DrawObjects(draw);
+
+         string tlm = CAATProtocol::GetValue(msg, "tlm");
+         if(tlm != "") HandleTelemetry(tlm);
+
          string mgmt = CAATProtocol::GetValue(msg, "mgmt");
          if(mgmt != "") HandleManagement(mgmt);
+
          string action = CAATProtocol::GetValue(msg, "act");
          if(action != "WAIT" && action != "") HandleTrade(msg);
       }
    }
+}
+
+void CAATBridgeClient::HandleTelemetry(string tlm_json)
+{
+   if(!m_use_dash) return;
+   double score = StringToDouble(CAATProtocol::GetValue(tlm_json, "scr"));
+   string htf = CAATProtocol::GetValue(tlm_json, "htf");
+   string st = CAATProtocol::GetValue(tlm_json, "st");
+   double dd = StringToDouble(CAATProtocol::GetValue(tlm_json, "dd"));
+   m_dash.Render(_Symbol, st, score, htf, dd);
 }
 
 void CAATBridgeClient::HandleManagement(string mgmt_json)
@@ -189,24 +208,14 @@ void CAATBridgeClient::HandleTrade(string msg)
    double sl = (action == "BUY") ? entry - sl_p * _Point : entry + sl_p * _Point;
    double tp = (action == "BUY") ? entry + tp_p * _Point : entry - tp_p * _Point;
 
-   // Institutional: Async Order Send for simultaneous symbol entries
-   MqlTradeRequest request={0};
-   MqlTradeResult  result={0};
-   request.action   = TRADE_ACTION_DEAL;
-   request.symbol   = _Symbol;
-   request.volume   = lots;
-   request.type     = (action == "BUY") ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
-   request.price    = entry;
-   request.sl       = sl;
-   request.tp       = tp;
-   request.deviation= 10;
-   request.magic    = 123456;
-   request.comment  = StringFormat("AAT:%d", id);
+   MqlTradeRequest request={0}; MqlTradeResult result={0};
+   request.action = TRADE_ACTION_DEAL; request.symbol = _Symbol; request.volume = lots;
+   request.type = (action == "BUY") ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
+   request.price = entry; request.sl = sl; request.tp = tp;
+   request.deviation = 10; request.magic = 123456; request.comment = StringFormat("AAT:%d", id);
 
    bool res = OrderSendAsync(request, result);
-   uint ticket = result.order;
-
-   string ack = CAATProtocol::BuildTRADE_ACK(id, (int)ticket, res ? "" : IntegerToString(result.retcode));
+   string ack = CAATProtocol::BuildTRADE_ACK(id, (int)result.order, res ? "" : IntegerToString(result.retcode));
    m_socket.Send(ack);
 }
 
