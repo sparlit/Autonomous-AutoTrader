@@ -1,3 +1,0 @@
-2026-06-19 18:30:58,795 - AAT_Coordinator - INFO - Starting Multi-Threaded Hybrid Coordinator...
-2026-06-19 18:30:58,802 - AAT_Watchdog - INFO - Watchdog started.
-2026-06-19 18:30:58,802 - AAT_Bridge - INFO - Ultra-Parallel Bridge active at 127.0.0.1:5555
