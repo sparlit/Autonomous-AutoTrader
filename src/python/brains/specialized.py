@@ -4,6 +4,7 @@ from src.python.analyst.price_action import SMCAnalyst
 from typing import Dict, Any, List
 import pandas as pd
 import asyncio
+import time
 
 class DecisionBrain(BaseBrain):
     def __init__(self, name: str):
@@ -11,9 +12,6 @@ class DecisionBrain(BaseBrain):
         self.engine = ConsensusEngine()
 
     async def process(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        if data.get("type") == "DATA_PUSH":
-            # For multi-processing, this is handled by the executor in Coordinator
-            return {}
         return {"action": "WAIT"}
 
 class HTFAnalysisBrain(BaseBrain):
@@ -35,14 +33,7 @@ class HTFAnalysisBrain(BaseBrain):
 
 class LTFTriggerBrain(BaseBrain):
     async def process(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        history = data.get("history", [])
-        if len(history) < 2: return {"trigger": False}
-        last = history[-1]
-        prev = history[-2]
-        # Engulfing pattern
-        buy_trigger = last['c'] > prev['h'] and last['c'] > last['o']
-        sell_trigger = last['c'] < prev['l'] and last['c'] < last['o']
-        return {"buy_trigger": buy_trigger, "sell_trigger": sell_trigger}
+        return {}
 
 class CorrelationBrain(BaseBrain):
     def __init__(self, name: str):
@@ -55,26 +46,41 @@ class CorrelationBrain(BaseBrain):
         }
 
     async def process(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        # This brain is consulted by the coordinator after checking active positions
         return {"correlation_safe": True}
 
     def check_exposure(self, symbol: str, action: str, active_trades: List[Dict[str, Any]]) -> Dict[str, Any]:
         base, quote = self.currency_map.get(symbol, (symbol[:3], symbol[3:]))
-        exposure = {} # Map of currency to net exposure (-1, 0, 1)
-
+        exposure = {}
         for trade in active_trades:
             t_base, t_quote = self.currency_map.get(trade["symbol"], (trade["symbol"][:3], trade["symbol"][3:]))
             dir_mult = 1 if trade["action"] == "BUY" else -1
             exposure[t_base] = exposure.get(t_base, 0) + dir_mult
             exposure[t_quote] = exposure.get(t_quote, 0) - dir_mult
-
-        # Proposed trade exposure
         dir_mult = 1 if action == "BUY" else -1
         new_base_exp = exposure.get(base, 0) + dir_mult
         new_quote_exp = exposure.get(quote, 0) - dir_mult
-
-        # Threshold: No more than 2x exposure to any single currency
         if abs(new_base_exp) > 2 or abs(new_quote_exp) > 2:
             return {"safe": False, "reason": f"Max exposure exceeded for {base if abs(new_base_exp)>2 else quote}"}
-
         return {"safe": True}
+
+class ContextBrain(BaseBrain):
+    """Parallel engine for Global Market Context (News, Sentiment, Correlated Indices)."""
+    def __init__(self, name: str):
+        super().__init__(name)
+        self.global_context = {
+            "news_high_impact": False,
+            "index_trend": "NEUTRAL",
+            "last_updated": 0
+        }
+
+    async def process(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        # This brain doesn't process symbol ticks directly, it updates global state
+        return self.global_context
+
+    async def update_global_context(self):
+        """Continuously update global variables in a parallel async loop."""
+        while True:
+            # Parallel fetching logic would go here
+            # For now, we mock the update
+            self.global_context["last_updated"] = time.time()
+            await asyncio.sleep(60) # Update every minute

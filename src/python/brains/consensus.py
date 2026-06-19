@@ -3,38 +3,44 @@ from src.python.analyst.price_action import SMCAnalyst
 from src.python.analyst.indicators import IndicatorAnalyst
 from src.python.analyst.volatility import VolatilityAnalyst
 from typing import Dict, Any, List
+from concurrent.futures import ThreadPoolExecutor
 
 class ConsensusEngine:
     def __init__(self):
         self.smc = SMCAnalyst()
         self.indicators = IndicatorAnalyst()
         self.volatility = VolatilityAnalyst()
+        self._thread_pool = ThreadPoolExecutor(max_workers=4)
 
     def _parse_history(self, raw_h: List[List[Any]]) -> List[Dict[str, Any]]:
         return [{"o": x[0], "h": x[1], "l": x[2], "c": x[3], "t": x[4], "v": x[5]} for x in raw_h]
 
     def analyze_sync(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Synchronous analysis for multi-processing using worker resident state."""
-        # Check if history is already list of dicts (from worker) or raw (from direct call)
+        """Synchronous analysis optimized with internal parallel task submission."""
         hist_data = data.get("history", [])
-        if hist_data and isinstance(hist_data[0], list):
-             hist_data = self._parse_history(hist_data)
-
+        if hist_data and isinstance(hist_data[0], list): hist_data = self._parse_history(hist_data)
         if not hist_data: return {"action": "WAIT", "reason": "No history"}
         df = pd.DataFrame(hist_data)
 
-        # Analyze HTF if provided
         h4_raw = data.get("h4", [])
         if h4_raw and isinstance(h4_raw[0], list): h4_raw = self._parse_history(h4_raw)
         h4_df = pd.DataFrame(h4_raw)
 
-        htf_struct = self.smc.detect_market_structure(h4_df) if not h4_df.empty else {"trend": "NEUTRAL", "swing_h": 0, "swing_l": 0}
+        # Parallel sub-task execution
+        f_htf = self._thread_pool.submit(self.smc.detect_market_structure, h4_df) if not h4_df.empty else None
+        f_inds = self._thread_pool.submit(self.indicators.calculate_all, df)
+        f_vsa = self._thread_pool.submit(self.volatility.analyze_vsa, df)
+        f_trig = self._thread_pool.submit(self.smc.detect_candlestick_trigger, df)
 
-        inds = self.indicators.calculate_all(df)
+        # Wait for results (GIL is released by NumPy during these calls)
+        inds = f_inds.result()
         atr = inds["atr"]
+
+        # Structure depends on ATR
         structure = self.smc.detect_market_structure(df, atr=atr)
-        vsa = self.volatility.analyze_vsa(df)
-        trigger = self.smc.detect_candlestick_trigger(df)
+        htf_struct = f_htf.result() if f_htf else {"trend": "NEUTRAL", "swing_h": 0, "swing_l": 0}
+        vsa = f_vsa.result()
+        trigger = f_trig.result()
 
         curr_price = df['c'].iloc[-1]
         proximity_rejection = False
@@ -46,13 +52,10 @@ class ConsensusEngine:
         elif inds["rsi"] < 40: momentum = "BEARISH"
 
         obs = self.smc.detect_order_blocks(df, atr=atr)
-        near_ob = False
-        active_ob = None
+        near_ob = False; active_ob = None
         for ob in obs:
-            if ob["type"] == "BULLISH" and curr_price <= ob["top"] + (atr * 0.1):
-                near_ob = True; active_ob = ob
-            elif ob["type"] == "BEARISH" and curr_price >= ob["bottom"] - (atr * 0.1):
-                near_ob = True; active_ob = ob
+            if ob["type"] == "BULLISH" and curr_price <= ob["top"] + (atr * 0.1): near_ob = True; active_ob = ob
+            elif ob["type"] == "BEARISH" and curr_price >= ob["bottom"] - (atr * 0.1): near_ob = True; active_ob = ob
 
         regime = self.volatility.get_regime(df)
 
