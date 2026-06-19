@@ -1,11 +1,3 @@
-//+------------------------------------------------------------------+
-//|                                              AAT_Protocol.mqh |
-//|                                  Copyright 2024, Jules (God Mode)|
-<<<<<<< HEAD
-//|                                       https://autonomous trader |
-=======
->>>>>>> origin/aat-phase1-design-final-8550167587809497732
-//+------------------------------------------------------------------+
 #property copyright "Copyright 2024, Jules (God Mode)"
 #property link      "https://autonomous trader"
 #property strict
@@ -13,225 +5,39 @@
 class CAATProtocol
 {
 public:
-   static string     BuildPING();
-   static string     BuildHEARTBEAT(string symbol, double equity, double dd);
-<<<<<<< HEAD
-<<<<<<< HEAD
-   static string     BuildDATA_PUSH(string symbol, ENUM_TIMEFRAMES ltf, int count);
-   static string     BuildTRADE_ACK(int id, int ticket, string err);
-   static string     BuildSYNC(string symbol);
-
-   static string     GetMsgType(string json);
-   static string     GetValue(string json, string key);
-
+   static string BuildPING() { return "{\"t\":\"PNG\"}"; }
+   static string BuildHEARTBEAT(string s, double e, double d) { return StringFormat("{\"t\":\"HB\",\"s\":\"%s\",\"e\":%.2f,\"d\":%.2f}", s, e, d); }
+   static string BuildDATA_PUSH(string s, ENUM_TIMEFRAMES tf, int c) {
+      string h_ltf = BuildH(s, tf, c);
+      string h_h1 = BuildH(s, PERIOD_H1, 50);
+      string h_h4 = BuildH(s, PERIOD_H4, 30);
+      return StringFormat("{\"t\":\"DP\",\"s\":\"%s\",\"tf\":%d,\"bi\":%.5f,\"as\":%.5f,\"tv\":%.5f,\"ts\":%.5f,\"ltf\":%s,\"h1\":%s,\"h4\":%s}",
+                          s, (int)tf, SymbolInfoDouble(s, SYMBOL_BID), SymbolInfoDouble(s, SYMBOL_ASK),
+                          SymbolInfoDouble(s, SYMBOL_TRADE_TICK_VALUE), SymbolInfoDouble(s, SYMBOL_TRADE_TICK_SIZE), h_ltf, h_h1, h_h4);
+   }
+   static string BuildTRADE_ACK(int id, int tk, string err) { return StringFormat("{\"t\":\"T_ACK\",\"id\":%d,\"tk\":%d,\"err\":\"%s\"}", id, tk, err); }
+   static string BuildSYNC(string s) {
+      string tks = "["; bool first = true;
+      for(int i=0; i<PositionsTotal(); i++) {
+         if(PositionGetSymbol(i) == s) {
+            if(!first) tks += ","; tks += IntegerToString(PositionGetInteger(POSITION_TICKET)); first = false;
+         }
+      }
+      tks += "]"; return StringFormat("{\"t\":\"SYNC\",\"s\":\"%s\",\"tk\":%s}", s, tks);
+   }
+   static string GetMsgType(string j) { string t = GetV(j, "t"); return (t=="HB")?"HEARTBEAT":(t=="DP")?"DATA_PUSH":(t=="PNG")?"PING":(t=="DEC")?"DECISION":(t=="T_ACK")?"TRADE_ACK":(t=="SYNC")?"SYNC":t; }
+   static string GetV(string j, string k) {
+      string s = "\"" + k + "\":"; int p = StringFind(j, s); if(p<0) return "";
+      int st = p + StringLen(s); uchar fc = StringGetCharacter(j, st); int e = -1;
+      if(fc == '\"') { st++; e = StringFind(j, "\"", st); }
+      else if(fc == '[') { int d = 0; for(int i=st; i<StringLen(j); i++) { uchar c=StringGetCharacter(j, i); if(c=='[') d++; if(c==']') d--; if(d==0) {e=i+1; break;} } }
+      else { e = StringFind(j, ",", st); if(e<0) e = StringFind(j, "}", st); }
+      if(e<0) return ""; string v = StringSubstr(j, st, e-st); StringReplace(v, "\"", ""); return v;
+   }
 private:
-   static string     BuildHistoryJSON(string symbol, ENUM_TIMEFRAMES tf, int count);
-   static string     CleanValue(string val);
-=======
-   static string     BuildOHLC(string symbol, ENUM_TIMEFRAMES tf, double o, double h, double l, double c);
-
-   static string     GetMsgType(string json);
->>>>>>> origin/aat-phase1-design-final-8550167587809497732
-=======
-   static string     BuildDATA_PUSH(string symbol, ENUM_TIMEFRAMES tf, int count);
-
-   static string     GetMsgType(string json);
-   static string     GetValue(string json, string key);
->>>>>>> origin/main
+   static string BuildH(string s, ENUM_TIMEFRAMES tf, int c) {
+      MqlRates r[]; ArraySetAsSeries(r, true); int cp = CopyRates(s, tf, 0, c, r);
+      string h = "["; for(int i=cp-1; i>=0; i--) { h += StringFormat("[%.5f,%.5f,%.5f,%.5f,%lld,%lld]", r[i].open, r[i].high, r[i].low, r[i].close, r[i].time, r[i].tick_volume); if(i>0) h += ","; }
+      h += "]"; return h;
+   }
 };
-
-string CAATProtocol::BuildPING()
-{
-<<<<<<< HEAD
-   return "{\"t\":\"PNG\"}";
-=======
-   return "{\"type\":\"PING\"}";
->>>>>>> origin/aat-phase1-design-final-8550167587809497732
-}
-
-string CAATProtocol::BuildHEARTBEAT(string symbol, double equity, double dd)
-{
-<<<<<<< HEAD
-   return StringFormat("{\"t\":\"HB\",\"s\":\"%s\",\"e\":%.2f,\"d\":%.2f}",
-                       symbol, equity, dd);
-}
-
-<<<<<<< HEAD
-string CAATProtocol::BuildHistoryJSON(string symbol, ENUM_TIMEFRAMES tf, int count)
-{
-   MqlRates rates[];
-   ArraySetAsSeries(rates, true);
-   int copied = CopyRates(symbol, tf, 0, count, rates);
-
-   string history = "[";
-   for(int i=copied-1; i>=0; i--)
-   {
-      history += StringFormat("[%.5f,%.5f,%.5f,%.5f,%lld,%lld]",
-                              rates[i].open, rates[i].high, rates[i].low, rates[i].close, rates[i].time, rates[i].tick_volume);
-      if(i > 0) history += ",";
-   }
-   history += "]";
-   return history;
-}
-
-string CAATProtocol::BuildDATA_PUSH(string symbol, ENUM_TIMEFRAMES ltf, int count)
-{
-   string h_ltf = BuildHistoryJSON(symbol, ltf, count);
-   string h_h1 = BuildHistoryJSON(symbol, PERIOD_H1, 50);
-   string h_h4 = BuildHistoryJSON(symbol, PERIOD_H4, 30);
-
-   double tick_val = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_VALUE);
-   double tick_size = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_SIZE);
-
-   return StringFormat("{\"t\":\"DP\",\"s\":\"%s\",\"tf\":%d,\"bi\":%.5f,\"as\":%.5f,\"tv\":%.5f,\"ts\":%.5f,\"ltf\":%s,\"h1\":%s,\"h4\":%s}",
-                       symbol, (int)ltf, SymbolInfoDouble(symbol, SYMBOL_BID), SymbolInfoDouble(symbol, SYMBOL_ASK),
-                       tick_val, tick_size, h_ltf, h_h1, h_h4);
-}
-
-string CAATProtocol::BuildTRADE_ACK(int id, int ticket, string err)
-{
-   return StringFormat("{\"t\":\"T_ACK\",\"id\":%d,\"tk\":%d,\"err\":\"%s\"}", id, ticket, err);
-}
-
-string CAATProtocol::BuildSYNC(string symbol)
-{
-   string tickets = "[";
-   bool first = true;
-   for(int i=0; i<PositionsTotal(); i++)
-   {
-      if(PositionGetSymbol(i) == symbol)
-      {
-         if(!first) tickets += ",";
-         tickets += IntegerToString(PositionGetInteger(POSITION_TICKET));
-         first = false;
-      }
-   }
-   tickets += "]";
-   return StringFormat("{\"t\":\"SYNC\",\"s\":\"%s\",\"tk\":%s}", symbol, tickets);
-=======
-   return "{\"type\":\"HEARTBEAT\",\"symbol\":\""+symbol+"\","+
-          "\"equity\":"+DoubleToString(equity, 2)+","+
-          "\"drawdown\":"+DoubleToString(dd, 2)+"}";
-}
-
-string CAATProtocol::BuildOHLC(string symbol, ENUM_TIMEFRAMES tf, double o, double h, double l, double c)
-{
-   return "{\"type\":\"OHLC_PUSH\",\"symbol\":\""+symbol+"\","+
-          "\"tf\":"+IntegerToString((int)tf)+","+
-          "\"o\":"+DoubleToString(o, 5)+","+
-          "\"h\":"+DoubleToString(h, 5)+","+
-          "\"l\":"+DoubleToString(l, 5)+","+
-          "\"c\":"+DoubleToString(c, 5)+"}";
->>>>>>> origin/aat-phase1-design-final-8550167587809497732
-=======
-string CAATProtocol::BuildDATA_PUSH(string symbol, ENUM_TIMEFRAMES tf, int count)
-{
-   MqlRates rates[];
-   ArraySetAsSeries(rates, true);
-   int copied = CopyRates(symbol, tf, 0, count, rates);
-
-   string history = "[";
-   for(int i=copied-1; i>=0; i--)
-   {
-      history += StringFormat("{\"o\":%.5f,\"h\":%.5f,\"l\":%.5f,\"c\":%.5f,\"t\":%lld}",
-                              rates[i].open, rates[i].high, rates[i].low, rates[i].close, rates[i].time);
-      if(i > 0) history += ",";
-   }
-   history += "]";
-
-   return StringFormat("{\"type\":\"DATA_PUSH\",\"symbol\":\"%s\",\"tf\":%d,\"history\":%s}",
-                       symbol, (int)tf, history);
->>>>>>> origin/main
-}
-
-string CAATProtocol::GetMsgType(string json)
-{
-<<<<<<< HEAD
-<<<<<<< HEAD
-   string t = GetValue(json, "t");
-   if(t == "HB") return "HEARTBEAT";
-   if(t == "DP") return "DATA_PUSH";
-   if(t == "PNG") return "PING";
-   if(t == "DEC") return "DECISION";
-   if(t == "T_ACK") return "TRADE_ACK";
-   if(t == "SYNC") return "SYNC";
-   return t;
-=======
-   return GetValue(json, "type");
->>>>>>> origin/main
-}
-
-string CAATProtocol::GetValue(string json, string key)
-{
-<<<<<<< HEAD
-   string search = "\"" + key + "\":";
-   int pos = StringFind(json, search);
-   if(pos < 0) return "";
-   int start = pos + StringLen(search);
-   uchar first_char = StringGetCharacter(json, start);
-   int end = -1;
-   if(first_char == '\"') { start++; end = StringFind(json, "\"", start); }
-   else if(first_char == '[')
-   {
-      int depth = 0;
-      for(int i = start; i < StringLen(json); i++)
-      {
-         uchar c = StringGetCharacter(json, i);
-         if(c == '[') depth++;
-         if(c == ']') depth--;
-         if(depth == 0) { end = i + 1; break; }
-      }
-   }
-   else
-   {
-      end = StringFind(json, ",", start);
-      if(end < 0) end = StringFind(json, "}", start);
-   }
-   if(end < 0) return "";
-   return CleanValue(StringSubstr(json, start, end - start));
-}
-
-string CAATProtocol::CleanValue(string val)
-{
-   string cleaned = val;
-   StringReplace(cleaned, "\"", "");
-   return cleaned;
-=======
-   int key_pos = StringFind(json, "\"type\":\"");
-   if(key_pos < 0) return "";
-
-   int val_start = key_pos + 8;
-   int val_end = StringFind(json, "\"", val_start);
-   if(val_end < 0) return "";
-
-   string type = StringSubstr(json, val_start, val_end - val_start);
-
-   bool valid = false;
-   if(key_pos == 1) valid = true;
-   else {
-      string prev = StringSubstr(json, key_pos - 1, 1);
-      if(prev == "," || prev == "{") valid = true;
-   }
-
-   return valid ? type : "";
->>>>>>> origin/aat-phase1-design-final-8550167587809497732
-=======
-   string search = "\"" + key + "\":\"";
-   int pos = StringFind(json, search);
-   if(pos < 0)
-   {
-      search = "\"" + key + "\":";
-      pos = StringFind(json, search);
-      if(pos < 0) return "";
-      int start = pos + StringLen(search);
-      int end = StringFind(json, ",", start);
-      if(end < 0) end = StringFind(json, "}", start);
-      if(end < 0) end = StringFind(json, "]", start);
-      return StringSubstr(json, start, end - start);
-   }
-
-   int start = pos + StringLen(search);
-   int end = StringFind(json, "\"", start);
-   return StringSubstr(json, start, end - start);
->>>>>>> origin/main
-}

@@ -1,26 +1,19 @@
 import asyncio
 import logging
 import ujson as json
-<<<<<<< HEAD
 import datetime
 import time
 from typing import Dict, Any, List
 from concurrent.futures import ProcessPoolExecutor
-=======
-from typing import Dict, Any, List
->>>>>>> origin/main
 from src.python.bridge.server import BridgeServer
 from src.python.hive.config import load_config
 from src.python.brains.base import BrainRegistry
 from src.python.execution.risk_manager import RiskManager
-<<<<<<< HEAD
 from src.python.execution.ledger import TradeLedger
 from src.python.execution.manager import PositionManager
 from src.python.brains.worker import process_task, worker_init
 from src.python.bridge.watchdog import SystemWatchdog
 from src.python.brains.specialized import ContextBrain
-=======
->>>>>>> origin/main
 
 logger = logging.getLogger("AAT_Coordinator")
 
@@ -34,7 +27,6 @@ class HiveCoordinator:
         )
         self.registry = BrainRegistry()
         self.risk_manager = RiskManager(self.config)
-<<<<<<< HEAD
         self.ledger = TradeLedger()
         self.pos_manager = PositionManager(self.ledger)
         self.executor = ProcessPoolExecutor(
@@ -66,19 +58,6 @@ class HiveCoordinator:
         if m_type == "SYNC":
             return {"type": "SYNC", "symbol": message.get("s"), "tickets": message.get("tk", [])}
         return message
-=======
-        self.agent_states: Dict[str, Dict[str, Any]] = {}
-        self._initialize_brains()
-
-    def _initialize_brains(self):
-        from src.python.brains.specialized import (
-            HTFAnalysisBrain, LTFTriggerBrain, CorrelationBrain, DecisionBrain
-        )
-        self.registry.register(HTFAnalysisBrain("HTF_Analyst"))
-        self.registry.register(LTFTriggerBrain("LTF_Trigger"))
-        self.registry.register(CorrelationBrain("Correlation_Analyst"))
-        self.registry.register(DecisionBrain("Decision_Maker"))
->>>>>>> origin/main
 
     async def handle_message(self, client_id: str, message: Dict[str, Any]) -> Dict[str, Any]:
         raw_msg = message; m_type = raw_msg.get("t")
@@ -108,7 +87,6 @@ class HiveCoordinator:
             return {"t": "ACK"}
         return {"t": "ACK", "m": f"Processed {m_type}"}
 
-<<<<<<< HEAD
     async def process_data_push(self, client_id: str, raw_msg: Dict[str, Any]) -> Dict[str, Any]:
         symbol = raw_msg.get("s"); equity = self.agent_states.get(client_id, {}).get("equity", 1000.0)
         bid = raw_msg.get("bi", 0.0); ask = raw_msg.get("as", 0.0)
@@ -121,29 +99,19 @@ class HiveCoordinator:
         try:
             analysis = await loop.run_in_executor(self.executor, process_task, raw_msg)
         except Exception as e:
-            logger.error(f"Analysis Failed for {symbol}: {e}")
+            logger.error(f"Worker Failure for {symbol}: {e}. Restarting Pool.")
+            self.executor.shutdown(wait=False); self.executor = ProcessPoolExecutor(max_workers=self.config.brains.parallel_workers, initializer=worker_init)
             return {"t": "DEC", "s": symbol, "act": "WAIT", "m": "RECOVERY"}
 
         atr = analysis.get("atr", 0.0); mgmt = await self.pos_manager.monitor_and_manage(symbol, (bid+ask)/2, atr)
 
-        # Dashboard Telemetry Bundle
         response = {
             "t": "DEC", "s": symbol, "act": "WAIT",
-            "tlm": { # Telemetry
+            "tlm": {
                 "scr": analysis.get("score", 0),
                 "htf": analysis.get("htf_trend", "NEUTRAL"),
                 "st": "HEALTHY",
                 "dd": round((self.risk_manager.peak_equity - equity)/self.risk_manager.peak_equity*100, 2) if self.risk_manager.peak_equity > 0 else 0
-=======
-        if msg_type == "HEARTBEAT":
-            symbol = message.get("symbol", "UNKNOWN")
-            self.agent_states[client_id] = {
-                "symbol": symbol,
-                "last_seen": asyncio.get_event_loop().time(),
-                "status": "HEALTHY",
-                "equity": float(message.get("equity", 0.0)),
-                "drawdown": float(message.get("drawdown", 0.0))
->>>>>>> origin/main
             }
         }
         if mgmt: response["mgmt"] = mgmt
@@ -155,56 +123,21 @@ class HiveCoordinator:
             active_trades = self.ledger.get_cached_active_trades()
             if not self.corr_brain.check_exposure(symbol, action, active_trades)["safe"]: return response
 
-<<<<<<< HEAD
             v = self.risk_manager.validate_trade(symbol, action, equity, atr=atr, tick_val=raw_msg.get("tv", 10.0), tick_size=raw_msg.get("ts", 0.0001))
             if v["safe"]:
                 iid = await self.ledger.record_intent(symbol, action, v["lots"], v["sl_pts"], v["tp_pts"])
                 response.update({"id": iid, "act": action, "lts": v["lots"], "sl_p": v["sl_pts"], "tp_p": v["tp_pts"]})
         return response
-=======
-        if msg_type == "DATA_PUSH":
-            symbol = message.get("symbol")
-            equity = self.agent_states.get(client_id, {}).get("equity", 1000.0)
-
-            results = await self.registry.process_all(message)
-            decision_maker = results.get("Decision_Maker", {})
-
-            response = {"type": "DECISION", "symbol": symbol, "action": "WAIT"}
-
-            if "draw" in decision_maker:
-                response["draw"] = decision_maker["draw"]
-
-            if decision_maker.get("action") in ["BUY", "SELL"]:
-                validation = self.risk_manager.validate_trade(symbol, decision_maker["action"], equity)
-                if validation["safe"]:
-                    response["action"] = validation["action"]
-                    response["lots"] = validation["lots"]
-                else:
-                    logger.info(f"Trade rejected: {validation['reason']}")
-
-            return response
-
-        return {"type": "ACK", "msg": f"Processed {msg_type}"}
->>>>>>> origin/main
 
     async def run(self):
-        logger.info("Starting Multi-Threaded Coordinator with Telemetry...")
+        logger.info("Starting Multi-Threaded Hybrid Coordinator...")
         await self.ledger.init_db()
-        self.risk_manager.peak_equity = self.ledger.get_cached_peak_equity()
+        self.risk_manager.peak_equity = await self.ledger.get_cached_peak_equity()
         asyncio.create_task(self.watchdog.run()); asyncio.create_task(self.context_brain.update_global_context())
         await self.server.start()
 
 if __name__ == "__main__":
     import logging
-<<<<<<< HEAD
     logging.basicConfig(level=logging.INFO); coordinator = HiveCoordinator()
     try: asyncio.run(coordinator.run())
     except KeyboardInterrupt: logger.info("Shutting down...")
-=======
-    logging.basicConfig(level=logging.INFO)
-    coordinator = HiveCoordinator()
-    try:
-        asyncio.run(coordinator.run())
-    except KeyboardInterrupt:
-        logger.info("Shutting down...")
->>>>>>> origin/main
