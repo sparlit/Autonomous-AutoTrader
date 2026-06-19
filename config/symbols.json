@@ -1,0 +1,5 @@
+{
+  "major_pairs": ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD"],
+  "indices": ["GER40", "US30", "NAS100"],
+  "commodities": ["XAUUSD"]
+}

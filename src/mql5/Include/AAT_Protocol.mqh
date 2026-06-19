@@ -7,17 +7,15 @@
 #property link      "https://autonomous trader"
 #property strict
 
-// Basic Protocol Definitions
-// Minimal JSON-like string builders for zero-dependency serialization
-
 class CAATProtocol
 {
 public:
    static string     BuildPING();
    static string     BuildHEARTBEAT(string symbol, double equity, double dd);
-   static string     BuildOHLC(string symbol, ENUM_TIMEFRAMES tf, double o, double h, double l, double c);
+   static string     BuildDATA_PUSH(string symbol, ENUM_TIMEFRAMES tf, int count);
 
    static string     GetMsgType(string json);
+   static string     GetValue(string json, string key);
 };
 
 string CAATProtocol::BuildPING()
@@ -31,21 +29,47 @@ string CAATProtocol::BuildHEARTBEAT(string symbol, double equity, double dd)
                        symbol, equity, dd);
 }
 
-string CAATProtocol::BuildOHLC(string symbol, ENUM_TIMEFRAMES tf, double o, double h, double l, double c)
+string CAATProtocol::BuildDATA_PUSH(string symbol, ENUM_TIMEFRAMES tf, int count)
 {
-   return StringFormat("{\"type\":\"OHLC_PUSH\",\"symbol\":\"%s\",\"tf\":%d,\"o\":%.5f,\"h\":%.5f,\"l\":%.5f,\"c\":%.5f}",
-                       symbol, (int)tf, o, h, l, c);
+   MqlRates rates[];
+   ArraySetAsSeries(rates, true);
+   int copied = CopyRates(symbol, tf, 0, count, rates);
+
+   string history = "[";
+   for(int i=copied-1; i>=0; i--)
+   {
+      history += StringFormat("{\"o\":%.5f,\"h\":%.5f,\"l\":%.5f,\"c\":%.5f,\"t\":%lld}",
+                              rates[i].open, rates[i].high, rates[i].low, rates[i].close, rates[i].time);
+      if(i > 0) history += ",";
+   }
+   history += "]";
+
+   return StringFormat("{\"type\":\"DATA_PUSH\",\"symbol\":\"%s\",\"tf\":%d,\"history\":%s}",
+                       symbol, (int)tf, history);
 }
 
 string CAATProtocol::GetMsgType(string json)
 {
-   // Very basic type extraction for zero-stub parser
-   int pos = StringFind(json, "\"type\":\"");
-   if(pos < 0) return "";
+   return GetValue(json, "type");
+}
 
-   int start = pos + 8;
+string CAATProtocol::GetValue(string json, string key)
+{
+   string search = "\"" + key + "\":\"";
+   int pos = StringFind(json, search);
+   if(pos < 0)
+   {
+      search = "\"" + key + "\":";
+      pos = StringFind(json, search);
+      if(pos < 0) return "";
+      int start = pos + StringLen(search);
+      int end = StringFind(json, ",", start);
+      if(end < 0) end = StringFind(json, "}", start);
+      if(end < 0) end = StringFind(json, "]", start);
+      return StringSubstr(json, start, end - start);
+   }
+
+   int start = pos + StringLen(search);
    int end = StringFind(json, "\"", start);
-   if(end < 0) return "";
-
    return StringSubstr(json, start, end - start);
 }
