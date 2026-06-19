@@ -11,22 +11,34 @@ class ConsensusEngine:
         self.volatility = VolatilityAnalyst()
 
     def analyze_sync(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Synchronous analysis for multi-processing."""
         history = data.get("history", [])
         if not history: return {"action": "WAIT", "reason": "No history provided"}
         df = pd.DataFrame(history)
+
+        # HTF Analysis for Alignment
+        h4_df = pd.DataFrame(data.get("h4", []))
+        htf_struct = self.smc.detect_market_structure(h4_df) if not h4_df.empty else {"trend": "NEUTRAL", "swing_h": 0, "swing_l": 0}
 
         inds = self.indicators.calculate_all(df)
         atr = inds["atr"]
         structure = self.smc.detect_market_structure(df, atr=atr)
         vsa = self.volatility.analyze_vsa(df)
+        trigger = self.smc.detect_candlestick_trigger(df)
+
+        curr_price = df['c'].iloc[-1]
+
+        # Swing Proximity: Reject if buying into resistance or selling into support
+        proximity_rejection = False
+        if htf_struct["swing_h"] and curr_price >= htf_struct["swing_h"] - (atr * 0.5):
+            proximity_rejection = "NEAR_HTF_RESISTANCE"
+        if htf_struct["swing_l"] and curr_price <= htf_struct["swing_l"] + (atr * 0.5):
+            proximity_rejection = "NEAR_HTF_SUPPORT"
 
         momentum = "NEUTRAL"
         if inds["rsi"] > 60: momentum = "BULLISH"
         elif inds["rsi"] < 40: momentum = "BEARISH"
 
         obs = self.smc.detect_order_blocks(df, atr=atr)
-        curr_price = df['c'].iloc[-1]
         near_ob = False
         active_ob = None
         for ob in obs:
@@ -46,36 +58,31 @@ class ConsensusEngine:
             "volatility": 1 if regime != "HIGH_VOLATILITY" else 0
         }
 
+        # HTF Alignment Bonus
+        if htf_struct["trend"] == "BULLISH" and structure["trend"] == "BULLISH": scores["trend"] += 1
+        if htf_struct["trend"] == "BEARISH" and structure["trend"] == "BEARISH": scores["trend"] -= 1
+
         if vsa["effort"] == "HIGH" and vsa["result"] == "STRONG":
             if structure["trend"] == "BULLISH": scores["momentum"] += 1
             elif structure["trend"] == "BEARISH": scores["momentum"] -= 1
-        elif vsa["anomaly"] == "ABSORPTION":
-            scores["momentum"] = 0
 
         if structure["sweep"] == "BULLISH_SWEEP": scores["structure"] += 2
         elif structure["sweep"] == "BEARISH_SWEEP": scores["structure"] -= 2
 
+        trigger_confirmed = False
+        if trigger:
+            if "BULLISH" in trigger and (scores["trend"] + scores["structure"]) > 0: trigger_confirmed = True
+            if "BEARISH" in trigger and (scores["trend"] + scores["structure"]) < 0: trigger_confirmed = True
+
         total_score = sum(scores.values())
         action = "WAIT"
-        if total_score >= 3: action = "BUY"
-        elif total_score <= -3: action = "SELL"
 
-        draw_commands = []
-        if active_ob:
-            draw_commands.append({
-                "type": "RECTANGLE",
-                "name": f"OB_{active_ob['type']}_{active_ob['index']}",
-                "top": active_ob["top"],
-                "bottom": active_ob["bottom"],
-                "color": "0,255,0" if active_ob["type"] == "BULLISH" else "255,0,0"
-            })
+        if trigger_confirmed and not proximity_rejection:
+            if total_score >= 3: action = "BUY"
+            elif total_score <= -3: action = "SELL"
 
         return {
-            "action": action,
-            "score": total_score,
-            "details": scores,
-            "vsa": vsa,
-            "draw": draw_commands,
-            "atr": atr,
-            "sweep": structure["sweep"]
+            "action": action, "score": total_score, "details": scores,
+            "vsa": vsa, "atr": atr, "sweep": structure["sweep"], "trigger": trigger,
+            "htf_trend": htf_struct["trend"], "proximity_msg": proximity_rejection
         }

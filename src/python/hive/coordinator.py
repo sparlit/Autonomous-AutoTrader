@@ -1,7 +1,7 @@
 import asyncio
 import logging
-<<<<<<< HEAD
 import ujson as json
+import datetime
 from typing import Dict, Any, List
 from concurrent.futures import ProcessPoolExecutor
 from src.python.bridge.server import BridgeServer
@@ -11,25 +11,14 @@ from src.python.execution.risk_manager import RiskManager
 from src.python.execution.ledger import TradeLedger
 from src.python.execution.manager import PositionManager
 from src.python.brains.consensus import ConsensusEngine
+from src.python.brains.specialized import CorrelationBrain
 
 logger = logging.getLogger("AAT_Coordinator")
 
 def process_analysis(data: Dict[str, Any]) -> Dict[str, Any]:
-    """Helper function for ProcessPoolExecutor."""
     engine = ConsensusEngine()
     return engine.analyze_sync(data)
 
-=======
-from typing import Dict, Any, List
-from src.python.bridge.server import BridgeServer
-from src.python.hive.config import load_config
-from src.python.brains.registry import BrainRegistry
-from src.python.brains.sequential_brain import SequentialBrain
-from src.python.brains.consensus_brain import ConsensusBrain
-
-logger = logging.getLogger("AAT_Coordinator")
-
->>>>>>> origin/aat-phase1-design-final-8550167587809497732
 class HiveCoordinator:
     def __init__(self):
         self.config = load_config()
@@ -38,22 +27,20 @@ class HiveCoordinator:
             self.config.bridge.port,
             self.handle_message
         )
-<<<<<<< HEAD
         self.registry = BrainRegistry()
         self.risk_manager = RiskManager(self.config)
         self.ledger = TradeLedger()
         self.pos_manager = PositionManager(self.ledger)
+        self.corr_brain = CorrelationBrain("Correlation_Analyst")
         self.executor = ProcessPoolExecutor(max_workers=self.config.brains.parallel_workers)
         self.agent_states: Dict[str, Dict[str, Any]] = {}
+        self.cooldowns: Dict[str, datetime.datetime] = {}
         self._initialize_brains()
 
     def _initialize_brains(self):
-        from src.python.brains.specialized import (
-            HTFAnalysisBrain, LTFTriggerBrain, CorrelationBrain, DecisionBrain
-        )
+        from src.python.brains.specialized import HTFAnalysisBrain, LTFTriggerBrain, DecisionBrain
         self.registry.register(HTFAnalysisBrain("HTF_Analyst"))
         self.registry.register(LTFTriggerBrain("LTF_Trigger"))
-        self.registry.register(CorrelationBrain("Correlation_Analyst"))
         self.registry.register(DecisionBrain("Decision_Maker"))
 
     def _parse_history(self, raw_h: List[List[Any]]) -> List[Dict[str, Any]]:
@@ -84,33 +71,12 @@ class HiveCoordinator:
         msg_type = message.get("type")
 
         if msg_type == "PING": return {"t": "PNG_ACK"}
-=======
-        self.agent_states: Dict[str, Dict[str, Any]] = {}
-
-        # Initialize Brains
-        self.registry = BrainRegistry()
-        self.registry.load_strategies()
-
-        all_strats = list(self.registry.strategies.values())
-        self.sequential_brain = SequentialBrain(all_strats[:2]) # First 2 as Stage 1
-        self.consensus_brain = ConsensusBrain(
-            all_strats,
-            threshold=self.config.brains.consensus_threshold
-        )
-
-    async def handle_message(self, client_id: str, message: Dict[str, Any]) -> Dict[str, Any]:
-        msg_type = message.get("type")
-
-        if msg_type == "PING":
-            return {"type": "PONG"}
->>>>>>> origin/aat-phase1-design-final-8550167587809497732
 
         if msg_type == "HEARTBEAT":
             symbol = message.get("symbol", "UNKNOWN")
             self.agent_states[client_id] = {
                 "symbol": symbol,
                 "last_seen": asyncio.get_event_loop().time(),
-<<<<<<< HEAD
                 "status": "HEALTHY",
                 "equity": float(message.get("equity", 0.0)),
                 "drawdown": float(message.get("drawdown", 0.0))
@@ -123,8 +89,10 @@ class HiveCoordinator:
             active_trades = await self.ledger.get_active_trades(symbol)
             for trade in active_trades:
                 if trade["ticket"] not in mt5_tickets:
+                    # Reconciliation: Assume SL hit if closed and last price was near SL
                     await self.ledger.close_trade(trade["ticket"])
-                    logger.info(f"Synchronized closed trade: {trade['ticket']}")
+                    self.cooldowns[symbol] = datetime.datetime.now() + datetime.timedelta(hours=4)
+                    logger.info(f"Synchronized closed trade: {trade['ticket']}. 4h Cooldown activated for {symbol}")
             return {"t": "SYNC_ACK"}
 
         if msg_type == "TRADE_ACK":
@@ -145,30 +113,41 @@ class HiveCoordinator:
             tick_val = message.get("tick_val", 10.0)
             tick_size = message.get("tick_size", 0.0001)
 
-            # Parallel Multi-Core Strategy Execution
             loop = asyncio.get_event_loop()
-            decision_maker = await loop.run_in_executor(self.executor, process_analysis, message)
-            atr = decision_maker.get("atr", 0.0)
+            analysis_results = await loop.run_in_executor(self.executor, process_analysis, message)
+            atr = analysis_results.get("atr", 0.0)
 
             mgmt_commands = await self.pos_manager.monitor_and_manage(symbol, (bid+ask)/2, atr)
 
             response = {"t": "DEC", "s": symbol, "act": "WAIT"}
             if mgmt_commands: response["mgmt"] = mgmt_commands
-            if "draw" in decision_maker: response["drw"] = decision_maker["draw"]
+            if "draw" in analysis_results: response["drw"] = analysis_results["draw"]
 
-            if decision_maker.get("action") in ["BUY", "SELL"]:
-                price = ask if decision_maker["action"] == "BUY" else bid
+            if analysis_results.get("action") in ["BUY", "SELL"]:
+                action = analysis_results["action"]
+
+                if symbol in self.cooldowns and datetime.datetime.now() < self.cooldowns[symbol]:
+                    logger.info(f"Symbol {symbol} in cooldown. Waiting.")
+                    return response
+
+                active_trades = await self.ledger.get_active_trades()
+                corr_check = self.corr_brain.check_exposure(symbol, action, active_trades)
+                if not corr_check["safe"]:
+                    logger.info(f"Correlation rejection: {corr_check['reason']}")
+                    return response
+
+                price = ask if action == "BUY" else bid
                 validation = self.risk_manager.validate_trade(
-                    symbol, decision_maker["action"], equity,
+                    symbol, action, equity,
                     current_price=price, atr=atr, tick_val=tick_val, tick_size=tick_size
                 )
                 if validation["safe"]:
                     internal_id = await self.ledger.record_intent(
-                        symbol, validation["action"], validation["lots"],
+                        symbol, action, validation["lots"],
                         validation["sl"], validation["tp"]
                     )
                     response.update({
-                        "id": internal_id, "act": validation["action"], "lts": validation["lots"],
+                        "id": internal_id, "act": action, "lts": validation["lots"],
                         "sl": validation["sl"], "tp": validation["tp"]
                     })
             return response
@@ -183,39 +162,6 @@ class HiveCoordinator:
 if __name__ == "__main__":
     import logging
     logging.basicConfig(level=logging.INFO)
-=======
-                "status": "HEALTHY"
-            }
-            return {"type": "HEARTBEAT_ACK"}
-
-        if msg_type == "OHLC_PUSH":
-            # 3-Stage Pipeline Execution
-            # Stage 1: Sequential
-            signal = await self.sequential_brain.process(message)
-
-            # Stage 2: Consensus (if Stage 1 is Neutral)
-            if not signal:
-                signal = await self.consensus_brain.process(message)
-
-            if signal:
-                logger.info(f"SIGNAL GENERATED: {signal.symbol} | Dir: {signal.direction} | Conf: {signal.confidence}")
-                return {
-                    "type": "SIGNAL",
-                    "direction": signal.direction,
-                    "confidence": signal.confidence,
-                    "strategy": signal.strategy_name
-                }
-
-            return {"type": "ACK", "status": "NEUTRAL"}
-
-        return {"type": "ERROR", "msg": f"Unknown message type: {msg_type}"}
-
-    async def run(self):
-        logger.info("Starting Hive Coordinator...")
-        await self.server.start()
-
-if __name__ == "__main__":
->>>>>>> origin/aat-phase1-design-final-8550167587809497732
     coordinator = HiveCoordinator()
     try:
         asyncio.run(coordinator.run())
