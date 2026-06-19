@@ -14,52 +14,57 @@ class BridgeServer:
         self.on_message_cb = on_message_cb
         self.clients: Dict[str, asyncio.StreamWriter] = {}
         self.stats = {"msgs_rx": 0, "msgs_tx": 0, "last_latency": 0.0}
+        self.throttle_threshold = 0.05 # 50ms processing limit
 
     async def handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         addr = writer.get_extra_info('peername')
         client_id = f"{addr[0]}:{addr[1]}"
-        logger.info(f"Hybrid Engine: New connection from {client_id}")
+        logger.info(f"Ultra-Bridge: New connection from {client_id}")
         self.clients[client_id] = writer
 
-        buffer = b""
+        buffer = bytearray()
         try:
             while True:
-                data = await reader.read(8192) # Increased buffer for MTF pushes
+                data = await reader.read(16384) # 16KB buffer for heavy MTF/warmup pushes
                 if not data: break
 
-                buffer += data
+                buffer.extend(data)
                 while b'\n' in buffer:
-                    line, buffer = buffer.split(b'\n', 1)
-                    message_str = line.decode().strip()
-                    if not message_str: continue
+                    pos = buffer.find(b'\n')
+                    line = buffer[:pos]
+                    del buffer[:pos + 1]
+
+                    if not line: continue
 
                     try:
                         start_time = time.perf_counter()
-                        message = json.loads(message_str)
+                        message = json.loads(line)
                         self.stats["msgs_rx"] += 1
 
-                        # Process using the hybrid brain
+                        # High-Speed Multi-Symbol Processing
                         response = await self.on_message_cb(client_id, message)
 
                         if response:
-                            writer.write(json.dumps(response).encode() + b'\n')
+                            payload = json.dumps(response).encode() + b'\n'
+                            writer.write(payload)
                             await writer.drain()
                             self.stats["msgs_tx"] += 1
-                            self.stats["last_latency"] = (time.perf_counter() - start_time) * 1000
+                            self.stats["last_latency"] = (time.perf_counter() - start_time)
                     except json.JSONDecodeError:
-                        logger.error(f"Invalid JSON from {client_id}")
+                        logger.error(f"Corruption in stream from {client_id}")
                     except Exception as e:
-                        logger.error(f"Bridge Error: {e}")
+                        logger.error(f"Bridge Execution Error: {e}")
 
         except Exception as e:
-            logger.error(f"Client Disconnected: {client_id} ({e})")
+            logger.error(f"Link Dropped: {client_id} ({e})")
         finally:
             self.clients.pop(client_id, None)
             writer.close()
-            await writer.wait_closed()
+            try: await writer.wait_closed()
+            except: pass
 
     async def start(self):
         server = await asyncio.start_server(self.handle_client, self.host, self.port)
         async with server:
-            logger.info(f"Hybrid Bridge serving on {self.host}:{self.port}")
+            logger.info(f"Ultra-Parallel Bridge active at {self.host}:{self.port}")
             await server.serve_forever()

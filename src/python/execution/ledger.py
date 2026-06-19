@@ -7,6 +7,7 @@ logger = logging.getLogger("AAT_Ledger")
 class TradeLedger:
     def __init__(self, db_path: str = "audit_records.db"):
         self.db_path = db_path
+        self._cache = {"peak_equity": 0.0, "active_trades": {}}
 
     async def init_db(self):
         async with aiosqlite.connect(self.db_path) as conn:
@@ -32,16 +33,31 @@ class TradeLedger:
             """)
             await conn.commit()
 
-    async def update_peak_equity(self, equity: float):
-        async with aiosqlite.connect(self.db_path) as conn:
-            await conn.execute(
-                "INSERT INTO account_stats (key, val) VALUES ('peak_equity', ?) "
-                "ON CONFLICT(key) DO UPDATE SET val = MAX(val, excluded.val)",
-                (equity,)
-            )
-            await conn.commit()
+        # Hydrate Cache
+        self._cache["peak_equity"] = await self.get_peak_equity_db()
+        active = await self.get_active_trades_db()
+        for t in active: self._cache["active_trades"][t["ticket"]] = t
 
-    async def get_peak_equity(self) -> float:
+    def get_cached_peak_equity(self) -> float:
+        return self._cache["peak_equity"]
+
+    def get_cached_active_trades(self, symbol: str = None) -> List[Dict[str, Any]]:
+        trades = list(self._cache["active_trades"].values())
+        if symbol: return [t for t in trades if t["symbol"] == symbol]
+        return trades
+
+    async def update_peak_equity(self, equity: float):
+        if equity > self._cache["peak_equity"]:
+            self._cache["peak_equity"] = equity
+            async with aiosqlite.connect(self.db_path) as conn:
+                await conn.execute(
+                    "INSERT INTO account_stats (key, val) VALUES ('peak_equity', ?) "
+                    "ON CONFLICT(key) DO UPDATE SET val = MAX(val, excluded.val)",
+                    (equity,)
+                )
+                await conn.commit()
+
+    async def get_peak_equity_db(self) -> float:
         async with aiosqlite.connect(self.db_path) as conn:
             async with conn.execute("SELECT val FROM account_stats WHERE key = 'peak_equity'") as cursor:
                 row = await cursor.fetchone()
@@ -64,13 +80,19 @@ class TradeLedger:
             )
             await conn.commit()
 
-    async def get_active_trades(self, symbol: str = None) -> List[Dict[str, Any]]:
+            # Update Cache
+            async with conn.execute("SELECT * FROM trades WHERE id = ?", (internal_id,)) as cursor:
+                row = await cursor.fetchone()
+                if row:
+                    cols = [d[0] for d in cursor.description]
+                    self._cache["active_trades"][ticket] = dict(zip(cols, row))
+
+    async def get_active_trades_db(self, symbol: str = None) -> List[Dict[str, Any]]:
         async with aiosqlite.connect(self.db_path) as conn:
             conn.row_factory = aiosqlite.Row
-            async with conn.execute(
-                "SELECT * FROM trades WHERE status = 'OPEN'" + (" AND symbol = ?" if symbol else ""),
-                (symbol,) if symbol else ()
-            ) as cursor:
+            query = "SELECT * FROM trades WHERE status = 'OPEN'" + (" AND symbol = ?" if symbol else "")
+            params = (symbol,) if symbol else ()
+            async with conn.execute(query, params) as cursor:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
 
@@ -81,3 +103,4 @@ class TradeLedger:
                 (ticket,)
             )
             await conn.commit()
+            self._cache["active_trades"].pop(ticket, None)
