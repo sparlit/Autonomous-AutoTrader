@@ -1,9 +1,8 @@
-import asyncio
-from typing import Dict, Any, List
 import pandas as pd
 from src.python.analyst.price_action import SMCAnalyst
 from src.python.analyst.indicators import IndicatorAnalyst
 from src.python.analyst.volatility import VolatilityAnalyst
+from typing import Dict, Any
 
 class ConsensusEngine:
     def __init__(self):
@@ -11,17 +10,16 @@ class ConsensusEngine:
         self.indicators = IndicatorAnalyst()
         self.volatility = VolatilityAnalyst()
 
-    async def analyze(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def analyze_sync(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Synchronous analysis for multi-processing."""
         history = data.get("history", [])
-        if not history:
-            return {"action": "WAIT", "reason": "No history provided"}
-
+        if not history: return {"action": "WAIT", "reason": "No history provided"}
         df = pd.DataFrame(history)
 
         inds = self.indicators.calculate_all(df)
         atr = inds["atr"]
-
         structure = self.smc.detect_market_structure(df, atr=atr)
+        vsa = self.volatility.analyze_vsa(df)
 
         momentum = "NEUTRAL"
         if inds["rsi"] > 60: momentum = "BULLISH"
@@ -48,13 +46,19 @@ class ConsensusEngine:
             "volatility": 1 if regime != "HIGH_VOLATILITY" else 0
         }
 
-        total_score = sum(scores.values())
+        if vsa["effort"] == "HIGH" and vsa["result"] == "STRONG":
+            if structure["trend"] == "BULLISH": scores["momentum"] += 1
+            elif structure["trend"] == "BEARISH": scores["momentum"] -= 1
+        elif vsa["anomaly"] == "ABSORPTION":
+            scores["momentum"] = 0
 
+        if structure["sweep"] == "BULLISH_SWEEP": scores["structure"] += 2
+        elif structure["sweep"] == "BEARISH_SWEEP": scores["structure"] -= 2
+
+        total_score = sum(scores.values())
         action = "WAIT"
-        if total_score >= 3:
-            action = "BUY"
-        elif total_score <= -3:
-            action = "SELL"
+        if total_score >= 3: action = "BUY"
+        elif total_score <= -3: action = "SELL"
 
         draw_commands = []
         if active_ob:
@@ -70,6 +74,8 @@ class ConsensusEngine:
             "action": action,
             "score": total_score,
             "details": scores,
+            "vsa": vsa,
             "draw": draw_commands,
-            "atr": atr
+            "atr": atr,
+            "sweep": structure["sweep"]
         }

@@ -23,6 +23,7 @@ private:
    uint              m_heartbeat_interval;
    double            m_last_push_price;
    double            m_push_threshold;
+   bool              m_synced;
 
 public:
                      CAATBridgeClient();
@@ -33,10 +34,11 @@ public:
    void              ProcessMessages();
    void              DrawObjects(string draw_json);
    void              HandleTrade(string msg);
+   void              HandleManagement(string mgmt_json);
    bool              ShouldPushData(double current_price);
 };
 
-CAATBridgeClient::CAATBridgeClient() : m_last_heartbeat(0), m_last_data_push(0), m_heartbeat_interval(10000), m_last_push_price(0), m_push_threshold(0.0005)
+CAATBridgeClient::CAATBridgeClient() : m_last_heartbeat(0), m_last_data_push(0), m_heartbeat_interval(10000), m_last_push_price(0), m_push_threshold(0.0005), m_synced(false)
 {
    m_trade.SetExpertMagicNumber(123456);
 }
@@ -55,13 +57,9 @@ bool CAATBridgeClient::Init(string host, int port, int hb_interval_sec=10)
 
 bool CAATBridgeClient::ShouldPushData(double current_price)
 {
-   // Push if price moved > threshold or if it is the first push
    if(m_last_push_price == 0) return true;
    if(MathAbs(current_price - m_last_push_price) >= m_push_threshold) return true;
-
-   // Safety: push at least every 60 seconds even if price is flat
    if(GetTickCount() - m_last_data_push > 60000) return true;
-
    return false;
 }
 
@@ -70,6 +68,14 @@ void CAATBridgeClient::OnTick()
    if(!m_socket.IsConnected())
    {
       m_socket.Connect(m_host, m_port);
+      m_synced = false;
+      return;
+   }
+
+   if(!m_synced)
+   {
+      string sync = CAATProtocol::BuildSYNC(_Symbol);
+      if(m_socket.Send(sync)) m_synced = true;
       return;
    }
 
@@ -82,7 +88,6 @@ void CAATBridgeClient::OnTick()
       if(m_socket.Send(hb)) m_last_heartbeat = now;
    }
 
-   // Event-driven push based on price movement
    if(ShouldPushData(current_price))
    {
       string data = CAATProtocol::BuildDATA_PUSH(_Symbol, _Period, 100);
@@ -107,11 +112,37 @@ void CAATBridgeClient::ProcessMessages()
          string draw = CAATProtocol::GetValue(msg, "drw");
          if(draw != "") DrawObjects(draw);
 
+         string mgmt = CAATProtocol::GetValue(msg, "mgmt");
+         if(mgmt != "") HandleManagement(mgmt);
+
          string action = CAATProtocol::GetValue(msg, "act");
          if(action != "WAIT" && action != "")
          {
             HandleTrade(msg);
          }
+      }
+   }
+}
+
+void CAATBridgeClient::HandleManagement(string mgmt_json)
+{
+   // Basic management parser (mvp handles one command per push)
+   string act = CAATProtocol::GetValue(mgmt_json, "act");
+   long ticket = StringToInteger(CAATProtocol::GetValue(mgmt_json, "tk"));
+
+   if(PositionSelectByTicket(ticket))
+   {
+      if(act == "CLOSE_PARTIAL")
+      {
+         double vol = PositionGetDouble(POSITION_VOLUME);
+         double pct = StringToDouble(CAATProtocol::GetValue(mgmt_json, "pct"));
+         m_trade.PositionClosePartial(ticket, vol * pct);
+      }
+      else if(act == "MODIFY_SL")
+      {
+         double sl = StringToDouble(CAATProtocol::GetValue(mgmt_json, "sl"));
+         double tp = PositionGetDouble(POSITION_TP);
+         m_trade.PositionModify(ticket, sl, tp);
       }
    }
 }

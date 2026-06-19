@@ -34,9 +34,8 @@ class RiskManager:
             except Exception: continue
         return True
 
-    def calculate_trade_params(self, equity: float, atr: float, symbol: str, action: str, current_price: float) -> Dict[str, Any]:
-        if atr <= 0:
-            return {"lots": self.config.risk.min_lot_size, "sl": 0, "tp": 0}
+    def calculate_trade_params(self, equity: float, atr: float, symbol: str, action: str, current_price: float, tick_val: float = 10.0, tick_size: float = 0.0001) -> Dict[str, Any]:
+        if atr <= 0: return {"lots": self.config.risk.min_lot_size, "sl": 0, "tp": 0}
 
         risk_currency = equity * (self.config.risk.risk_per_trade_pct / 100.0)
         sl_dist = atr * 2
@@ -48,11 +47,10 @@ class RiskManager:
             sl = current_price + sl_dist
             tp = current_price - (sl_dist * 2)
 
-        sl_pips = sl_dist * 10000
-        if "JPY" in symbol: sl_pips = sl_dist * 100
-
-        pip_value = 10.0
-        lots = risk_currency / (sl_pips * pip_value) if sl_pips > 0 else self.config.risk.min_lot_size
+        # Lots = Risk / ((SL_Price - Open_Price) / TickSize * TickValue)
+        # Note: (sl_dist / tick_size) is the number of ticks
+        num_ticks = sl_dist / tick_size if tick_size > 0 else 0
+        lots = risk_currency / (num_ticks * tick_val) if num_ticks > 0 and tick_val > 0 else self.config.risk.min_lot_size
 
         return {
             "lots": max(self.config.risk.min_lot_size, round(lots, 2)),
@@ -60,7 +58,7 @@ class RiskManager:
             "tp": round(tp, 5)
         }
 
-    def validate_trade(self, symbol: str, action: str, current_equity: float, current_price: float = 0.0, atr: float = 0.0, ignore_session: bool = False) -> Dict[str, Any]:
+    def validate_trade(self, symbol: str, action: str, current_equity: float, current_price: float = 0.0, atr: float = 0.0, tick_val: float = 10.0, tick_size: float = 0.0001, ignore_session: bool = False) -> Dict[str, Any]:
         if not ignore_session and not self.is_session_active():
             return {"safe": False, "reason": "Outside trading sessions"}
         if not self.is_news_safe():
@@ -68,7 +66,7 @@ class RiskManager:
         if self.daily_trades >= 5:
             return {"safe": False, "reason": "Daily trade limit reached"}
 
-        params = self.calculate_trade_params(current_equity, atr, symbol, action, current_price)
+        params = self.calculate_trade_params(current_equity, atr, symbol, action, current_price, tick_val, tick_size)
 
         return {
             "safe": True,

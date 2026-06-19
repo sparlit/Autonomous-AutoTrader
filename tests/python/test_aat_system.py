@@ -4,18 +4,18 @@ from src.python.brains.consensus import ConsensusEngine
 from src.python.execution.risk_manager import RiskManager
 from src.python.hive.config import load_config
 
-@pytest.mark.asyncio
-async def test_consensus_logic():
+def test_consensus_logic():
     engine = ConsensusEngine()
+    # History with clear uptrend
     data = {
         "history": [
-            {"o": 1.0 + i*0.01, "h": 1.02 + i*0.01, "l": 0.99 + i*0.01, "c": 1.01 + i*0.01, "t": 1000 + i}
+            {"o": 1.0 + i*0.01, "h": 1.02 + i*0.01, "l": 0.99 + i*0.01, "c": 1.01 + i*0.01, "t": 1000 + i, "v": 100}
             for i in range(20)
         ]
     }
-    result = await engine.analyze(data)
+    result = engine.analyze_sync(data)
     assert "action" in result
-    assert result["score"] >= 0
+    assert result["score"] >= 0 # Should be bullish or neutral
 
 def test_risk_manager_session():
     config = load_config()

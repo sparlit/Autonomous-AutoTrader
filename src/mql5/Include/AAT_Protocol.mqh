@@ -12,13 +12,15 @@ class CAATProtocol
 public:
    static string     BuildPING();
    static string     BuildHEARTBEAT(string symbol, double equity, double dd);
-   static string     BuildDATA_PUSH(string symbol, ENUM_TIMEFRAMES tf, int count);
+   static string     BuildDATA_PUSH(string symbol, ENUM_TIMEFRAMES ltf, int count);
    static string     BuildTRADE_ACK(int id, int ticket, string err);
+   static string     BuildSYNC(string symbol);
 
    static string     GetMsgType(string json);
    static string     GetValue(string json, string key);
 
 private:
+   static string     BuildHistoryJSON(string symbol, ENUM_TIMEFRAMES tf, int count);
    static string     CleanValue(string val);
 };
 
@@ -33,7 +35,7 @@ string CAATProtocol::BuildHEARTBEAT(string symbol, double equity, double dd)
                        symbol, equity, dd);
 }
 
-string CAATProtocol::BuildDATA_PUSH(string symbol, ENUM_TIMEFRAMES tf, int count)
+string CAATProtocol::BuildHistoryJSON(string symbol, ENUM_TIMEFRAMES tf, int count)
 {
    MqlRates rates[];
    ArraySetAsSeries(rates, true);
@@ -42,19 +44,48 @@ string CAATProtocol::BuildDATA_PUSH(string symbol, ENUM_TIMEFRAMES tf, int count
    string history = "[";
    for(int i=copied-1; i>=0; i--)
    {
-      history += StringFormat("[%.5f,%.5f,%.5f,%.5f,%lld]",
-                              rates[i].open, rates[i].high, rates[i].low, rates[i].close, rates[i].time);
+      history += StringFormat("[%.5f,%.5f,%.5f,%.5f,%lld,%lld]",
+                              rates[i].open, rates[i].high, rates[i].low, rates[i].close, rates[i].time, rates[i].tick_volume);
       if(i > 0) history += ",";
    }
    history += "]";
+   return history;
+}
 
-   return StringFormat("{\"t\":\"DP\",\"s\":\"%s\",\"tf\":%d,\"bi\":%.5f,\"as\":%.5f,\"h\":%s}",
-                       symbol, (int)tf, SymbolInfoDouble(symbol, SYMBOL_BID), SymbolInfoDouble(symbol, SYMBOL_ASK), history);
+string CAATProtocol::BuildDATA_PUSH(string symbol, ENUM_TIMEFRAMES ltf, int count)
+{
+   string h_ltf = BuildHistoryJSON(symbol, ltf, count);
+   string h_h1 = BuildHistoryJSON(symbol, PERIOD_H1, 50);
+   string h_h4 = BuildHistoryJSON(symbol, PERIOD_H4, 30);
+
+   double tick_val = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_VALUE);
+   double tick_size = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_SIZE);
+
+   return StringFormat("{\"t\":\"DP\",\"s\":\"%s\",\"tf\":%d,\"bi\":%.5f,\"as\":%.5f,\"tv\":%.5f,\"ts\":%.5f,\"ltf\":%s,\"h1\":%s,\"h4\":%s}",
+                       symbol, (int)ltf, SymbolInfoDouble(symbol, SYMBOL_BID), SymbolInfoDouble(symbol, SYMBOL_ASK),
+                       tick_val, tick_size, h_ltf, h_h1, h_h4);
 }
 
 string CAATProtocol::BuildTRADE_ACK(int id, int ticket, string err)
 {
    return StringFormat("{\"t\":\"T_ACK\",\"id\":%d,\"tk\":%d,\"err\":\"%s\"}", id, ticket, err);
+}
+
+string CAATProtocol::BuildSYNC(string symbol)
+{
+   string tickets = "[";
+   bool first = true;
+   for(int i=0; i<PositionsTotal(); i++)
+   {
+      if(PositionGetSymbol(i) == symbol)
+      {
+         if(!first) tickets += ",";
+         tickets += IntegerToString(PositionGetInteger(POSITION_TICKET));
+         first = false;
+      }
+   }
+   tickets += "]";
+   return StringFormat("{\"t\":\"SYNC\",\"s\":\"%s\",\"tk\":%s}", symbol, tickets);
 }
 
 string CAATProtocol::GetMsgType(string json)
@@ -65,6 +96,7 @@ string CAATProtocol::GetMsgType(string json)
    if(t == "PNG") return "PING";
    if(t == "DEC") return "DECISION";
    if(t == "T_ACK") return "TRADE_ACK";
+   if(t == "SYNC") return "SYNC";
    return t;
 }
 
@@ -73,16 +105,10 @@ string CAATProtocol::GetValue(string json, string key)
    string search = "\"" + key + "\":";
    int pos = StringFind(json, search);
    if(pos < 0) return "";
-
    int start = pos + StringLen(search);
    uchar first_char = StringGetCharacter(json, start);
-
    int end = -1;
-   if(first_char == '\"')
-   {
-      start++;
-      end = StringFind(json, "\"", start);
-   }
+   if(first_char == '\"') { start++; end = StringFind(json, "\"", start); }
    else if(first_char == '[')
    {
       int depth = 0;
@@ -99,7 +125,6 @@ string CAATProtocol::GetValue(string json, string key)
       end = StringFind(json, ",", start);
       if(end < 0) end = StringFind(json, "}", start);
    }
-
    if(end < 0) return "";
    return CleanValue(StringSubstr(json, start, end - start));
 }

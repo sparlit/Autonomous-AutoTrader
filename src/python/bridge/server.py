@@ -19,29 +19,31 @@ class BridgeServer:
         logger.info(f"New connection from {client_id}")
         self.clients[client_id] = writer
 
+        buffer = b""
         try:
             while True:
-                data = await reader.readuntil(b'\n')
+                data = await reader.read(4096)
                 if not data:
                     break
 
-                message_str = data.decode().strip()
-                if not message_str:
-                    continue
+                buffer += data
+                while b'\n' in buffer:
+                    line, buffer = buffer.split(b'\n', 1)
+                    message_str = line.decode().strip()
+                    if not message_str:
+                        continue
 
-                try:
-                    message = json.loads(message_str)
-                    response = await self.on_message_cb(client_id, message)
-                    if response:
-                        writer.write(json.dumps(response).encode() + b'\n')
-                        await writer.drain()
-                except json.JSONDecodeError:
-                    logger.error(f"Invalid JSON from {client_id}: {message_str}")
-                except Exception as e:
-                    logger.error(f"Error processing message from {client_id}: {e}")
+                    try:
+                        message = json.loads(message_str)
+                        response = await self.on_message_cb(client_id, message)
+                        if response:
+                            writer.write(json.dumps(response).encode() + b'\n')
+                            await writer.drain()
+                    except json.JSONDecodeError:
+                        logger.error(f"Invalid JSON from {client_id}: {message_str}")
+                    except Exception as e:
+                        logger.error(f"Error processing message from {client_id}: {e}")
 
-        except asyncio.IncompleteReadError:
-            logger.info(f"Client {client_id} disconnected")
         except Exception as e:
             logger.error(f"Connection error with {client_id}: {e}")
         finally:
