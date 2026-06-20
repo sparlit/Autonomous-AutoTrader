@@ -9,6 +9,12 @@ logger = logging.getLogger("AAT_Worker")
 class StrategyWorker:
     """A long-lived worker process with internal thread-level parallelism."""
     def __init__(self):
+        """
+        Initialize a strategy worker capable of consensus-based analysis across multiple symbols.
+        
+        Sets up the worker with a consensus engine, per-symbol history buffers, and resources for
+        parallel task execution.
+        """
         self.engine = ConsensusEngine()
         self.buffers: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
         self.max_history = 1100
@@ -16,6 +22,15 @@ class StrategyWorker:
         self.thread_pool = ThreadPoolExecutor(max_workers=4)
 
     def update_and_analyze(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Update the symbol's historical buffers and perform consensus analysis.
+        
+        Parameters:
+        	data (Dict[str, Any]): Market data with symbol identifier under key "s".
+        
+        Returns:
+        	Dict[str, Any]: Analysis result with trading action and context.
+        """
         symbol = data.get("s")
         if not symbol: return {"action": "WAIT", "reason": "No symbol"}
 
@@ -51,10 +66,22 @@ class StrategyWorker:
 _worker = None
 
 def worker_init():
+    """
+    Initialize the module-level worker instance.
+    """
     global _worker
     _worker = StrategyWorker()
 
 def process_task(data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Process a data task through the consensus worker.
+    
+    Parameters:
+    	data (Dict[str, Any]): Market data including symbol and timeframe histories
+    
+    Returns:
+    	Dict[str, Any]: An action dictionary containing the analysis result or error response
+    """
     global _worker
     if _worker is None: worker_init()
     try:

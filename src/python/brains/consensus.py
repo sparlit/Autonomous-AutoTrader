@@ -7,15 +7,60 @@ from concurrent.futures import ThreadPoolExecutor
 
 class ConsensusEngine:
     def __init__(self):
+        """
+        Initialize the consensus engine with analyst components and a thread pool for concurrent analysis.
+        
+        Sets up three specialized analysts:
+        - SMCAnalyst: Detects market structure, order blocks, and candlestick triggers
+        - IndicatorAnalyst: Calculates technical indicators (RSI, ATR, etc.)
+        - VolatilityAnalyst: Analyzes volatility and volume spread analysis (VSA)
+        
+        Also initializes a ThreadPoolExecutor with 4 workers for parallel computation.
+        """
         self.smc = SMCAnalyst()
         self.indicators = IndicatorAnalyst()
         self.volatility = VolatilityAnalyst()
         self._thread_pool = ThreadPoolExecutor(max_workers=4)
 
     def _parse_history(self, raw_h: List[List[Any]]) -> List[Dict[str, Any]]:
+        """
+        Convert raw candle history into normalized dictionary format.
+        
+        Parameters:
+        	raw_h (List[List[Any]]): Raw candle data where each inner list is [open, high, low, close, time, volume]
+        
+        Returns:
+        	List[Dict[str, Any]]: List of candles with keys o, h, l, c, t, v for open, high, low, close, time, and volume
+        """
         return [{"o": x[0], "h": x[1], "l": x[2], "c": x[3], "t": x[4], "v": x[5]} for x in raw_h]
 
     def analyze_sync(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Analyze market history and produce a trading decision with diagnostic scoring.
+        
+        Performs synchronous technical analysis of OHLCV data across multiple timeframes, 
+        computing momentum, market structure, volatility, and order block signals to derive 
+        a consolidated trading action (BUY, SELL, or WAIT) along with component scores and 
+        visualization commands.
+        
+        Parameters:
+            data: Dictionary containing market history. Expected keys:
+                - 'history': Candles for the primary timeframe
+                - 'h4': Optional candles for the higher timeframe
+        
+        Returns:
+            Dictionary with:
+                - 'action': Trading decision (BUY, SELL, or WAIT)
+                - 'score': Total composite score
+                - 'details': Component scores (trend, momentum, structure, volatility)
+                - 'vsa': Volume spread analysis results
+                - 'atr': Average True Range value
+                - 'sweep': Market structure sweep classification
+                - 'trigger': Candlestick trigger signal
+                - 'htf_trend': Higher timeframe trend direction
+                - 'proximity_msg': HTF proximity rejection flag or False
+                - 'draw': Drawing commands for visualization
+        """
         hist_data = data.get("history", [])
         if hist_data and isinstance(hist_data[0], list): hist_data = self._parse_history(hist_data)
         if not hist_data: return {"action": "WAIT", "reason": "No history"}

@@ -9,6 +9,14 @@ logger = logging.getLogger("AAT_Bridge")
 
 class BridgeServer:
     def __init__(self, host: str, port: int, on_message_cb: Callable[[str, Dict[str, Any]], Any]):
+        """
+        Initialize a BridgeServer instance.
+        
+        Parameters:
+        	host (str): IP address or hostname to bind the server to.
+        	port (int): Port number to listen on.
+        	on_message_cb (Callable): Async callback function invoked for each received message. Must accept (client_id: str, message: Dict[str, Any]) and may return a response to send back to the client.
+        """
         self.host = host
         self.port = port
         self.on_message_cb = on_message_cb
@@ -17,6 +25,11 @@ class BridgeServer:
         self.throttle_threshold = 0.05 # 50ms processing limit
 
     async def handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+        """
+        Handle a client connection by processing incoming JSON messages and transmitting responses.
+        
+        For each message received from the client, invokes the configured callback. If a response is provided, encodes and transmits it back. Manages client registration, updates server statistics, and ensures proper cleanup on disconnect or error.
+        """
         addr = writer.get_extra_info('peername')
         client_id = f"{addr[0]}:{addr[1]}"
         logger.info(f"Ultra-Bridge: New connection from {client_id}")
@@ -64,6 +77,9 @@ class BridgeServer:
             except: pass
 
     async def start(self):
+        """
+        Start the TCP server and listen indefinitely for client connections.
+        """
         server = await asyncio.start_server(self.handle_client, self.host, self.port)
         async with server:
             logger.info(f"Ultra-Parallel Bridge active at {self.host}:{self.port}")

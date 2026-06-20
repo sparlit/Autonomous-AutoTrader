@@ -19,6 +19,11 @@ logger = logging.getLogger("AAT_Coordinator")
 
 class HiveCoordinator:
     def __init__(self):
+        """
+        Initialize the HiveCoordinator with configuration, messaging, core components, and specialized brains.
+        
+        Loads configuration and creates a bridge server for client message handling. Initializes the brain registry, risk manager, trade ledger, and position manager. Sets up a process pool executor for parallel analysis. Initializes tracking structures for agent states, symbol-level cooldowns, and symbol locks. Creates a system watchdog and context brain, then registers specialized analysis brains.
+        """
         self.config = load_config()
         self.server = BridgeServer(
             self.config.bridge.host,
@@ -41,6 +46,9 @@ class HiveCoordinator:
         self._initialize_brains()
 
     def _initialize_brains(self):
+        """
+        Initialize and register the specialized brains for technical analysis, trade decisions, and correlation checking.
+        """
         from src.python.brains.specialized import HTFAnalysisBrain, LTFTriggerBrain, DecisionBrain, CorrelationBrain
         self.registry.register(HTFAnalysisBrain("HTF_Analyst"))
         self.registry.register(LTFTriggerBrain("LTF_Trigger"))
@@ -48,6 +56,15 @@ class HiveCoordinator:
         self.corr_brain = CorrelationBrain("Correlation_Analyst")
 
     def _normalize_message(self, message: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Normalize a message by mapping external protocol types to internal schema.
+        
+        Maps recognized external message types to standardized internal representations.
+        Unrecognized types pass through unchanged.
+        
+        Returns:
+        	dict: The normalized message
+        """
         m_type = message.get("t")
         if m_type == "PNG": return {"type": "PING"}
         if m_type == "HB":
@@ -60,6 +77,15 @@ class HiveCoordinator:
         return message
 
     async def handle_message(self, client_id: str, message: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Handle incoming client messages and route to appropriate protocol handlers based on message type.
+        
+        Parameters:
+        	message (dict): The incoming message with `t` field indicating message type.
+        
+        Returns:
+        	dict: A protocol response dictionary with status information.
+        """
         raw_msg = message; m_type = raw_msg.get("t")
         if m_type == "PNG": return {"t": "PNG_ACK"}
         if m_type == "HB":
@@ -88,6 +114,18 @@ class HiveCoordinator:
         return {"t": "ACK", "m": f"Processed {m_type}"}
 
     async def process_data_push(self, client_id: str, raw_msg: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Process incoming market data and return a trade decision.
+        
+        Applies veto conditions (high-impact news, inactive session, unsafe news environment),
+        performs analysis via a worker process, manages positions, enforces per-symbol cooldowns,
+        and validates the trade against exposure and risk limits. Recovers automatically from
+        worker failures by restarting the process pool.
+        
+        Returns:
+            dict: Decision response containing action (WAIT/BUY/SELL), telemetry (score, trend,
+                drawdown), and trade execution parameters if all risk validations pass.
+        """
         symbol = raw_msg.get("s"); equity = self.agent_states.get(client_id, {}).get("equity", 1000.0)
         bid = raw_msg.get("bi", 0.0); ask = raw_msg.get("as", 0.0)
 
@@ -130,6 +168,11 @@ class HiveCoordinator:
         return response
 
     async def run(self):
+        """
+        Initialize the coordinator and start the bridge server.
+        
+        This method sets up the ledger database, restores cached peak equity, starts background monitoring and context analysis tasks, and launches the message server.
+        """
         logger.info("Starting Multi-Threaded Hybrid Coordinator...")
         await self.ledger.init_db()
         self.risk_manager.peak_equity = self.ledger.get_cached_peak_equity()

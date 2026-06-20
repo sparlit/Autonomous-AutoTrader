@@ -7,9 +7,26 @@ logger = logging.getLogger("AAT_PositionManager")
 
 class PositionManager:
     def __init__(self, ledger: TradeLedger):
+        """
+        Initialize the PositionManager with a trade ledger.
+        
+        Parameters:
+            ledger (TradeLedger): The trade ledger instance for managing open positions.
+        """
         self.ledger = ledger
 
     async def monitor_and_manage(self, symbol: str, current_price: float, atr: float) -> List[Dict[str, Any]]:
+        """
+        Generate trade management commands for active trades based on current price movement and ATR.
+        
+        Evaluates each active trade and generates commands to close 50% of the position and adjust the stop-loss to breakeven when profit reaches 1.0 R-multiple. Also applies ATR-based trailing stop-loss adjustments for BUY and SELL positions.
+        
+        Parameters:
+            atr (float): The Average True Range value used for stop-loss calculations.
+        
+        Returns:
+            List[Dict[str, Any]]: Trade management commands.
+        """
         active_trades = await self.ledger.get_active_trades(symbol)
         commands = []
 
@@ -39,7 +56,17 @@ class PositionManager:
         return commands
 
     async def handle_closed_trade(self, ticket: int, exit_price: float, reason: str):
-        """Update ledger and check for SL hits to trigger cooldown."""
+        """
+        Close a trade in the ledger and indicate whether it was stopped out.
+        
+        Parameters:
+        	ticket (int): The trade ticket identifier
+        	exit_price (float): The price at which the trade closed
+        	reason (str): The reason for closure
+        
+        Returns:
+        	bool: `True` if the trade was closed due to a stop-loss, `False` otherwise.
+        """
         # This would be called from SYNC or TRADE_TRANSACTION (Week 3/4)
         # For now, we update the ledger
         await self.ledger.close_trade(ticket)
