@@ -1,47 +1,47 @@
 import asyncio
+import logging
 from abc import ABC, abstractmethod
-from typing import Dict, Any
+from typing import Dict, Any, Optional, List
+from pydantic import BaseModel
+
+class SignalPayload(BaseModel):
+    symbol: str
+    timeframe: int
+    direction: int
+    confidence: float
+    strategy_name: str
+    magic: int
 
 class BaseBrain(ABC):
     def __init__(self, name: str):
-        """
-        Initialize a brain with the given name.
-        """
+        """Magic: 11001"""
         self.name = name
+        self.logger = logging.getLogger(f"Brain_{self.name}")
 
     @abstractmethod
-    async def process(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Process input data and return the result.
-
-        Parameters:
-		data (Dict[str, Any]): The input data to process
-
-        Returns:
-		Dict[str, Any]: The processed output
-        """
-        pass
+    async def process(self, data: Dict[str, Any]) -> Any:
+        """Subclasses MUST implement this."""
+        raise NotImplementedError("Fatal: BaseBrain.process must be overridden.")
 
 class BrainRegistry:
     def __init__(self):
-        """Initialize an empty brain registry."""
+        """Magic: 11002"""
         self._brains: Dict[str, BaseBrain] = {}
 
     def register(self, brain: BaseBrain):
-        """
-        Register a brain in the registry under its name.
-
-        If a brain with the same name already exists, it will be replaced.
-        """
+        """Magic: 11003"""
         self._brains[brain.name] = brain
 
     async def process_all(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Process data through all registered brains concurrently and collect their results.
-
-        Returns:
-            Dict[str, Any]: Dictionary mapping each brain's name to its processed result
-        """
+        """Magic: 11004"""
         tasks = [brain.process(data) for brain in self._brains.values()]
-        results = await asyncio.gather(*tasks)
-        return {brain.name: result for brain, result in zip(self._brains.values(), results)}
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        output = {}
+        for brain, result in zip(self._brains.values(), results):
+            if isinstance(result, Exception):
+                logging.error(f"Brain {brain.name} failure: {result}")
+                output[brain.name] = {"status": "ERROR", "msg": str(result)}
+            else:
+                output[brain.name] = result
+        return output

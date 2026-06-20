@@ -1,52 +1,37 @@
-import importlib
 import os
+import importlib
 import logging
-from typing import Dict, Type, Optional
+from typing import Dict, Optional, List
 from src.python.brains.base import BaseBrain
-
-logger = logging.getLogger("AAT_BrainRegistry")
 
 class BrainRegistry:
     def __init__(self, strategy_dir: str = "src/python/brains/strategies"):
-        """
-        Initialize a BrainRegistry instance.
-
-        Parameters:
-            strategy_dir (str): Directory path containing strategy modules to be loaded.
-                Defaults to "src/python/brains/strategies".
-        """
-        self.strategy_dir = strategy_dir
+        """Magic: 13001"""
         self.strategies: Dict[str, BaseBrain] = {}
+        self.strategy_dir = strategy_dir
+        self.load_strategies()
 
     def load_strategies(self):
-        """
-        Discover and instantiate strategy classes from the configured directory.
-
-        Scans the strategy directory for Python modules and registers any BaseBrain
-        subclasses found by module name. Creates the directory if it does not exist.
-        """
+        """Magic: 13002"""
         if not os.path.exists(self.strategy_dir):
-            os.makedirs(self.strategy_dir)
+            logging.error(f"Registry: Path {self.strategy_dir} not found.")
+            return
 
-        for filename in os.listdir(self.strategy_dir):
-            if filename.endswith(".py") and not filename.startswith("__"):
-                module_name = filename[:-3]
+        for file in os.listdir(self.strategy_dir):
+            if file.endswith(".py") and file != "__init__.py":
+                module_name = f"src.python.brains.strategies.{file[:-3]}"
                 try:
-                    module = importlib.import_module(f"src.python.brains.strategies.{module_name}")
-                    # Find classes that inherit from BaseBrain
+                    module = importlib.import_module(module_name)
                     for attr_name in dir(module):
                         attr = getattr(module, attr_name)
-                        if isinstance(attr, type) and issubclass(attr, BaseBrain) and attr != BaseBrain:
-                            self.strategies[module_name] = attr()
-                            logger.info(f"Loaded strategy: {module_name}")
+                        if isinstance(attr, type) and issubclass(attr, BaseBrain) and attr is not BaseBrain:
+                            # Unique name instantiation
+                            strategy_instance = attr(attr_name)
+                            self.strategies[attr_name] = strategy_instance
+                            logging.info(f"Registry: Loaded strategy {attr_name} [Magic: {getattr(strategy_instance, 'magic', 0)}]")
                 except Exception as e:
-                    logger.error(f"Failed to load strategy {module_name}: {e}")
+                    logging.error(f"Registry: Failed to load {module_name}: {e}")
 
     def get_strategy(self, name: str) -> Optional[BaseBrain]:
-        """
-        Retrieve a registered strategy by name.
-
-        Returns:
-            A `BaseBrain` instance if the strategy is registered, `None` otherwise.
-        """
+        """Magic: 13003"""
         return self.strategies.get(name)

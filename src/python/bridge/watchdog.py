@@ -1,6 +1,6 @@
 import asyncio
-import logging
 import time
+import logging
 from typing import Dict, Any
 
 logger = logging.getLogger("AAT_Watchdog")
@@ -8,41 +8,35 @@ logger = logging.getLogger("AAT_Watchdog")
 class SystemWatchdog:
     def __init__(self, agent_states: Dict[str, Dict[str, Any]], timeout: float = 30.0):
         """
-        Initialize a SystemWatchdog to monitor client staleness.
-
-        Parameters:
-		agent_states (Dict[str, Dict[str, Any]]): Shared dictionary mapping client IDs to state dictionaries.
-		timeout (float): Staleness threshold in seconds. Defaults to 30.0.
+        Initialize the SystemWatchdog with agent state tracking and timeout thresholds.
         """
         self.agent_states = agent_states
         self.timeout = timeout
-        self.running = False
+        self.latencies: Dict[str, float] = {}
 
     async def run(self):
         """
-        Periodically check agent states and remove entries for clients exceeding the staleness timeout.
-
-        This method runs indefinitely until stop() is called, continuously monitoring the shared agent_states
-        dictionary and removing entries for clients whose last_seen timestamp exceeds the configured timeout.
+        Periodically monitor all registered agents for health and inactivity.
         """
-        self.running = True
         logger.info("Watchdog started.")
-        while self.running:
+        while True:
+            await asyncio.sleep(5)
             now = time.time()
-            stale_clients = []
-            for client_id, state in self.agent_states.items():
-                if now - state.get("last_seen", 0) > self.timeout:
-                    logger.warning(f"Client {client_id} ({state.get('symbol')}) is STALE.")
-                    stale_clients.append(client_id)
+            for client_id, state in list(self.agent_states.items()):
+                last_seen = state.get("last_seen", 0)
+                symbol = state.get("symbol", "UNKNOWN")
 
-            # Clean up stale states (Coordinator will handle actual socket closure via Server)
-            for cid in stale_clients:
-                self.agent_states.pop(cid, None)
+                if now - last_seen > self.timeout:
+                    logger.warning(f"CRITICAL: Agent {client_id} ({symbol}) TIMEOUT! Dead for {now - last_seen:.1f}s")
+                    self.agent_states.pop(client_id, None)
+                else:
+                    # Log health metrics for observability
+                    logger.debug(f"Agent {client_id} status: OK. Last seen: {now - last_seen:.1f}s ago.")
 
-            await asyncio.sleep(10.0) # Check every 10s
-
-    def stop(self):
-        """
-        Stop the watchdog loop.
-        """
-        self.running = False
+    def record_rtt(self, client_id: str, client_sent_time: float):
+        """Record round-trip time for latency monitoring."""
+        if client_sent_time > 0:
+            rtt = time.time() - client_sent_time
+            self.latencies[client_id] = rtt
+            if rtt > 0.5: # 500ms threshold
+                logger.warning(f"High Latency for {client_id}: {rtt*1000:.1f}ms")

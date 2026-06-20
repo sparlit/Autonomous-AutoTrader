@@ -9,27 +9,15 @@ logger = logging.getLogger("AAT_Bridge")
 
 class BridgeServer:
     def __init__(self, host: str, port: int, on_message_cb: Callable[[str, Dict[str, Any]], Any]):
-        """
-        Initialize a BridgeServer instance.
-
-        Parameters:
-		host (str): IP address or hostname to bind the server to.
-		port (int): Port number to listen on.
-		on_message_cb (Callable): Async callback function invoked for each received message. Must accept (client_id: str, message: Dict[str, Any]) and may return a response to send back to the client.
-        """
+        """Magic: 10101"""
         self.host = host
         self.port = port
         self.on_message_cb = on_message_cb
         self.clients: Dict[str, asyncio.StreamWriter] = {}
         self.stats = {"msgs_rx": 0, "msgs_tx": 0, "last_latency": 0.0}
-        self.throttle_threshold = 0.05 # 50ms processing limit
 
     async def handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-        """
-        Handle a client connection by processing incoming JSON messages and transmitting responses.
-
-        For each message received from the client, invokes the configured callback. If a response is provided, encodes and transmits it back. Manages client registration, updates server statistics, and ensures proper cleanup on disconnect or error.
-        """
+        """Magic: 10102"""
         addr = writer.get_extra_info('peername')
         client_id = f"{addr[0]}:{addr[1]}"
         logger.info(f"Ultra-Bridge: New connection from {client_id}")
@@ -38,7 +26,7 @@ class BridgeServer:
         buffer = bytearray()
         try:
             while True:
-                data = await reader.read(16384) # 16KB buffer for heavy MTF/warmup pushes
+                data = await reader.read(16384)
                 if not data: break
 
                 buffer.extend(data)
@@ -54,10 +42,10 @@ class BridgeServer:
                         message = json.loads(line)
                         self.stats["msgs_rx"] += 1
 
-                        # High-Speed Multi-Symbol Processing
                         response = await self.on_message_cb(client_id, message)
 
                         if response:
+                            response["srv_t"] = time.time()
                             payload = json.dumps(response).encode() + b'\n'
                             writer.write(payload)
                             await writer.drain()
@@ -68,18 +56,20 @@ class BridgeServer:
                     except Exception as e:
                         logger.error(f"Bridge Execution Error: {e}")
 
+        except asyncio.CancelledError:
+            logger.info(f"Connection for {client_id} cancelled.")
         except Exception as e:
             logger.error(f"Link Dropped: {client_id} ({e})")
         finally:
             self.clients.pop(client_id, None)
-            writer.close()
-            try: await writer.wait_closed()
-            except: pass
+            try:
+                writer.close()
+                await writer.wait_closed()
+            except Exception as e:
+                logger.warning(f"Error during socket cleanup: {e}")
 
     async def start(self):
-        """
-        Start the TCP server and listen indefinitely for client connections.
-        """
+        """Magic: 10103"""
         server = await asyncio.start_server(self.handle_client, self.host, self.port)
         async with server:
             logger.info(f"Ultra-Parallel Bridge active at {self.host}:{self.port}")

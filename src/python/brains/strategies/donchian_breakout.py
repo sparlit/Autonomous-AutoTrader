@@ -2,32 +2,27 @@ import pandas as pd
 from typing import Optional
 from src.python.brains.base import BaseBrain, SignalPayload
 
-class RSIMomentum(BaseBrain):
+class DonchianBreakout(BaseBrain):
+    """
+    Standard Donchian Channel breakout strategy.
+    FOSS Strategy Implementation.
+    """
     def __init__(self, name: str):
         super().__init__(name)
-        self.magic = 2003
+        self.magic = 2006
 
     async def process(self, data: dict) -> Optional[SignalPayload]:
-        """
-        Institutional RSI Momentum analysis.
-        """
+        """Magic: 2006"""
         history = data.get("history", [])
-        if not history or len(history) < 15: return None
+        if not history or len(history) < 20: return None
 
         df = pd.DataFrame(history)
-        delta = df['c'].diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        upper = df['h'].rolling(20).max().iloc[-2]
+        lower = df['l'].rolling(20).min().iloc[-2]
 
-        # Prevent div by zero
-        loss = loss.replace(0, 1e-9)
-        rs = gain / loss
-        rsi = 100 - (100 / (1 + rs))
-
-        curr_rsi = rsi.iloc[-1]
         direction = 0
-        if curr_rsi > 70: direction = -1
-        elif curr_rsi < 30: direction = 1
+        if df['c'].iloc[-1] > upper: direction = 1
+        elif df['c'].iloc[-1] < lower: direction = -1
 
         return SignalPayload(
             symbol=data.get("s", "UNKNOWN"),

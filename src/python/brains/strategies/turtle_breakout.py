@@ -2,27 +2,23 @@ import pandas as pd
 from typing import Optional
 from src.python.brains.base import BaseBrain, SignalPayload
 
-class EMACross(BaseBrain):
+class TurtleBreakout(BaseBrain):
     def __init__(self, name: str):
         super().__init__(name)
-        self.magic = 2002
+        self.magic = 2005
 
     async def process(self, data: dict) -> Optional[SignalPayload]:
-        """
-        Institutional EMA Cross analysis.
-        """
+        """Magic: 2005"""
         history = data.get("history", [])
-        if not history or len(history) < 50: return None
+        if not history or len(history) < 21: return None
 
         df = pd.DataFrame(history)
-        ema_fast = df['c'].ewm(span=9, adjust=False).mean()
-        ema_slow = df['c'].ewm(span=21, adjust=False).mean()
+        high_20 = df['h'].rolling(20).max().iloc[-2]
+        low_20 = df['l'].rolling(20).min().iloc[-2]
 
         direction = 0
-        if ema_fast.iloc[-1] > ema_slow.iloc[-1] and ema_fast.iloc[-2] <= ema_slow.iloc[-2]:
-            direction = 1
-        elif ema_fast.iloc[-1] < ema_slow.iloc[-1] and ema_fast.iloc[-2] >= ema_slow.iloc[-2]:
-            direction = -1
+        if df['c'].iloc[-1] > high_20: direction = 1
+        elif df['c'].iloc[-1] < low_20: direction = -1
 
         return SignalPayload(
             symbol=data.get("s", "UNKNOWN"),
