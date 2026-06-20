@@ -1,7 +1,10 @@
 import datetime
 import json
 import os
+import logging
 from typing import Dict, Any, List
+
+logger = logging.getLogger("AAT_RiskManager")
 
 class RiskManager:
     def __init__(self, config):
@@ -20,25 +23,21 @@ class RiskManager:
     def load_news_from_file(self, path: str = "config/news_schedule.json"):
         """
         Load scheduled news events from a JSON file.
-
-        If the specified file does not exist, self.news_events remains unchanged.
-
-        Parameters:
-		path (str): Path to the JSON file containing scheduled news events. Defaults to "config/news_schedule.json".
         """
         if os.path.exists(path):
-            with open(path, "r") as f: self.news_events = json.load(f)
+            try:
+                with open(path, "r") as f:
+                    self.news_events = json.load(f)
+                logger.info(f"Loaded {len(self.news_events)} news events from {path}")
+            except Exception as e:
+                logger.error(f"Failed to load news: {e}")
 
     def is_session_active(self) -> bool:
         """
         Determine if the current UTC time falls within active trading sessions.
-
-        The active trading windows are 08:00-16:00 UTC and 13:00-21:00 UTC.
-
-        Returns:
-            `true` if current time is within either window, `false` otherwise.
         """
         now = datetime.datetime.now(datetime.UTC).time()
+        # London: 08:00-16:00, NY: 13:00-21:00
         l_start = datetime.time(8, 0); l_end = datetime.time(16, 0)
         n_start = datetime.time(13, 0); n_end = datetime.time(21, 0)
         return (l_start <= now <= l_end) or (n_start <= now <= n_end)
@@ -46,60 +45,76 @@ class RiskManager:
     def is_news_safe(self) -> bool:
         """
         Determine if trading is safe relative to scheduled news events.
-
-        Returns:
-            bool: `true` if no scheduled news events are within 30 minutes of the current time, `false` otherwise.
+        Enforces a 30-minute window around high-impact news.
         """
         now = datetime.datetime.now(datetime.UTC)
         for event in self.news_events:
             try:
-                e_time = datetime.datetime.fromisoformat(event["time"].replace("Z", "+00:00"))
-                if abs((e_time - now).total_seconds()) / 60.0 <= 30.0: return False
-            except: continue
+                # Expecting ISO format like 2024-06-19T13:30:00Z
+                e_time_str = event["time"].replace("Z", "+00:00")
+                e_time = datetime.datetime.fromisoformat(e_time_str)
+                # Convert both to offset-aware if they aren't
+                if e_time.tzinfo is None: e_time = e_time.replace(tzinfo=datetime.UTC)
+
+                diff_mins = abs((e_time - now).total_seconds()) / 60.0
+                if diff_mins <= 30.0 and event.get("impact") == "HIGH":
+                    logger.warning(f"VETO: High-impact news '{event.get('event')}' in {diff_mins:.1f} mins.")
+                    return False
+            except Exception as e:
+                logger.error(f"Error parsing news time: {e}")
+                continue
         return True
 
     def calculate_trade_params(self, equity: float, atr: float, symbol: str, action: str, tick_val: float = 10.0, tick_size: float = 0.0001) -> Dict[str, Any]:
         """
         Calculate position size and risk points based on equity and volatility.
-
-        Parameters:
-            atr (float): Average True Range; returns minimum position if zero or negative.
-            tick_val (float): Monetary value of a single tick.
-            tick_size (float): Size of one tick in price units.
-
-        Returns:
-            dict: Contains "lots" (position quantity at or above minimum), "sl_pts" (stop-loss distance in points), and "tp_pts" (take-profit distance in points).
         """
         if atr <= 0: return {"lots": self.config.risk.min_lot_size, "sl_pts": 0, "tp_pts": 0}
-        risk_c = equity * (self.config.risk.risk_per_trade_pct / 100.0)
-        sl_dist = atr * 2
+
+        # Risk amount in currency
+        risk_amount = equity * (self.config.risk.risk_per_trade_pct / 100.0)
+
+        # Stop loss distance: 2.0x ATR
+        sl_dist = atr * 2.0
+
+        # Convert SL distance to points/ticks
         num_ticks = sl_dist / tick_size if tick_size > 0 else 0
-        lots = risk_c / (num_ticks * tick_val) if num_ticks > 0 and tick_val > 0 else self.config.risk.min_lot_size
-        return {"lots": max(self.config.risk.min_lot_size, round(lots, 2)), "sl_pts": int(sl_dist / tick_size), "tp_pts": int((sl_dist * 2) / tick_size)}
+
+        # Position sizing: Risk / (Ticks * TickValue)
+        # TickValue is usually for 1.0 lot
+        lots = risk_amount / (num_ticks * tick_val) if num_ticks > 0 and tick_val > 0 else self.config.risk.min_lot_size
+
+        # Final parameters
+        final_lots = max(self.config.risk.min_lot_size, round(lots, 2))
+        sl_pts = int(sl_dist / tick_size) if tick_size > 0 else 0
+        tp_pts = int((sl_dist * 1.5) / tick_size) if tick_size > 0 else 0 # 1.5R target
+
+        return {"lots": final_lots, "sl_pts": sl_pts, "tp_pts": tp_pts}
 
     def validate_trade(self, symbol: str, action: str, current_equity: float, atr: float = 0.0, tick_val: float = 10.0, tick_size: float = 0.0001, ignore_session: bool = False) -> Dict[str, Any]:
         """
-        Validate a trade against risk constraints and compute trade parameters if constraints are met.
-
-        Checks session activity, news event proximity, daily trade limits, and drawdown thresholds.
-        Returns trade approval status and computed parameters (position size, stops, targets) if approved.
-
-        Parameters:
-		current_equity (float): Current account equity.
-		atr (float): Average True Range for volatility-based risk calculation.
-		tick_val (float): Point value per tick.
-		tick_size (float): Minimum price increment.
-		ignore_session (bool): If True, skip the session time validation.
-
-        Returns:
-		result (dict): Contains 'safe' (bool). If True, includes 'lots', 'sl_pts', 'tp_pts', 'action', 'symbol'.
-			If False, includes 'reason' explaining the rejection cause.
+        Validate a trade against risk constraints and compute trade parameters.
         """
-        if not ignore_session and not self.is_session_active(): return {"safe": False, "reason": "Outside session"}
-        if not self.is_news_safe(): return {"safe": False, "reason": "News pending"}
-        if self.daily_trades >= 5: return {"safe": False, "reason": "Limit reached"}
+        if not ignore_session and not self.is_session_active():
+            return {"safe": False, "reason": "Outside session"}
+
+        if not self.is_news_safe():
+            return {"safe": False, "reason": "News pending"}
+
+        if self.daily_trades >= 5:
+            return {"safe": False, "reason": "Daily limit reached"}
+
         if self.peak_equity > 0:
             dd = (self.peak_equity - current_equity) / self.peak_equity * 100.0
-            if dd > self.config.risk.max_drawdown_pct: return {"safe": False, "reason": f"DD reached ({dd:.2f}%)"}
+            if dd > self.config.risk.max_drawdown_pct:
+                return {"safe": False, "reason": f"Max DD reached ({dd:.2f}%)"}
+
         p = self.calculate_trade_params(current_equity, atr, symbol, action, tick_val, tick_size)
-        return {"safe": True, "lots": p["lots"], "sl_pts": p["sl_pts"], "tp_pts": p["tp_pts"], "action": action, "symbol": symbol}
+        return {
+            "safe": True,
+            "lots": p["lots"],
+            "sl_pts": p["sl_pts"],
+            "tp_pts": p["tp_pts"],
+            "action": action,
+            "symbol": symbol
+        }

@@ -1,7 +1,44 @@
+# 🤖 AAT Institutional Developer Protocol (V2.0)
+
+As an AAT developer agent, you are part of an elite team maintaining high-probability autonomous systems. You MUST adhere to this workflow for every task.
+
+## ⚖️ The Golden Rule
+**"Capital Preservation > Feature Completion"**. If a change introduces risk, it must be vetoed or hardened before submission.
+
+## 📋 Mandatory Workflow
+
+### 1. 🔍 Deep Audit & Gap Identification
+Before writing any code, you MUST:
+- Analyze the relevant files for logic flaws, security gaps, or performance bottlenecks.
+- Specifically look for "paper tiger" logic (placeholders, fragile parsing, volatility-blind thresholds).
+- Document your findings to the user.
+
+### 2. 🛠️ Implementation & Hardening
+When writing code:
+- **MQL5 Integrity**: Never use fragile string offsets for protocol parsing. Use robust tokenization or standard-compliant parsing logic.
+- **Python Precision**: Use vectorized math (NumPy/Pandas). Ensure risk calculations use real-time tick value and ATR.
+- **Fail-Safes**: Every action must have a corresponding "Fail-Safe" state (e.g., breakeven on heartbeat loss).
+
+### 3. 🧪 Verification & Re-Analysis
+After modification:
+- Run all relevant tests using `python -m pytest tests/python/`.
+- Re-analyze the modified code through the lens of a "Devil's Advocate" to find new edge cases.
+
+### 4. 📦 Deployment & Branching
+- Maintain a **Single Branch Policy**. All features must be merged into `main`.
+- All temporary branches MUST be deleted after successful merge.
+
+## 🛠️ Specialized Tooling (GitNexus)
+- MUST run `gitnexus_impact` before modifying any core symbol.
+- MUST run `gitnexus_detect_changes` before every commit.
+
+---
+**Institutional Standard: "Zero Gaps. Zero Slippage. Zero Excuses."**
+
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **Autonomous-AutoTrader** (728 symbols, 821 relationships, 0 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **Autonomous-AutoTrader** (746 symbols, 850 relationships, 0 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
 

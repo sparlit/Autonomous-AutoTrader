@@ -19,20 +19,52 @@ public:
    static string BuildSYNC(string s) {
       string tks = "["; bool first = true;
       for(int i=0; i<PositionsTotal(); i++) {
-         if(PositionGetSymbol(i) == s) {
+         if(PositionSelectByTicket(PositionGetTicket(i)) && PositionGetString(POSITION_SYMBOL) == s) {
             if(!first) tks += ","; tks += IntegerToString(PositionGetInteger(POSITION_TICKET)); first = false;
          }
       }
       tks += "]"; return StringFormat("{\"t\":\"SYNC\",\"s\":\"%s\",\"tk\":%s}", s, tks);
    }
    static string GetMsgType(string j) { string t = GetV(j, "t"); return (t=="HB")?"HEARTBEAT":(t=="DP")?"DATA_PUSH":(t=="PNG")?"PING":(t=="DEC")?"DECISION":(t=="T_ACK")?"TRADE_ACK":(t=="SYNC")?"SYNC":t; }
+
    static string GetV(string j, string k) {
-      string s = "\"" + k + "\":"; int p = StringFind(j, s); if(p<0) return "";
-      int st = p + StringLen(s); uchar fc = StringGetCharacter(j, st); int e = -1;
-      if(fc == '\"') { st++; e = StringFind(j, "\"", st); }
-      else if(fc == '[') { int d = 0; for(int i=st; i<StringLen(j); i++) { uchar c=StringGetCharacter(j, i); if(c=='[') d++; if(c==']') d--; if(d==0) {e=i+1; break;} } }
-      else { e = StringFind(j, ",", st); if(e<0) e = StringFind(j, "}", st); }
-      if(e<0) return ""; string v = StringSubstr(j, st, e-st); StringReplace(v, "\"", ""); return v;
+      string s = "\"" + k + "\""; int p = StringFind(j, s); if(p<0) return "";
+      int st = p + StringLen(s);
+      while(st < StringLen(j)) {
+         uchar c = StringGetCharacter(j, st);
+         if(c == ':' || c == ' ' || c == '\t' || c == '\r' || c == '\n') st++;
+         else break;
+      }
+      if(st >= StringLen(j)) return "";
+      uchar fc = StringGetCharacter(j, st); int e = -1;
+      if(fc == '\"') {
+         st++; e = StringFind(j, "\"", st);
+         while(e > 0 && StringGetCharacter(j, e-1) == '\\') e = StringFind(j, "\"", e+1);
+      }
+      else if(fc == '[') {
+         int d = 0; for(int i=st; i<StringLen(j); i++) {
+            uchar c=StringGetCharacter(j, i);
+            if(c=='[') d++; if(c==']') d--;
+            if(d==0) {e=i+1; break;}
+         }
+      }
+      else if(fc == '{') {
+         int d = 0; for(int i=st; i<StringLen(j); i++) {
+            uchar c=StringGetCharacter(j, i);
+            if(c=='{') d++; if(c=='}') d--;
+            if(d==0) {e=i+1; break;}
+         }
+      }
+      else {
+         e = StringFind(j, ",", st);
+         int e2 = StringFind(j, "}", st);
+         if(e < 0 || (e2 >= 0 && e2 < e)) e = e2;
+      }
+      if(e<0) return "";
+      string v = StringSubstr(j, st, e-st);
+      StringTrimLeft(v); StringTrimRight(v);
+      if(StringLen(v) > 0 && StringGetCharacter(v, 0) == '\"') v = StringSubstr(v, 1, StringLen(v)-2);
+      return v;
    }
 private:
    static string BuildH(string s, ENUM_TIMEFRAMES tf, int c) {

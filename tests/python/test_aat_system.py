@@ -7,7 +7,7 @@ def test_consensus_logic():
     engine = ConsensusEngine()
     data = {"history": [[1.0+i*0.01, 1.02+i*0.01, 0.99+i*0.01, 1.01+i*0.01, 1000+i, 100] for i in range(20)]}
     result = engine.analyze_sync(data)
-    assert "action" in result
+    assert "act" in result
 
 def test_risk_manager_session():
     rm = RiskManager(load_config())
