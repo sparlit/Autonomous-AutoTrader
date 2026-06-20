@@ -1,6 +1,7 @@
 import asyncio
 import ujson as json
 import logging
+import time
 from typing import Callable, Dict, Any
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -8,59 +9,78 @@ logger = logging.getLogger("AAT_Bridge")
 
 class BridgeServer:
     def __init__(self, host: str, port: int, on_message_cb: Callable[[str, Dict[str, Any]], Any]):
+        """
+        Initialize a BridgeServer instance.
+
+        Parameters:
+		host (str): IP address or hostname to bind the server to.
+		port (int): Port number to listen on.
+		on_message_cb (Callable): Async callback function invoked for each received message. Must accept (client_id: str, message: Dict[str, Any]) and may return a response to send back to the client.
+        """
         self.host = host
         self.port = port
         self.on_message_cb = on_message_cb
         self.clients: Dict[str, asyncio.StreamWriter] = {}
+        self.stats = {"msgs_rx": 0, "msgs_tx": 0, "last_latency": 0.0}
+        self.throttle_threshold = 0.05 # 50ms processing limit
 
     async def handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+        """
+        Handle a client connection by processing incoming JSON messages and transmitting responses.
+
+        For each message received from the client, invokes the configured callback. If a response is provided, encodes and transmits it back. Manages client registration, updates server statistics, and ensures proper cleanup on disconnect or error.
+        """
         addr = writer.get_extra_info('peername')
         client_id = f"{addr[0]}:{addr[1]}"
-        logger.info(f"New connection from {client_id}")
+        logger.info(f"Ultra-Bridge: New connection from {client_id}")
         self.clients[client_id] = writer
 
+        buffer = bytearray()
         try:
             while True:
-                data = await reader.readuntil(b'\n')
-                if not data:
-                    break
+                data = await reader.read(16384) # 16KB buffer for heavy MTF/warmup pushes
+                if not data: break
 
-                message_str = data.decode().strip()
-                if not message_str:
-                    continue
+                buffer.extend(data)
+                while b'\n' in buffer:
+                    pos = buffer.find(b'\n')
+                    line = buffer[:pos]
+                    del buffer[:pos + 1]
 
-                try:
-                    message = json.loads(message_str)
-                    response = await self.on_message_cb(client_id, message)
-                    if response:
-                        writer.write(json.dumps(response).encode() + b'\n')
-                        await writer.drain()
-                except json.JSONDecodeError:
-                    logger.error(f"Invalid JSON from {client_id}: {message_str}")
-                except Exception as e:
-                    logger.error(f"Error processing message from {client_id}: {e}")
+                    if not line: continue
 
-        except asyncio.IncompleteReadError:
-            logger.info(f"Client {client_id} disconnected")
+                    try:
+                        start_time = time.perf_counter()
+                        message = json.loads(line)
+                        self.stats["msgs_rx"] += 1
+
+                        # High-Speed Multi-Symbol Processing
+                        response = await self.on_message_cb(client_id, message)
+
+                        if response:
+                            payload = json.dumps(response).encode() + b'\n'
+                            writer.write(payload)
+                            await writer.drain()
+                            self.stats["msgs_tx"] += 1
+                            self.stats["last_latency"] = (time.perf_counter() - start_time)
+                    except json.JSONDecodeError:
+                        logger.error(f"Corruption in stream from {client_id}")
+                    except Exception as e:
+                        logger.error(f"Bridge Execution Error: {e}")
+
         except Exception as e:
-            logger.error(f"Connection error with {client_id}: {e}")
+            logger.error(f"Link Dropped: {client_id} ({e})")
         finally:
             self.clients.pop(client_id, None)
             writer.close()
-            await writer.wait_closed()
+            try: await writer.wait_closed()
+            except: pass
 
     async def start(self):
+        """
+        Start the TCP server and listen indefinitely for client connections.
+        """
         server = await asyncio.start_server(self.handle_client, self.host, self.port)
-        addr = server.sockets[0].getsockname()
-        logger.info(f'Serving on {addr}')
         async with server:
+            logger.info(f"Ultra-Parallel Bridge active at {self.host}:{self.port}")
             await server.serve_forever()
-
-    async def broadcast(self, message: Dict[str, Any]):
-        data = json.dumps(message).encode() + b'\n'
-        for client_id, writer in self.clients.items():
-            try:
-                writer.write(data)
-                await writer.drain()
-            except Exception as e:
-                logger.error(f"Failed to broadcast to {client_id}: {e}")

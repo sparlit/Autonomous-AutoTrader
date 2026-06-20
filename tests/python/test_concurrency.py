@@ -1,0 +1,26 @@
+import asyncio
+import ujson as json
+import pytest
+from src.python.hive.coordinator import HiveCoordinator
+
+@pytest.mark.asyncio
+async def test_concurrent_clients():
+    coordinator = HiveCoordinator()
+    server_task = asyncio.create_task(coordinator.run())
+    await asyncio.sleep(1)
+
+    async def client_task(i):
+        reader, writer = await asyncio.open_connection('127.0.0.1', 5555)
+        writer.write(json.dumps({"t": "PNG", "id": i}).encode() + b'\n')
+        await writer.drain()
+        data = await reader.readuntil(b'\n')
+        writer.close()
+        await writer.wait_closed()
+        return json.loads(data.decode().strip())
+
+    results = await asyncio.gather(*[client_task(i) for i in range(10)])
+    assert len(results) == 10
+    for res in results:
+        assert res["t"] == "PNG_ACK"
+
+    server_task.cancel()

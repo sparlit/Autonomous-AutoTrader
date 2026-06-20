@@ -1,124 +1,80 @@
-# 🌌 Autonomous MT5 Autotrader (100% FOSS)
+# 🌌 Autonomous AutoTrader (AAT) - Forex Master Pro Edition
 
-Welcome to the ultimate autonomous trading solution for MetaTrader 5. This project provides a robust, zero-stub, production-ready system that leverages the power of Python's scientific stack to drive high-probability trading decisions in MT5.
-
----
-
-## 📖 Table of Contents
-1. [Overview & Philosophy](#overview--philosophy)
-2. [Detailed Architecture](#detailed-architecture)
-3. [Installation Guide](#installation-guide)
-4. [Configuration Guide](#configuration-guide)
-5. [How to Use](#how-to-use)
-6. [Troubleshooting](#troubleshooting)
+Welcome to the definitive institutional-grade autonomous trading system for MetaTrader 5. Engineered for **Defensive Alpha**, AAT prioritizes capital preservation through rigorous Smart Money Concepts (SMC), Volume-Spread Analysis (VSA), and multi-brain parallel consensus logic.
 
 ---
 
-## 🌟 Overview & Philosophy
-This system is built on the principle of **High-Probability Autonomous Trading**. It is designed to be a "Set and Forget" model that minimizes human error while maximizing consistent profits through rigorous multi-strategy verification.
+## 🤖 MCP Server Integration
+AAT can be integrated with AI assistants like Claude Desktop or Cursor using the Model Context Protocol (MCP).
 
-- **Zero Stubs Policy:** Every function, bridge, and UI element is fully implemented. No placeholders.
-- **Double Verification:** No trade is taken unless multiple strategies across multiple timeframes (M15, H1, D1) reach a weighted consensus.
-- **Risk-First Approach:** Position sizing is auto-calculated based on live account equity and market volatility (ATR).
+### Claude Desktop Configuration
+Add the following to your `claude_desktop_config.json`:
+```json
+{
+  "mcpServers": {
+    "aat": {
+      "command": "python",
+      "args": ["/path/to/Autonomous-AutoTrader/mcp_engine.py"]
+    }
+  }
+}
+```
 
----
+### Tools Available
+- `get_account_status`: Check balance, equity, and drawdown.
+- `list_active_trades`: View current positions.
+- `get_system_health`: Monitor coordinator and brain health.
+- `place_manual_trade`: Record trade intent for agent execution.
 
-## 🏗 Detailed Architecture
-The system consists of two main pillars connected by a low-latency bridge:
+## 🚀 Quick Start Guide (How to Run)
 
-### 1. MetaTrader 5 (The Executor)
-- **Dashboard UI:** A custom-built grid system that renders directly on the chart using CCanvas/CChartObject. It provides real-time status updates on trend, signal, and connection health.
-- **Bridge Client:** A custom MQL5 class (`SocketClient.mqh`) using direct Windows WinAPI (`ws2_32.dll`) calls to communicate with the Python engine via TCP.
-- **Trade Execution:** Handles order placement, pyramid scaling (0.01 start), news straddling, and autonomous trailing logic.
-
-### 2. Python Engine (The Brain)
-- **Data Ingestion:** Aggregates data from Yahoo Finance, Forex Factory (News), FXStreet (Sentiment), and Polymarket (Prediction Markets).
-- **Strategy Master:** Processes data through five distinct high-probability strategies:
-    - **Trend Following:** MACD/EMA crossover.
-    - **Mean Reversion:** RSI overbought/oversold logic.
-    - **Breakout:** Price action analysis relative to bands.
-    - **Scalping:** EMA Cross + RSI Momentum.
-    - **Pivot-Harmonic:** Pivot-point based support/resistance detection.
-- **Risk Manager:** Calculates VaR, Correlation, and Market Regime to ensure zero-blind-spot trading.
-
----
-
-## 🛠 Installation Guide
-
-### Phase 1: Python Environment Setup
-1. **Python Version:** Ensure you have Python 3.10 or newer installed.
-2. **Install Dependencies:**
+### Phase 1: Start the Python "Brain"
+1. **Navigate to the project folder**:
    ```bash
-   pip install pandas numpy yfinance scipy statsmodels scikit-learn
+   D:\myproject\mql\mql_jules\Autonomous-AutoTrader>
    ```
-3. **Run the Engine:**
+2. **Install Dependencies**:
    ```bash
-   python Python/main_engine.py
+   pip install pandas numpy pydantic ujson aiosqlite pytest-asyncio
    ```
-   - Keep this terminal open. It acts as the server for your MT5 EA.
+3. **Launch the Engine**:
+   ```bash
+   python main_engine.py
+   ```
+   *Wait for the message: `Ultra-Parallel Bridge active at 127.0.0.1:5555`.*
 
-### Phase 2: MetaTrader 5 Setup
-1. **Open MT5 Data Folder:** In MT5, go to `File > Open Data Folder`.
-2. **Copy Files:**
-   - Copy `MQL5/Experts/AutonomousTrader.mq5` to `MQL5/Experts/`.
-   - Copy all files from `MQL5/Include/` to `MQL5/Include/`.
-3. **Enable DLL Imports:**
-   - Go to `Tools > Options > Expert Advisors`.
-   - Check **"Allow DLL imports"**. This is critical for the Socket Bridge to function.
-4. **Compile:**
-   - Open `AutonomousTrader.mq5` in MetaEditor (F4).
-   - Press **Compile (F7)**.
-
----
-
-## ⚙️ Configuration Guide
-
-When you attach the EA to a chart, the following parameters are available:
-
-| Parameter | Default | Description |
-| :--- | :--- | :--- |
-| `InpRiskPercent` | 1.0 | % of account balance to risk per trade. |
-| `InpMagicNumber` | 123456 | Unique ID for the EA's orders to avoid conflicts. |
-| `InpStopLoss` | 200 | Initial SL in points (e.g., 20.0 pips on a 5-digit broker). |
-| `InpTakeProfit` | 400 | Initial TP in points. |
-| `InpTrailingSL` | true | If true, SL will move in favor of the trade. |
-| `InpTrailingTP` | true | If true, TP will move to capture more profit during trends. |
-| `InpTrailingStep` | 50 | Minimum price movement (in points) before trailing triggers. |
+### Phase 2: Setup MetaTrader 5 (MT5)
+1. **Copy Source Files**:
+   - Go to MT5: `File > Open Data Folder`.
+   - Copy `src/mql5/Experts/*` to `MQL5/Experts/`.
+   - Copy `src/mql5/Include/*` to `MQL5/Include/`.
+2. **Configure MT5**:
+   - `Tools > Options > Expert Advisors`.
+   - ✅ Check **"Allow DLL imports"**.
+   - ✅ Check **"Allow Algorithmic Trading"**.
+3. **Attach Agents**:
+   - **The Sensor**: Drag `AAT_DataCollector` onto any chart you want to trade.
+   - **The Actuator**: Drag `AAT_MasterExecutor` onto **only one** chart.
+   - **The Monitor**: Drag `AAT_GlobalDashboard` onto a separate chart.
 
 ---
 
-## 🚀 How to Use
+## 🏗️ Technical Architecture
+- **Specialized Agency Model**: Decoupled Data Ingestion from Trade Execution.
+- **Multi-Core Parallelism**: Uses `ProcessPoolExecutor` to bypass Python's GIL.
+- **Persistent State**: Non-blocking SQLite ledger via `aiosqlite`.
+- **Hybrid Brain**: Dual-path logic (Fast-Path Vetoes + Parallel Deep-Path).
 
-1. **Deployment:** Drag the `AutonomousTrader` EA onto any chart (e.g., EURUSD).
-2. **Dashboard Monitoring:**
-   - **Symbol:** Shows the current trading pair.
-   - **TF Analysis:** Indicates that M15, H1, and D1 are being scanned.
-   - **Trend (H1):** Shows the macro trend detected by the engine.
-   - **Signal (Weighted):** Displays the consensus (e.g., `BUY (10)`). A value >= 8 is required for verification.
-   - **Autonomous Status:**
-     - `Connecting...`: Attempting to reach Python engine.
-     - `WAITING CONFIRMATION`: Scanning for high-probability setups.
-     - `TRADE VERIFIED`: Criteria met, trade execution in progress.
-     - `CONN ERROR`: Python engine is not running or port 5555 is blocked.
-3. **Hands-Off Operation:** Once the status shows "WAITING CONFIRMATION", the system is fully autonomous. It will refresh analysis every 60 seconds and execute trades without further input.
+## 🛡️ Risk & Safety Features
+- **1% Dynamic Risk**: Calculated using real-time tick values.
+- **Relative Drawdown**: Persistent peak-equity tracking.
+- **Anti-Revenge Trading**: Automatic 4-hour cooldown after any loss.
+- **Failsafe BE**: Automated breakeven protection if Python heartbeat is lost.
 
----
+## 📚 Wiki & Deep-Dive
+- **SMC Detection**: Order Blocks (>1.5x ATR), CHoCH, and Liquidity Sweeps.
+- **VSA Engine**: Effort (Volume) vs Result (Spread) verification.
+- **MTF Alignment**: All entries aligned with H4 institutional bias.
 
-## 🛠 Troubleshooting
-
-- **"CONN ERROR" on Dashboard:**
-  - Ensure `main_engine.py` is running and says "Listening for MT5 signals...".
-  - Check if Windows Firewall is blocking Port 5555.
-- **No Trades Taken:**
-  - The system requires a high consensus score (>= 8). In ranging markets, it may stay in "WAITING CONFIRMATION" for extended periods to protect your capital.
-- **Wrong Symbol Data:**
-  - The engine automatically maps 6-digit forex symbols (e.g., `EURUSD`) to Yahoo Finance format (`EURUSD=X`). If using non-forex symbols, ensure they match Yahoo Finance tickers.
-
----
-
-## 📜 Rules Followed
-- ✅ 100% FOSS
-- ✅ Zero Stubs / Zero Placeholders
-- ✅ Zero Dead Ends / Zero Loose Ends
-- ✅ Complete Automated & Autonomous
-- ✅ Real-time Data & Dashboard
+**Built with 💻 and ☕ by Jules (God Mode)**
+*This project is 100% FOSS. Trade responsibly.*
