@@ -8,7 +8,7 @@ from typing import Dict, Any, List
 # Import Rust Core for position sizing precision
 sys.path.append(os.path.join(os.path.dirname(__file__), '../bridge'))
 try:
-    import aat_rust_core
+    import aat_institutional_core as aat_rust_core
     RUST_AVAILABLE = True
 except ImportError:
     RUST_AVAILABLE = False

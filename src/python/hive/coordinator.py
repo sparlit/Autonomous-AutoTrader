@@ -20,7 +20,7 @@ from src.python.brains.specialized import ContextBrain
 # Import Rust Core
 sys.path.append(os.path.join(os.path.dirname(__file__), '../bridge'))
 try:
-    import aat_rust_core
+    import aat_institutional_core as aat_rust_core
     RUST_CORE_ENABLED = True
 except ImportError:
     RUST_CORE_ENABLED = False
@@ -160,7 +160,7 @@ class HiveCoordinator:
 
             if RUST_CORE_ENABLED:
                 exposures = [t.get("lots", 0.01) for t in active_trades]
-                vols = [0.002 for _ in active_trades]
+                vols = [t.get("atr", 0.002) / (t.get("price", 1.0) or 1.0) for t in active_trades]
                 total_var = aat_rust_core.calculate_var_parallel(exposures, vols)
                 if total_var > 5.0:
                     logger.warning(f"VETO: VaR limit exceeded ({total_var:.2f})")

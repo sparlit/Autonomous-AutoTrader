@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 # Tier 1: Rust Integration
 sys.path.append(os.path.join(os.path.dirname(__file__), '../bridge'))
 try:
-    import aat_heavy
+    import aat_institutional_core as aat_heavy
     RUST_HEAVY_ENABLED = True
     # Initializing global instance for the process
     _heavy = aat_heavy.HeavyEngine()
