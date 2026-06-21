@@ -1,31 +1,18 @@
 import pytest
-import time
 from src.python.brains.consensus import MetaBrain
 from src.python.execution.risk_manager import RiskManager
 from src.python.hive.config import load_config
+from multiprocessing import Queue
 
-def test_meta_brain_logic():
-    engine = MetaBrain()
-    # Populate indicators for a symbol
-    engine.process_event({
-        "type": "INDICATORS",
-        "symbol": "EURUSD",
-        "indicators": {"atr": 0.0010, "rsi": 50}
-    })
-    # Set Trend
-    engine.process_event({
-        "type": "TREND",
-        "symbol": "EURUSD",
-        "trend": "BULLISH",
-        "sweep": "NONE"
-    })
-    # Trigger Liquidity
-    result = engine.process_event({
-        "type": "LIQUIDITY",
-        "symbol": "EURUSD",
-        "order_blocks": [{"type": "BULLISH"}]
-    })
-    assert result["action"] == "BUY"
+@pytest.mark.asyncio
+async def test_meta_brain_logic():
+    q = Queue()
+    engine = MetaBrain("Meta", q, q)
+    await engine.process({"symbol": "EURUSD", "type": "REGIME", "regime": "NORMAL"})
+    await engine.process({"symbol": "EURUSD", "type": "TREND", "trend": "BULLISH"})
+    await engine.process({"symbol": "EURUSD", "type": "INDICATORS", "indicators": {"atr": 0.01}})
+    res = await engine.process({"symbol": "EURUSD", "type": "LIQUIDITY", "order_blocks": [{"type": "BULLISH"}]})
+    assert res["action"] == "BUY"
 
 def test_risk_manager_session():
     rm = RiskManager(load_config())

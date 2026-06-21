@@ -1,30 +1,32 @@
-from typing import Dict, Any, List, Optional
+import asyncio
 import logging
+from typing import Dict, Any, List, Optional
+from multiprocessing import Queue
+from src.python.brains.base import BaseBrain
 
 logger = logging.getLogger("AAT_MetaBrain")
 
-class MetaBrain:
+class MetaBrain(BaseBrain):
     """
-    The Meta Decision Engine.
-    Receives signals from all brains, validates, weights, and produces final decisions.
+    Brain 11 - The Meta Decision Engine.
+    Receives signals from all specialized brains and produces a final decision.
     """
-    def __init__(self, threshold: float = 0.7):
+    def __init__(self, name: str, input_queue: Queue, output_queue: Queue, cpu_affinity: Optional[List[int]] = None, threshold: float = 0.7):
+        super().__init__(name, input_queue, output_queue, cpu_affinity)
         self.threshold = threshold
         self.symbol_state: Dict[str, Dict[str, Any]] = {}
 
-    def process_event(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """
-        Aggregate brain outputs and check for consensus.
-        """
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         symbol = event.get("symbol")
         if not symbol: return None
 
         if symbol not in self.symbol_state:
             self.symbol_state[symbol] = {
                 "trend": "NEUTRAL",
-                "momentum": "NEUTRAL",
                 "liquidity": False,
-                "indicators": {}
+                "regime": "NEUTRAL",
+                "indicators": {},
+                "veto": False
             }
 
         e_type = event.get("type")
@@ -34,27 +36,34 @@ class MetaBrain:
         elif e_type == "INDICATORS":
             self.symbol_state[symbol]["indicators"] = event["indicators"]
         elif e_type == "LIQUIDITY":
-            # Check if price is near an order block
             self.symbol_state[symbol]["liquidity"] = len(event["order_blocks"]) > 0
+        elif e_type == "REGIME":
+            self.symbol_state[symbol]["regime"] = event["regime"]
+        elif e_type in ["VETO", "NEWS_VETO"]:
+            self.symbol_state[symbol]["veto"] = True
+            logger.warning(f"MetaBrain VETO for {symbol}: {event.get('reason')}")
+        elif e_type == "MARKET_DATA_REFRESH": # A way to reset vetoes
+            self.symbol_state[symbol]["veto"] = False
+            return None
 
-        # Simple Consensus Logic
         state = self.symbol_state[symbol]
-        action = "WAIT"
+        if state["veto"]: return None
 
-        if state["trend"] == "BULLISH" and state["liquidity"]:
-            action = "BUY"
-        elif state["trend"] == "BEARISH" and state["liquidity"]:
-            action = "SELL"
+        action = "WAIT"
+        if state["regime"] != "HIGH_VOLATILITY":
+            if state["trend"] == "BULLISH" and state["liquidity"]:
+                action = "BUY"
+            elif state["trend"] == "BEARISH" and state["liquidity"]:
+                action = "SELL"
 
         if action != "WAIT":
-            # Reset state after signal to prevent duplicate triggers
             self.symbol_state[symbol]["liquidity"] = False
             return {
                 "type": "SIGNAL",
                 "symbol": symbol,
                 "action": action,
-                "atr": state["indicators"].get("atr", 0.0)
+                "atr": state["indicators"].get("atr", 0.0),
+                "reasons": f"Trend:{state['trend']}, Regime:{state['regime']}, OB:True"
             }
 
         return None
-

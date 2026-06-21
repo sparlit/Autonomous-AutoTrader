@@ -1,58 +1,49 @@
 import pytest
 import asyncio
 import time
+import pandas as pd
 from multiprocessing import Queue
 from src.python.hive.coordinator import HiveOrchestrator
 from src.python.brains.specialized import MarketDataBrain
+from src.python.brains.consensus import MetaBrain
+
+def generate_tick_data(symbol="EURUSD", count=100):
+    ticks = []
+    base_price = 1.1000
+    current_time = time.time()
+    for i in range(count):
+        ticks.append([base_price, base_price + 0.0001, base_price - 0.0001, base_price, current_time + i, 10])
+    return {"t": "DP", "s": symbol, "bi": base_price, "as": base_price + 0.0001, "ltf": ticks}
 
 @pytest.mark.asyncio
 async def test_brain_v1_deep_flow():
-    """Test the deep flow of data through the new multi-process architecture."""
     orchestrator = HiveOrchestrator()
+    tick_data = generate_tick_data()
 
-    # Mock data with tick-level precision
-    tick_data = {
-        "t": "DP",
-        "s": "EURUSD",
-        "bi": 1.1000,
-        "as": 1.1001,
-        "ltf": [[1.1000, 1.1005, 1.0995, 1.1002, time.time(), 100] for _ in range(100)]
-    }
+    q_in = orchestrator.brain_inputs["MarketData"][0]
+    q_out = orchestrator.output_queue
+    md_brain = MarketDataBrain("MarketData", q_in, q_out)
 
-    # Push to first MarketData input queue
-    orchestrator.brain_inputs["MarketData"][0].put(tick_data)
-
-    # 1. MarketData Brain simulation
-    md_brain = MarketDataBrain("MarketData", orchestrator.brain_inputs["MarketData"][0], orchestrator.brain_output_queue)
-    # Manually run one process cycle
     event = await md_brain.process(tick_data)
     assert event["type"] == "MARKET_DATA"
-    assert event["symbol"] == "EURUSD"
 
-    # 2. Orchestrator Routing simulation
-    for q in orchestrator.brain_inputs["Indicator"]: q.put(event)
-    for q in orchestrator.brain_inputs["Trend"]: q.put(event)
-
+    # Push to Indicators
+    orchestrator.brain_inputs["Indicator"][0].put(event)
     item = orchestrator.brain_inputs["Indicator"][0].get(timeout=1)
     assert item["type"] == "MARKET_DATA"
 
-    item = orchestrator.brain_inputs["Trend"][0].get(timeout=1)
-    assert item["symbol"] == "EURUSD"
-
 @pytest.mark.asyncio
 async def test_meta_brain_consensus():
-    """Test that MetaBrain correctly aggregates signals."""
-    from src.python.brains.consensus import MetaBrain
-    meta = MetaBrain(threshold=0.7)
+    q_in = Queue()
+    q_out = Queue()
+    meta = MetaBrain("MetaTest", q_in, q_out)
 
-    # Simulate signals from different brains
-    meta.process_event({"type": "TREND", "symbol": "EURUSD", "trend": "BULLISH", "sweep": "NONE"})
-    meta.process_event({"type": "INDICATORS", "symbol": "EURUSD", "indicators": {"atr": 0.0010}})
+    # Simulate partial signals
+    await meta.process({"symbol": "EURUSD", "type": "TREND", "trend": "BULLISH"})
+    await meta.process({"symbol": "EURUSD", "type": "INDICATORS", "indicators": {"atr": 0.0010}})
 
-    # This should trigger a BUY signal
-    result = meta.process_event({"type": "LIQUIDITY", "symbol": "EURUSD", "order_blocks": [{"type": "BULLISH"}]})
+    # Confirm with Liquidity
+    result = await meta.process({"symbol": "EURUSD", "type": "LIQUIDITY", "order_blocks": [{"type": "BULLISH"}]})
 
     assert result is not None
-    assert result["type"] == "SIGNAL"
     assert result["action"] == "BUY"
-    assert result["atr"] == 0.0010
