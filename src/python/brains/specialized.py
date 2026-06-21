@@ -1,143 +1,133 @@
-from src.python.brains.base import BaseBrain
-from src.python.brains.consensus import ConsensusEngine
-from src.python.analyst.price_action import SMCAnalyst
-from typing import Dict, Any, List
-import pandas as pd
 import asyncio
-import time
+import logging
+import pandas as pd
+from typing import Dict, Any, Optional
+from src.python.brains.base import BaseBrain
+from src.python.analyst.indicators import IndicatorAnalyst
+from src.python.analyst.price_action import SMCAnalyst
+from src.python.analyst.volatility import VolatilityAnalyst
+from src.python.execution.risk_manager import RiskManager
+from src.python.hive.config import load_config
 
-class DecisionBrain(BaseBrain):
-    def __init__(self, name: str):
-        """
-        Initialize a DecisionBrain with a consensus engine for decision coordination.
+logger = logging.getLogger("AAT_SpecializedBrains")
 
-        Parameters:
-            name (str): The name identifier for this brain.
-        """
-        super().__init__(name)
-        self.engine = ConsensusEngine()
+class MarketDataBrain(BaseBrain):
+    """Brain 1 - Responsible for WebSocket, Tick Data, and Candle Generation."""
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if event.get("t") == "DP": # Data Push from MT5
+            return {
+                "type": "MARKET_DATA",
+                "symbol": event.get("s"),
+                "bid": event.get("bi"),
+                "ask": event.get("as"),
+                "ltf": event.get("ltf", []),
+                "h1": event.get("h1", []),
+                "h4": event.get("h4", [])
+            }
+        return None
 
-    async def process(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Return a wait action.
+class IndicatorBrain(BaseBrain):
+    """Brain 2 - Responsible for Technical Indicators (RSI, ATR, etc)."""
+    def initialize(self):
+        super().initialize()
+        self.analyst = IndicatorAnalyst()
 
-        Returns:
-		Dict[str, Any]: Dictionary containing {"action": "WAIT"}.
-        """
-        return {"action": "WAIT"}
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if event.get("type") == "MARKET_DATA":
+            df = pd.DataFrame(event.get("ltf", []))
+            if df.empty: return None
+            # Standardizing input to [open, high, low, close, time, volume]
+            if isinstance(event["ltf"][0], list):
+                df.columns = ["o", "h", "l", "c", "t", "v"]
 
-class HTFAnalysisBrain(BaseBrain):
-    def __init__(self, name: str):
-        """
-        Initialize an HTF analysis brain for market structure detection.
+            inds = self.analyst.calculate_all(df)
+            return {
+                "type": "INDICATORS",
+                "symbol": event["symbol"],
+                "indicators": inds
+            }
+        return None
 
-        Parameters:
-		name (str): Name identifier for this brain instance
-        """
-        super().__init__(name)
+class TrendBrain(BaseBrain):
+    """Brain 3 - Responsible for Market Structure and Trend Detection."""
+    def initialize(self):
+        super().initialize()
         self.smc = SMCAnalyst()
 
-    async def process(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Analyze market structure across H1 and H4 timeframes to detect trend alignment.
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if event.get("type") == "MARKET_DATA":
+            df = pd.DataFrame(event.get("ltf", []))
+            if df.empty: return None
+            if isinstance(event["ltf"][0], list):
+                df.columns = ["o", "h", "l", "c", "t", "v"]
 
-        Parameters:
-            data (Dict[str, Any]): Market data containing "type", "h1", and "h4" keys.
-                Only processes data with type "DATA_PUSH".
+            struct = self.smc.detect_market_structure(df)
+            return {
+                "type": "TREND",
+                "symbol": event["symbol"],
+                "trend": struct["trend"],
+                "sweep": struct["sweep"]
+            }
+        return None
 
-        Returns:
-            Dict[str, Any]: If type is "DATA_PUSH", contains "h1_trend", "h4_trend", and "alignment"
-                (true if both trends match and neither is neutral). Empty dict otherwise.
-        """
-        if data.get("type") != "DATA_PUSH": return {}
-        h1_df = pd.DataFrame(data.get("h1", []))
-        h4_df = pd.DataFrame(data.get("h4", []))
-        h1_struct = self.smc.detect_market_structure(h1_df) if not h1_df.empty else {"trend": "NEUTRAL"}
-        h4_struct = self.smc.detect_market_structure(h4_df) if not h4_df.empty else {"trend": "NEUTRAL"}
-        return {"h1_trend": h1_struct["trend"], "h4_trend": h4_struct["trend"], "alignment": h1_struct["trend"] == h4_struct["trend"] and h1_struct["trend"] != "NEUTRAL"}
+class LiquidityBrain(BaseBrain):
+    """Brain 4 - Responsible for Order Blocks and Fair Value Gaps."""
+    def initialize(self):
+        super().initialize()
+        self.smc = SMCAnalyst()
 
-class LTFTriggerBrain(BaseBrain):
-    async def process(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Placeholder for lower timeframe trigger detection.
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if event.get("type") == "MARKET_DATA":
+            df = pd.DataFrame(event.get("ltf", []))
+            if df.empty: return None
+            if isinstance(event["ltf"][0], list):
+                df.columns = ["o", "h", "l", "c", "t", "v"]
 
-        Returns:
-            dict: An empty dictionary.
-        """
-        return {}
+            obs = self.smc.detect_order_blocks(df)
+            return {
+                "type": "LIQUIDITY",
+                "symbol": event["symbol"],
+                "order_blocks": obs
+            }
+        return None
 
-class CorrelationBrain(BaseBrain):
-    def __init__(self, name: str):
-        """
-        Initialize a CorrelationBrain instance with a currency pair mapping.
+class RiskBrain(BaseBrain):
+    """Brain 6 - Responsible for Position Sizing and Safety Validation."""
+    def initialize(self):
+        super().initialize()
+        self.risk_manager = RiskManager(load_config())
 
-        The currency_map dictionary maps FX symbols to their base and quote currency pairs.
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if event.get("type") == "SIGNAL":
+            symbol = event["symbol"]
+            action = event["action"]
+            equity = event.get("equity", 1000.0)
+            atr = event.get("atr", 0.0)
 
-        Parameters:
-		name (str): The name identifier for this brain instance.
-        """
-        super().__init__(name)
-        self.currency_map = {"EURUSD": ("EUR", "USD"), "GBPUSD": ("GBP", "USD"), "USDJPY": ("USD", "JPY"), "AUDUSD": ("AUD", "USD"), "USDCAD": ("USD", "CAD"), "USDCHF": ("USD", "CHF"), "NZDUSD": ("NZD", "USD")}
+            v = self.risk_manager.validate_trade(symbol, action, equity, atr=atr)
+            if v["safe"]:
+                return {
+                    "type": "VALIDATED_TRADE",
+                    "symbol": symbol,
+                    "action": action,
+                    "lots": v["lots"],
+                    "sl_pts": v["sl_pts"],
+                    "tp_pts": v["tp_pts"]
+                }
+        return None
 
-    async def process(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Indicate that the current correlation is safe.
-
-        Returns:
-		A dictionary with "correlation_safe" set to True.
-        """
-        return {"correlation_safe": True}
-
-    def check_exposure(self, symbol: str, action: str, active_trades: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        Check if a proposed trade would exceed maximum currency exposure limits.
-
-        Computes current currency exposure from active trades, then determines if adding
-        the proposed trade would cause any currency's absolute exposure to exceed 2.
-
-        Parameters:
-            symbol (str): Currency pair symbol for the proposed trade.
-            action (str): Trade action ("BUY" or "SELL").
-            active_trades (List[Dict[str, Any]]): List of existing trades, each containing "symbol" and "action" keys.
-
-        Returns:
-            Dict[str, Any]: A dict with "safe" (bool) indicating whether the trade is safe.
-            If not safe, includes "reason" (str) naming the currency that exceeded the limit.
-        """
-        base, quote = self.currency_map.get(symbol, (symbol[:3], symbol[3:]))
-        exposure = {}
-        for trade in active_trades:
-            t_base, t_quote = self.currency_map.get(trade["symbol"], (trade["symbol"][:3], trade["symbol"][3:]))
-            dir_mult = 1 if trade["action"] == "BUY" else -1
-            exposure[t_base] = exposure.get(t_base, 0) + dir_mult
-            exposure[t_quote] = exposure.get(t_quote, 0) - dir_mult
-        dir_mult = 1 if action == "BUY" else -1
-        new_base_exp = exposure.get(base, 0) + dir_mult
-        new_quote_exp = exposure.get(quote, 0) - dir_mult
-        if abs(new_base_exp) > 2 or abs(new_quote_exp) > 2: return {"safe": False, "reason": f"Max exposure exceeded for {base if abs(new_base_exp)>2 else quote}"}
-        return {"safe": True}
-
-class ContextBrain(BaseBrain):
-    def __init__(self, name: str):
-        """
-        Initialize a ContextBrain instance with a neutral global context state.
-        """
-        super().__init__(name)
-        self.global_context = {"news_high_impact": False, "index_trend": "NEUTRAL", "last_updated": 0}
-
-    async def process(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Retrieve the current global context state.
-
-        Returns:
-            The global context dictionary containing news impact status, index trend, and last update time.
-        """
-        return self.global_context
-
-    async def update_global_context(self):
-        """
-        Update the global context's last-updated timestamp every 60 seconds indefinitely.
-        """
-        while True:
-            self.global_context["last_updated"] = time.time()
-            await asyncio.sleep(60)
+class ExecutionBrain(BaseBrain):
+    """Brain 7 - Responsible for Order Placement and MT5 Communication."""
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if event.get("type") == "VALIDATED_TRADE":
+            # In a real system, this would push to the MT5 output stream
+            logger.info(f"EXECUTION: {event['action']} {event['symbol']} @ {event['lots']} lots")
+            return {
+                "type": "EXECUTION_ORDER",
+                "symbol": event["symbol"],
+                "action": event["action"],
+                "lots": event["lots"],
+                "sl": event["sl_pts"],
+                "tp": event["tp_pts"]
+            }
+        return None

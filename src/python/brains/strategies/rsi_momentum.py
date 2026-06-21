@@ -1,21 +1,14 @@
-from typing import Optional
-from src.python.brains.base import BaseBrain, SignalPayload
+import pandas as pd
+from src.python.analyst.indicators import IndicatorAnalyst
 
-class RSIMomentum(BaseBrain):
-    async def process(self, data: dict) -> Optional[SignalPayload]:
-        """
-        Generate a trading signal from the provided market data.
+class RSIMomentum:
+    def __init__(self):
+        self.analyst = IndicatorAnalyst()
 
-        Parameters:
-            data (dict): Dictionary containing market data. Expected keys are 'symbol' (defaults to "UNKNOWN") and 'tf' for timeframe (defaults to 0).
-
-        Returns:
-            SignalPayload: Signal payload containing the trading signal information.
-        """
-        return SignalPayload(
-            symbol=data.get("symbol", "UNKNOWN"),
-            timeframe=data.get("tf", 0),
-            direction=-1, # Mock SELL
-            confidence=0.6,
-            strategy_name="RSI_Momentum"
-        )
+    def calculate_signal(self, df: pd.DataFrame) -> int:
+        """Calculate signal based on RSI momentum."""
+        if df.empty: return 0
+        rsi = self.analyst.calculate_rsi(df).iloc[-1]
+        if rsi > 60: return 1
+        if rsi < 40: return -1
+        return 0

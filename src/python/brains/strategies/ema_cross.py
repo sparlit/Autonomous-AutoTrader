@@ -1,23 +1,15 @@
-from typing import Optional
-from src.python.brains.base import BaseBrain, SignalPayload
+from typing import Optional, Dict, Any
+import pandas as pd
+from src.python.analyst.indicators import IndicatorAnalyst
 
-class EMACross(BaseBrain):
-    async def process(self, data: dict) -> Optional[SignalPayload]:
-        # Dummy logic for Week 2 integration
-        # In reality, this would use data['o'], data['h'], etc.
-        """
-        Generate a trading signal using the EMA cross strategy.
+class EMACross:
+    def __init__(self):
+        self.analyst = IndicatorAnalyst()
 
-        Parameters:
-            data (dict): Market data dictionary with keys "symbol" and "tf" (timeframe).
+    def calculate_signal(self, df: pd.DataFrame) -> int:
+        """Calculate signal based on EMA cross logic."""
+        if len(df) < 20: return 0
+        ema8 = df['c'].ewm(span=8).mean().iloc[-1]
+        ema20 = df['c'].ewm(span=20).mean().iloc[-1]
+        return 1 if ema8 > ema20 else -1
 
-        Returns:
-            SignalPayload: Trading signal containing symbol, timeframe, direction, confidence, and strategy identifier.
-        """
-        return SignalPayload(
-            symbol=data.get("symbol", "UNKNOWN"),
-            timeframe=data.get("tf", 0),
-            direction=1, # Mock BUY
-            confidence=0.8,
-            strategy_name="EMA_Cross"
-        )

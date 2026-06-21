@@ -1,13 +1,31 @@
 import pytest
-from src.python.brains.consensus import ConsensusEngine
+import time
+from src.python.brains.consensus import MetaBrain
 from src.python.execution.risk_manager import RiskManager
 from src.python.hive.config import load_config
 
-def test_consensus_logic():
-    engine = ConsensusEngine()
-    data = {"history": [[1.0+i*0.01, 1.02+i*0.01, 0.99+i*0.01, 1.01+i*0.01, 1000+i, 100] for i in range(20)]}
-    result = engine.analyze_sync(data)
-    assert "action" in result
+def test_meta_brain_logic():
+    engine = MetaBrain()
+    # Populate indicators for a symbol
+    engine.process_event({
+        "type": "INDICATORS",
+        "symbol": "EURUSD",
+        "indicators": {"atr": 0.0010, "rsi": 50}
+    })
+    # Set Trend
+    engine.process_event({
+        "type": "TREND",
+        "symbol": "EURUSD",
+        "trend": "BULLISH",
+        "sweep": "NONE"
+    })
+    # Trigger Liquidity
+    result = engine.process_event({
+        "type": "LIQUIDITY",
+        "symbol": "EURUSD",
+        "order_blocks": [{"type": "BULLISH"}]
+    })
+    assert result["action"] == "BUY"
 
 def test_risk_manager_session():
     rm = RiskManager(load_config())
