@@ -3,6 +3,7 @@ import numpy as np
 from typing import Dict, Any
 
 class IndicatorAnalyst:
+    """12005: Vectorized technical analysis."""
     def calculate_all(self, df: pd.DataFrame) -> Dict[str, Any]:
         """
         Compute technical indicators from OHLC market data.

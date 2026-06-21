@@ -15,12 +15,11 @@ async def test_bridge_handling():
     response = await orchestrator.handle_client_message("test_client", msg)
     assert response["t"] == "ACK"
 
+    # Check redis stream directly
     found = False
-    for q in orchestrator.brain_inputs["MarketData"]:
-        try:
-            queued_msg = q.get(timeout=0.1)
-            if queued_msg == msg:
-                found = True
-                break
-        except: continue
+    for stream in orchestrator.brain_inputs["MarketData"]:
+        messages = orchestrator.redis.xread({stream: '0'}, count=1)
+        if messages:
+            found = True
+            break
     assert found

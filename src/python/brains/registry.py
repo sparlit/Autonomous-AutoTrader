@@ -6,6 +6,7 @@ from src.python.brains.base import BaseBrain
 logger = logging.getLogger("AAT_BrainRegistry")
 
 class BrainRegistry:
+    """12004: Process registry and supervisor."""
     def __init__(self):
         """Initialize an empty brain registry."""
         self._brains: Dict[str, BaseBrain] = {}

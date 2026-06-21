@@ -1,18 +1,18 @@
 import asyncio
 import logging
 from typing import Dict, Any, List, Optional
-from multiprocessing import Queue
 from src.python.brains.base import BaseBrain
 
 logger = logging.getLogger("AAT_MetaBrain")
 
 class MetaBrain(BaseBrain):
     """
-    Brain 11 - The Meta Decision Engine.
-    Receives signals from all specialized brains and produces a final decision.
+    Brain 11 - 10601: The Meta Decision Engine.
+    Aggregates signals from Trend, Indicators, Liquidity, Regime, and Veto brains.
+    Produces Trade Quality Score and Explainability metadata.
     """
-    def __init__(self, name: str, input_queue: Queue, output_queue: Queue, cpu_affinity: Optional[List[int]] = None, threshold: float = 0.7):
-        super().__init__(name, input_queue, output_queue, cpu_affinity)
+    def __init__(self, name: str, cpu_affinity: Optional[List[int]] = None, threshold: float = 75.0):
+        super().__init__(name, cpu_affinity)
         self.threshold = threshold
         self.symbol_state: Dict[str, Dict[str, Any]] = {}
 
@@ -22,48 +22,76 @@ class MetaBrain(BaseBrain):
 
         if symbol not in self.symbol_state:
             self.symbol_state[symbol] = {
-                "trend": "NEUTRAL",
-                "liquidity": False,
-                "regime": "NEUTRAL",
-                "indicators": {},
-                "veto": False
+                "trend": "NEUTRAL", "h1_trend": "NEUTRAL", "h4_trend": "NEUTRAL",
+                "liquidity": False, "regime": "NEUTRAL", "indicators": {},
+                "veto": False, "veto_reason": "", "m1_trend": "NEUTRAL", "m5_trend": "NEUTRAL"
             }
 
         e_type = event.get("type")
+        state = self.symbol_state[symbol]
 
         if e_type == "TREND":
-            self.symbol_state[symbol]["trend"] = event["trend"]
+            state.update({
+                "trend": event.get("trend", "NEUTRAL"),
+                "h1_trend": event.get("h1_trend", "NEUTRAL"),
+                "h4_trend": event.get("h4_trend", "NEUTRAL"),
+                "m1_trend": event.get("m1_trend", "NEUTRAL"),
+                "m5_trend": event.get("m5_trend", "NEUTRAL")
+            })
         elif e_type == "INDICATORS":
-            self.symbol_state[symbol]["indicators"] = event["indicators"]
+            state["indicators"] = event["indicators"]
         elif e_type == "LIQUIDITY":
-            self.symbol_state[symbol]["liquidity"] = len(event["order_blocks"]) > 0
+            state["liquidity"] = len(event.get("order_blocks", [])) > 0
         elif e_type == "REGIME":
-            self.symbol_state[symbol]["regime"] = event["regime"]
+            state["regime"] = event["regime"]
         elif e_type in ["VETO", "NEWS_VETO"]:
-            self.symbol_state[symbol]["veto"] = True
-            logger.warning(f"MetaBrain VETO for {symbol}: {event.get('reason')}")
-        elif e_type == "MARKET_DATA_REFRESH": # A way to reset vetoes
-            self.symbol_state[symbol]["veto"] = False
+            state["veto"] = True; state["veto_reason"] = event.get("reason", "UNKNOWN_VETO")
+        elif e_type == "MARKET_DATA_REFRESH":
+            state["veto"] = False; state["veto_reason"] = ""
             return None
 
-        state = self.symbol_state[symbol]
+        # 10602: Multi-Timeframe Alignment & Scoring Logic
         if state["veto"]: return None
 
-        action = "WAIT"
-        if state["regime"] != "HIGH_VOLATILITY":
-            if state["trend"] == "BULLISH" and state["liquidity"]:
-                action = "BUY"
-            elif state["trend"] == "BEARISH" and state["liquidity"]:
-                action = "SELL"
+        # RUTHLESS RULE: H4 Trend MUST NOT be opposite to LTF Trend
+        if state["h4_trend"] != "NEUTRAL" and state["trend"] != "NEUTRAL":
+            if state["h4_trend"] != state["trend"]:
+                return None # Hard Veto: Counter-Trend relative to H4
 
-        if action != "WAIT":
-            self.symbol_state[symbol]["liquidity"] = False
-            return {
-                "type": "SIGNAL",
-                "symbol": symbol,
-                "action": action,
-                "atr": state["indicators"].get("atr", 0.0),
-                "reasons": f"Trend:{state['trend']}, Regime:{state['regime']}, OB:True"
-            }
+        score = 0
+        reasons = []
+
+        # 1. MTF Confirmation (Max 50 pts)
+        if state["trend"] != "NEUTRAL":
+            score += 10; reasons.append(f"Base Trend: {state['trend']}")
+            # Alignments
+            if state["trend"] == state["m1_trend"]: score += 5; reasons.append("M1 Aligned")
+            if state["trend"] == state["m5_trend"]: score += 5; reasons.append("M5 Aligned")
+            if state["trend"] == state["h1_trend"]: score += 15; reasons.append("H1 Aligned")
+            if state["trend"] == state["h4_trend"]: score += 15; reasons.append("H4 Aligned")
+
+        # 2. Liquidity (Max 30 pts)
+        if state["liquidity"]: score += 30; reasons.append("Price at Order Block")
+
+        # 3. Regime Optimization (Max 20 pts)
+        if state["regime"] == "TRENDING": score += 20; reasons.append("Strong Trending Regime")
+        elif state["regime"] == "NORMAL": score += 10; reasons.append("Stable Market Regime")
+        elif state["regime"] == "HIGH_VOLATILITY": score -= 40; reasons.append("Excessive Volatility Veto")
+
+        # 10603: Explainability Output
+        if score >= self.threshold:
+            action = "BUY" if state["trend"] == "BULLISH" else ("SELL" if state["trend"] == "BEARISH" else "WAIT")
+            if action != "WAIT":
+                # One-shot trigger per OB contact
+                state["liquidity"] = False
+                return {
+                    "type": "SIGNAL",
+                    "symbol": symbol,
+                    "action": action,
+                    "atr": state["indicators"].get("atr", 0.0),
+                    "rsi": state["indicators"].get("rsi", 50),
+                    "score": score,
+                    "reasons": reasons
+                }
 
         return None
