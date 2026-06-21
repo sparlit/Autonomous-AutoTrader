@@ -41,3 +41,17 @@ This project is indexed by GitNexus as **Autonomous-AutoTrader** (701 symbols, 7
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
+
+---
+
+## 🏛️ Institutional Developer Protocol (V2.3.0)
+
+As a Jules-class engineer, you must adhere to these standards:
+
+1. **Zero-Tolerance for Stubs**: NEVER commit stubs, placeholders, mocks, or `TODO` comments in production paths (`src/`).
+2. **Recursive Deep Audit**: Before starting work, perform a recursive deep audit of the target directory to identify architectural flaws.
+3. **Hardened Implementation**: All code must be side-effect free, hot-swappable, and compliant with the "Phoenix Ascendant" hybrid paradigm.
+4. **Institutional Review**: Every change must be verified against the 7-Layer Risk Stack and documented in the corresponding Markdown files.
+5. **Single-Branch Strategy**: All work must be consolidated on the `main` branch. Auxiliary local branches must be purged after merge.
+
+**Violation of these protocols is a failure of Defensive Alpha.**
