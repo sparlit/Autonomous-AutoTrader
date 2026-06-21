@@ -3,6 +3,7 @@ import pandas as pd
 from typing import Dict, List, Any, Optional
 
 class SMCAnalyst:
+    """12006: Smart Money Concepts pattern recognition."""
     def detect_market_structure(self, df: pd.DataFrame, atr: float = 0.0) -> Dict[str, Any]:
         """
         Analyze market structure by identifying pivot points, trend direction, and reversal signals.

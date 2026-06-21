@@ -74,7 +74,7 @@ class BridgeServer:
             self.clients.pop(client_id, None)
             writer.close()
             try: await writer.wait_closed()
-            except: pass
+            except: raise
 
     async def start(self):
         """

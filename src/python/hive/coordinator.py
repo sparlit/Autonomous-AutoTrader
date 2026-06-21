@@ -1,186 +1,103 @@
 import asyncio
 import logging
-import ujson as json
-import datetime
 import time
-from typing import Dict, Any, List
-from concurrent.futures import ProcessPoolExecutor
+import os
+import psutil
+import ujson as json
+from typing import Dict, Any, List, Optional
+from multiprocessing import Queue
+from fakeredis import FakeRedis
 from src.python.bridge.server import BridgeServer
+from src.python.brains.registry import BrainRegistry
+from src.python.brains.specialized import (
+    MarketDataBrain, IndicatorBrain, TrendBrain,
+    LiquidityBrain, RiskBrain, ExecutionBrain,
+    RegimeBrain, ContrarianBrain, MemoryBrain,
+    NewsRiskBrain, MonitoringBrain, AnomalyBrain, PortfolioBrain
+)
+from src.python.brains.consensus import MetaBrain
 from src.python.hive.config import load_config
-from src.python.brains.base import BrainRegistry
-from src.python.execution.risk_manager import RiskManager
-from src.python.execution.ledger import TradeLedger
-from src.python.execution.manager import PositionManager
-from src.python.brains.worker import process_task, worker_init
-from src.python.bridge.watchdog import SystemWatchdog
-from src.python.brains.specialized import ContextBrain
 
-logger = logging.getLogger("AAT_Coordinator")
+logger = logging.getLogger("AAT_Orchestrator")
 
-class HiveCoordinator:
+class HiveOrchestrator:
     def __init__(self):
-        """
-        Initialize the HiveCoordinator with configuration, messaging, core components, and specialized brains.
-
-        Loads configuration and creates a bridge server for client message handling. Initializes the brain registry, risk manager, trade ledger, and position manager. Sets up a process pool executor for parallel analysis. Initializes tracking structures for agent states, symbol-level cooldowns, and symbol locks. Creates a system watchdog and context brain, then registers specialized analysis brains.
-        """
         self.config = load_config()
-        self.server = BridgeServer(
-            self.config.bridge.host,
-            self.config.bridge.port,
-            self.handle_message
-        )
         self.registry = BrainRegistry()
-        self.risk_manager = RiskManager(self.config)
-        self.ledger = TradeLedger()
-        self.pos_manager = PositionManager(self.ledger)
-        self.executor = ProcessPoolExecutor(
-            max_workers=self.config.brains.parallel_workers,
-            initializer=worker_init
-        )
-        self.agent_states: Dict[str, Dict[str, Any]] = {}
-        self.watchdog = SystemWatchdog(self.agent_states, self.config.bridge.timeout)
-        self.context_brain = ContextBrain("Context_Analyst")
-        self.cooldowns: Dict[str, datetime.datetime] = {}
-        self.symbol_locks: Dict[str, asyncio.Lock] = {}
+        self.redis = FakeRedis()
+        self.brain_inputs: Dict[str, List[str]] = {}
+        self.server = BridgeServer(self.config.bridge.host, self.config.bridge.port, self.handle_client_message)
         self._initialize_brains()
 
     def _initialize_brains(self):
-        """
-        Initialize and register the specialized brains for technical analysis, trade decisions, and correlation checking.
-        """
-        from src.python.brains.specialized import HTFAnalysisBrain, LTFTriggerBrain, DecisionBrain, CorrelationBrain
-        self.registry.register(HTFAnalysisBrain("HTF_Analyst"))
-        self.registry.register(LTFTriggerBrain("LTF_Trigger"))
-        self.registry.register(DecisionBrain("Decision_Maker"))
-        self.corr_brain = CorrelationBrain("Correlation_Analyst")
+        self.brain_inputs["MarketData"] = ["stream:MarketData_1", "stream:MarketData_2"]
+        self.registry.register(MarketDataBrain("MarketData_1", cpu_affinity=[2]))
+        self.registry.register(MarketDataBrain("MarketData_2", cpu_affinity=[3]))
+        self.registry.register(IndicatorBrain("Indicator_1", cpu_affinity=[4]))
+        self.registry.register(IndicatorBrain("Indicator_2", cpu_affinity=[5]))
+        self.registry.register(IndicatorBrain("Indicator_3", cpu_affinity=[6]))
+        self.registry.register(TrendBrain("Trend_1", cpu_affinity=[7]))
+        self.registry.register(TrendBrain("Trend_2", cpu_affinity=[8]))
+        self.registry.register(LiquidityBrain("Liquidity_1", cpu_affinity=[9]))
+        self.registry.register(LiquidityBrain("Liquidity_2", cpu_affinity=[10]))
+        self.registry.register(RegimeBrain("Regime_1", cpu_affinity=[11]))
+        self.registry.register(MetaBrain("Meta_1", cpu_affinity=[11], threshold=self.config.brains.consensus_threshold))
+        self.registry.register(ContrarianBrain("Contrarian_1", cpu_affinity=[12]))
+        self.registry.register(NewsRiskBrain("NewsRisk_1", cpu_affinity=[13]))
+        self.registry.register(RiskBrain("Risk_1", cpu_affinity=[14]))
+        self.registry.register(RiskBrain("Risk_2", cpu_affinity=[15]))
+        self.registry.register(ExecutionBrain("Execution_1", cpu_affinity=[16]))
+        self.registry.register(ExecutionBrain("Execution_2", cpu_affinity=[17]))
+        self.registry.register(MemoryBrain("Memory_1", cpu_affinity=[18]))
+        self.registry.register(MonitoringBrain("Monitoring_1", cpu_affinity=[19]))
+        self.registry.register(AnomalyBrain("Anomaly_1", cpu_affinity=[19]))
+        self.registry.register(PortfolioBrain("Portfolio_1", cpu_affinity=[19]))
 
-    def _normalize_message(self, message: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Normalize a message by mapping external protocol types to internal schema.
-
-        Maps recognized external message types to standardized internal representations.
-        Unrecognized types pass through unchanged.
-
-        Returns:
-		dict: The normalized message
-        """
-        m_type = message.get("t")
-        if m_type == "PNG": return {"type": "PING"}
-        if m_type == "HB":
-            return {"type": "HEARTBEAT", "symbol": message.get("s"), "equity": message.get("e"), "drawdown": message.get("d")}
-        if m_type == "DP": return message
-        if m_type == "T_ACK":
-            return {"type": "TRADE_ACK", "id": message.get("id"), "ticket": message.get("tk"), "err": message.get("err")}
-        if m_type == "SYNC":
-            return {"type": "SYNC", "symbol": message.get("s"), "tickets": message.get("tk", [])}
-        return message
-
-    async def handle_message(self, client_id: str, message: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Handle incoming client messages and route to appropriate protocol handlers based on message type.
-
-        Parameters:
-		message (dict): The incoming message with `t` field indicating message type.
-
-        Returns:
-		dict: A protocol response dictionary with status information.
-        """
-        raw_msg = message; m_type = raw_msg.get("t")
-        if m_type == "PNG": return {"t": "PNG_ACK"}
-        if m_type == "HB":
-            equity = float(raw_msg.get("e", 0.0)); await self.ledger.update_peak_equity(equity)
-            self.agent_states[client_id] = {"symbol": raw_msg.get("s"), "last_seen": time.time(), "equity": equity}
-            return {"t": "HB_ACK"}
-        if m_type == "DP":
-            symbol = raw_msg.get("s")
-            if symbol not in self.symbol_locks: self.symbol_locks[symbol] = asyncio.Lock()
-            async with self.symbol_locks[symbol]: return await self.process_data_push(client_id, raw_msg)
-
-        message = self._normalize_message(message); msg_type = message.get("type")
-        if msg_type == "SYNC":
-            symbol = message.get("symbol"); mt5_tickets = set(message.get("tickets", []))
-            active_trades = await self.ledger.get_active_trades_db(symbol)
-            for trade in active_trades:
-                if trade["ticket"] not in mt5_tickets:
-                    await self.ledger.close_trade(trade["ticket"])
-                    self.cooldowns[symbol] = datetime.datetime.now() + datetime.timedelta(hours=4)
-            return {"t": "SYNC_ACK"}
-        if msg_type == "TRADE_ACK":
-            internal_id = message.get("id"); ticket = message.get("ticket"); err = message.get("err")
-            if ticket and ticket > 0: await self.ledger.update_execution(internal_id, ticket, "OPEN")
-            else: await self.ledger.update_execution(internal_id, 0, f"FAILED: {err}")
-            return {"t": "ACK"}
-        return {"t": "ACK", "m": f"Processed {m_type}"}
-
-    async def process_data_push(self, client_id: str, raw_msg: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Process incoming market data and return a trade decision.
-
-        Applies veto conditions (high-impact news, inactive session, unsafe news environment),
-        performs analysis via a worker process, manages positions, enforces per-symbol cooldowns,
-        and validates the trade against exposure and risk limits. Recovers automatically from
-        worker failures by restarting the process pool.
-
-        Returns:
-            dict: Decision response containing action (WAIT/BUY/SELL), telemetry (score, trend,
-                drawdown), and trade execution parameters if all risk validations pass.
-        """
-        symbol = raw_msg.get("s"); equity = self.agent_states.get(client_id, {}).get("equity", 1000.0)
-        bid = raw_msg.get("bi", 0.0); ask = raw_msg.get("as", 0.0)
-
-        ctx = self.context_brain.global_context
-        if ctx.get("news_high_impact") or not self.risk_manager.is_session_active() or not self.risk_manager.is_news_safe():
-            return {"t": "DEC", "s": symbol, "act": "WAIT", "m": "VETO"}
-
-        loop = asyncio.get_event_loop()
-        try:
-            analysis = await loop.run_in_executor(self.executor, process_task, raw_msg)
-        except Exception as e:
-            logger.error(f"Worker Failure for {symbol}: {e}. Restarting Pool.")
-            self.executor.shutdown(wait=False); self.executor = ProcessPoolExecutor(max_workers=self.config.brains.parallel_workers, initializer=worker_init)
-            return {"t": "DEC", "s": symbol, "act": "WAIT", "m": "RECOVERY"}
-
-        atr = analysis.get("atr", 0.0); mgmt = await self.pos_manager.monitor_and_manage(symbol, (bid+ask)/2, atr)
-
-        response = {
-            "t": "DEC", "s": symbol, "act": "WAIT",
-            "tlm": {
-                "scr": analysis.get("score", 0),
-                "htf": analysis.get("htf_trend", "NEUTRAL"),
-                "st": "HEALTHY",
-                "dd": round((self.risk_manager.peak_equity - equity)/self.risk_manager.peak_equity*100, 2) if self.risk_manager.peak_equity > 0 else 0
-            }
-        }
-        if mgmt: response["mgmt"] = mgmt
-        if "draw" in analysis: response["drw"] = analysis["draw"]
-
-        if analysis.get("action") in ["BUY", "SELL"]:
-            action = analysis["action"]
-            if symbol in self.cooldowns and datetime.datetime.now() < self.cooldowns[symbol]: return response
-            active_trades = self.ledger.get_cached_active_trades()
-            if not self.corr_brain.check_exposure(symbol, action, active_trades)["safe"]: return response
-
-            v = self.risk_manager.validate_trade(symbol, action, equity, atr=atr, tick_val=raw_msg.get("tv", 10.0), tick_size=raw_msg.get("ts", 0.0001))
-            if v["safe"]:
-                iid = await self.ledger.record_intent(symbol, action, v["lots"], v["sl_pts"], v["tp_pts"])
-                response.update({"id": iid, "act": action, "lts": v["lots"], "sl_p": v["sl_pts"], "tp_p": v["tp_pts"]})
-        return response
+    async def handle_client_message(self, client_id: str, message: Dict[str, Any]) -> Dict[str, Any]:
+        target = f"stream:MarketData_{1 if time.time() % 2 < 1 else 2}"
+        self.redis.xadd(target, {"payload": json.dumps(message)})
+        return {"t": "ACK", "s": "Forwarded to stream"}
 
     async def run(self):
-        """
-        Initialize the coordinator and start the bridge server.
+        p = psutil.Process(os.getpid())
+        try: p.cpu_affinity([1])
+        except Exception: logger.warning("Orchestrator affinity fail")
+        self.registry.start_all()
+        asyncio.create_task(self.server.start())
+        await self._main_orchestration_loop()
 
-        This method sets up the ledger database, restores cached peak equity, starts background monitoring and context analysis tasks, and launches the message server.
-        """
-        logger.info("Starting Multi-Threaded Hybrid Coordinator...")
-        await self.ledger.init_db()
-        self.risk_manager.peak_equity = self.ledger.get_cached_peak_equity()
-        asyncio.create_task(self.watchdog.run()); asyncio.create_task(self.context_brain.update_global_context())
-        await self.server.start()
+    async def _main_orchestration_loop(self):
+        counter = 0
+        while True:
+            try:
+                messages = self.redis.xread({"stream:orchestrator": '0'}, count=10, block=1)
+                if messages:
+                    for stream, msgs in messages:
+                        for msg_id, data in msgs:
+                            event = json.loads(data[b'payload']); e_type = event.get("type")
+                            if e_type == "MARKET_DATA":
+                                self.redis.xadd("stream:Meta_1", {"payload": json.dumps({"type": "MARKET_DATA_REFRESH", "symbol": event["symbol"]})})
+                                for b in ["Indicator_1", "Indicator_2", "Indicator_3", "Trend_1", "Trend_2", "Liquidity_1", "Regime_1", "Anomaly_1"]:
+                                    self.redis.xadd(f"stream:{b}", {"payload": json.dumps(event)})
+                                self.redis.xadd("stream:NewsRisk_1", {"payload": json.dumps(event)})
+                            elif e_type in ["TREND", "INDICATORS", "LIQUIDITY", "REGIME", "VETO", "NEWS_VETO", "ANOMALY_STATUS"]:
+                                self.redis.xadd("stream:Meta_1", {"payload": json.dumps(event)})
+                            elif e_type == "SIGNAL":
+                                self.redis.xadd("stream:Contrarian_1", {"payload": json.dumps(event)})
+                                self.redis.xadd(f"stream:Risk_{1 if counter % 2 == 0 else 2}", {"payload": json.dumps(event)})
+                                counter += 1
+                            elif e_type == "VALIDATED_TRADE":
+                                self.redis.xadd(f"stream:Execution_{1 if counter % 2 == 0 else 2}", {"payload": json.dumps(event)})
+                                counter += 1
+                            elif e_type == "EXECUTION_ORDER":
+                                self.redis.xadd("stream:Memory_1", {"payload": json.dumps(event)})
+                            elif e_type == "MEMORY_UPDATE":
+                                self.redis.xadd("stream:Portfolio_1", {"payload": json.dumps(event)})
+                            self.redis.xdel("stream:orchestrator", msg_id)
+                else: await asyncio.sleep(0.0001)
+            except Exception as e:
+                logger.error(f"Orchestrator loop error: {e}")
+                await asyncio.sleep(0.1)
 
-if __name__ == "__main__":
-    import logging
-    logging.basicConfig(level=logging.INFO); coordinator = HiveCoordinator()
-    try: asyncio.run(coordinator.run())
-    except KeyboardInterrupt: logger.info("Shutting down...")
+    def stop(self):
+        self.registry.stop_all()

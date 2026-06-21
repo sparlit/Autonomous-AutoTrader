@@ -1,20 +1,25 @@
-import asyncio
-import ujson as json
 import pytest
-from src.python.hive.coordinator import HiveCoordinator
+import asyncio
+from src.python.hive.coordinator import HiveOrchestrator
 
 @pytest.mark.asyncio
-async def test_ping_pong():
-    coordinator = HiveCoordinator()
-    # Mock message
-    response = await coordinator.handle_message("test_client", {"t": "PNG"})
-    assert response == {"t": "PNG_ACK"}
+async def test_orchestrator_initialization():
+    orchestrator = HiveOrchestrator()
+    assert orchestrator.registry is not None
+    assert "MarketData" in orchestrator.brain_inputs
 
 @pytest.mark.asyncio
-async def test_heartbeat():
-    coordinator = HiveCoordinator()
-    response = await coordinator.handle_message("test_client", {"t": "HB", "s": "EURUSD", "e": 1000.0})
-    assert response == {"t": "HB_ACK"}
-    assert "test_client" in coordinator.agent_states
-    assert coordinator.agent_states["test_client"]["symbol"] == "EURUSD"
-    assert coordinator.agent_states["test_client"]["equity"] == 1000.0
+async def test_bridge_handling():
+    orchestrator = HiveOrchestrator()
+    msg = {"t": "DP", "s": "EURUSD"}
+    response = await orchestrator.handle_client_message("test_client", msg)
+    assert response["t"] == "ACK"
+
+    # Check redis stream directly
+    found = False
+    for stream in orchestrator.brain_inputs["MarketData"]:
+        messages = orchestrator.redis.xread({stream: '0'}, count=1)
+        if messages:
+            found = True
+            break
+    assert found
