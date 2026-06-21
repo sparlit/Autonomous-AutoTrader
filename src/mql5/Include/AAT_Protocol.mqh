@@ -9,17 +9,19 @@ public:
    static string BuildHEARTBEAT(string s, double e, double d) { return StringFormat("{\"t\":\"HB\",\"s\":\"%s\",\"e\":%.2f,\"d\":%.2f}", s, e, d); }
    static string BuildDATA_PUSH(string s, ENUM_TIMEFRAMES tf, int c) {
       string h_ltf = BuildH(s, tf, c);
-      string h_h1 = BuildH(s, PERIOD_H1, 50);
-      string h_h4 = BuildH(s, PERIOD_H4, 30);
-      return StringFormat("{\"t\":\"DP\",\"s\":\"%s\",\"tf\":%d,\"bi\":%.5f,\"as\":%.5f,\"tv\":%.5f,\"ts\":%.5f,\"ltf\":%s,\"h1\":%s,\"h4\":%s}",
+      string h_h1 = BuildH(s, PERIOD_H1, 100);
+      string h_h4 = BuildH(s, PERIOD_H4, 50);
+      string h_d1 = BuildH(s, PERIOD_D1, 30);
+      return StringFormat("{\"t\":\"DP\",\"s\":\"%s\",\"tf\":%d,\"bi\":%.5f,\"as\":%.5f,\"tv\":%.5f,\"ts\":%.5f,\"ltf\":%s,\"h1\":%s,\"h4\":%s,\"d1\":%s}",
                           s, (int)tf, SymbolInfoDouble(s, SYMBOL_BID), SymbolInfoDouble(s, SYMBOL_ASK),
-                          SymbolInfoDouble(s, SYMBOL_TRADE_TICK_VALUE), SymbolInfoDouble(s, SYMBOL_TRADE_TICK_SIZE), h_ltf, h_h1, h_h4);
+                          SymbolInfoDouble(s, SYMBOL_TRADE_TICK_VALUE), SymbolInfoDouble(s, SYMBOL_TRADE_TICK_SIZE), h_ltf, h_h1, h_h4, h_d1);
    }
-   static string BuildTRADE_ACK(int id, int tk, string err) { return StringFormat("{\"t\":\"T_ACK\",\"id\":%d,\"tk\":%d,\"err\":\"%s\"}", id, tk, err); }
+   static string BuildTRADE_ACK(int id, int tk, double pr, string err) { return StringFormat("{\"t\":\"T_ACK\",\"id\":%d,\"tk\":%d,\"pr\":%.5f,\"err\":\"%s\"}", id, tk, pr, err); }
    static string BuildSYNC(string s) {
       string tks = "["; bool first = true;
       for(int i=0; i<PositionsTotal(); i++) {
-         if(PositionSelectByTicket(PositionGetTicket(i)) && PositionGetString(POSITION_SYMBOL) == s) {
+         ulong ticket = PositionGetTicket(i);
+         if(PositionSelectByTicket(ticket) && PositionGetString(POSITION_SYMBOL) == s) {
             if(!first) tks += ","; tks += IntegerToString(PositionGetInteger(POSITION_TICKET)); first = false;
          }
       }

@@ -116,8 +116,8 @@ class HiveCoordinator:
                     await self.ledger.adopt_trade(tk, symbol)
             return {"t": "SYNC_ACK"}
         if msg_type == "TRADE_ACK":
-            internal_id = norm_message.get("id"); ticket = norm_message.get("ticket"); err = norm_message.get("err")
-            if ticket and ticket > 0: await self.ledger.update_execution(internal_id, ticket, "OPEN")
+            internal_id = norm_message.get("id"); ticket = norm_message.get("ticket"); price = norm_message.get("price"); err = norm_message.get("err")
+            if ticket and ticket > 0: await self.ledger.update_execution(internal_id, ticket, price, "OPEN")
             else: await self.ledger.update_execution(internal_id, 0, f"FAILED: {err}")
             return {"t": "ACK"}
         return {"t": "ACK", "m": f"Processed {m_type}"}

@@ -18,18 +18,20 @@ class PositionManager:
 
         for trade in active_trades:
             entry_price = trade.get("open_price")
-            if entry_price is None:
-                 # Standard pivot if exact open price is missing from ledger
+            if entry_price is None or entry_price == 0:
                  entry_price = (trade["sl"] + trade["tp"]) / 2 if (trade["sl"] > 0 and trade["tp"] > 0) else current_price
 
             r_dist = abs(trade["sl"] - entry_price) if trade["sl"] > 0 else 0
 
+            # Tier 3 Audit: Use persisted 'is_managed' column
+            is_managed = trade.get("is_managed", 0) == 1
+
             if trade["action"] == "BUY":
                 curr_profit_r = (current_price - entry_price) / r_dist if r_dist > 0 else 0
-                if curr_profit_r >= 1.0 and not trade.get("managed_1r"):
+                if curr_profit_r >= 1.0 and not is_managed:
                     commands.append({"t": "MGMT", "tk": trade["ticket"], "act": "CLOSE_PARTIAL", "pct": 0.5, "m_id": 50003})
                     commands.append({"t": "MGMT", "tk": trade["ticket"], "act": "MODIFY_SL", "sl": entry_price, "m_id": 50004})
-                    trade["managed_1r"] = True
+                    await self.ledger.set_managed(trade["ticket"])
 
                 new_sl = current_price - (atr * 1.5)
                 if new_sl > trade["sl"] + (atr * 0.5):
@@ -37,10 +39,10 @@ class PositionManager:
 
             elif trade["action"] == "SELL":
                 curr_profit_r = (entry_price - current_price) / r_dist if r_dist > 0 else 0
-                if curr_profit_r >= 1.0 and not trade.get("managed_1r"):
+                if curr_profit_r >= 1.0 and not is_managed:
                     commands.append({"t": "MGMT", "tk": trade["ticket"], "act": "CLOSE_PARTIAL", "pct": 0.5, "m_id": 50006})
                     commands.append({"t": "MGMT", "tk": trade["ticket"], "act": "MODIFY_SL", "sl": entry_price, "m_id": 50007})
-                    trade["managed_1r"] = True
+                    await self.ledger.set_managed(trade["ticket"])
 
                 new_sl = current_price + (atr * 1.5)
                 if new_sl < trade["sl"] - (atr * 0.5):

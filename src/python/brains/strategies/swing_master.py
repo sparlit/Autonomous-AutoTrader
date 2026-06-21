@@ -27,8 +27,7 @@ class SwingMaster(BaseBrain):
     async def process(self, data: dict) -> Optional[SignalPayload]:
         """Method Logic. Magic: 20102"""
         history = data.get("history", []) # Primary (H4)
-        h1_raw = data.get("h1", [])
-        h4_raw = data.get("h4", [])
+        d1_raw = data.get("d1", []) # Tier 2 Audit: Use explicit D1 data
 
         if not history or len(history) < 50: return None
 
@@ -46,15 +45,22 @@ class SwingMaster(BaseBrain):
         direction = 0
         confidence = 0.0
 
-        ema_200_h4 = df_h4['c'].ewm(span=200).mean().iloc[-1]
-        trend_d1_proxy = 1 if df_h4['c'].iloc[-1] > ema_200_h4 else -1
+        # Trend D1 Calculation
+        if d1_raw:
+            df_d1 = pd.DataFrame(d1_raw)
+            ema_200_d1 = df_d1['c'].ewm(span=200).mean().iloc[-1]
+            trend_d1 = 1 if df_d1['c'].iloc[-1] > ema_200_d1 else -1
+        else:
+            # Fallback
+            ema_200_h4 = df_h4['c'].ewm(span=200).mean().iloc[-1]
+            trend_d1 = 1 if df_h4['c'].iloc[-1] > ema_200_h4 else -1
 
         if RUST_CORE_AVAILABLE:
-            if aat_rust_core.validate_swing_setup_fast(trend_h4, trend_d1_proxy, curr_rsi):
+            if aat_rust_core.validate_swing_setup_fast(trend_h4, trend_d1, curr_rsi):
                 direction = trend_h4
                 confidence = 0.8
         else:
-            if trend_h4 == trend_d1_proxy:
+            if trend_h4 == trend_d1:
                 if (trend_h4 == 1 and curr_rsi < 70) or (trend_h4 == -1 and curr_rsi > 30):
                     direction = trend_h4
                     confidence = 0.7

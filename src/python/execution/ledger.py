@@ -27,6 +27,7 @@ class TradeLedger:
                         status TEXT,
                         ticket INTEGER DEFAULT 0,
                         open_price REAL,
+                        is_managed INTEGER DEFAULT 0,
                         open_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         close_time TIMESTAMP
                     )
@@ -86,13 +87,11 @@ class TradeLedger:
             await conn.commit()
             return cursor.lastrowid
 
-    async def update_execution(self, internal_id: int, ticket: int, status: str = "OPEN"):
-        """Magic: 70008"""
+    async def update_execution(self, internal_id: int, ticket: int, open_price: float = 0.0, status: str = "OPEN"):
+        """Magic: 70008 - Corrected to accept open_price"""
         async with aiosqlite.connect(self.db_path) as conn:
             await conn.execute("BEGIN TRANSACTION")
             try:
-                # Get current price as open price for record
-                open_price = 0.0
                 await conn.execute(
                     "UPDATE trades SET ticket = ?, status = ?, open_price = ? WHERE id = ?",
                     (ticket, status, open_price, internal_id)
@@ -108,10 +107,19 @@ class TradeLedger:
                 await conn.rollback()
                 logger.error(f"Execution Update Failed: {e}")
 
+    async def set_managed(self, ticket: int):
+        """Magic: 70012"""
+        async with aiosqlite.connect(self.db_path) as conn:
+            await conn.execute("UPDATE trades SET is_managed = 1 WHERE ticket = ?", (ticket,))
+            await conn.commit()
+            if ticket in self._cache["active_trades"]:
+                self._cache["active_trades"][ticket]["is_managed"] = 1
+
     async def adopt_trade(self, ticket: int, symbol: str):
         """Magic: 70009"""
         if ticket in self._cache["active_trades"]: return
         async with aiosqlite.connect(self.db_path) as conn:
+            # We don't have the price here, but PositionManager will pivot safely
             await conn.execute(
                 "INSERT INTO trades (symbol, action, lots, sl, tp, status, ticket) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (symbol, "ADOPTED", 0.0, 0, 0, "OPEN", ticket)

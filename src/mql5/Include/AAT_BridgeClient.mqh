@@ -113,7 +113,7 @@ public:
          // Even if async, we send what we have. SYNC will fix it later if ticket isn't back yet.
          m_s.Send(CAATProtocol::BuildTRADE_ACK(id, (int)res.order, ""));
       } else {
-         m_s.Send(CAATProtocol::BuildTRADE_ACK(id, 0, IntegerToString(res.retcode)));
+         m_s.Send(CAATProtocol::BuildTRADE_ACK(id, 0, 0.0, IntegerToString(res.retcode)));
       }
    }
 
