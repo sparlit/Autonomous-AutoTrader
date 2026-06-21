@@ -31,6 +31,7 @@ class BrainRegistry:
     def register(self, brain: BaseBrain):
         """Magic: 11003"""
         self._brains[brain.name] = brain
+        logging.info(f"Registry: Registered {brain.name}")
 
     async def process_all(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Magic: 11004"""

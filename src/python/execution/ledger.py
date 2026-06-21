@@ -6,12 +6,13 @@ logger = logging.getLogger("AAT_Ledger")
 
 class TradeLedger:
     def __init__(self, db_path: str = "audit_records.db"):
+        """Magic: 70001"""
         self.db_path = db_path
         self._cache = {"peak_equity": 0.0, "active_trades": {}}
-        self.magic = 7001
+        self.magic = 70001
 
     async def init_db(self):
-        """Magic: 7002"""
+        """Magic: 70002"""
         async with aiosqlite.connect(self.db_path) as conn:
             await conn.execute("BEGIN TRANSACTION")
             try:
@@ -25,6 +26,7 @@ class TradeLedger:
                         tp REAL,
                         status TEXT,
                         ticket INTEGER DEFAULT 0,
+                        open_price REAL,
                         open_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         close_time TIMESTAMP
                     )
@@ -46,17 +48,17 @@ class TradeLedger:
         for t in active: self._cache["active_trades"][t["ticket"]] = t
 
     def get_cached_peak_equity(self) -> float:
-        """Magic: 7003"""
+        """Magic: 70003"""
         return self._cache["peak_equity"]
 
     def get_cached_active_trades(self, symbol: str = None) -> List[Dict[str, Any]]:
-        """Magic: 7004"""
+        """Magic: 70004"""
         trades = list(self._cache["active_trades"].values())
         if symbol: return [t for t in trades if t["symbol"] == symbol]
         return trades
 
     async def update_peak_equity(self, equity: float):
-        """Magic: 7005"""
+        """Magic: 70005"""
         if equity > self._cache["peak_equity"]:
             self._cache["peak_equity"] = equity
             async with aiosqlite.connect(self.db_path) as conn:
@@ -68,14 +70,14 @@ class TradeLedger:
                 await conn.commit()
 
     async def get_peak_equity_db(self) -> float:
-        """Magic: 7006"""
+        """Magic: 70006"""
         async with aiosqlite.connect(self.db_path) as conn:
             async with conn.execute("SELECT val FROM account_stats WHERE key = 'peak_equity'") as cursor:
                 row = await cursor.fetchone()
                 return row[0] if row else 0.0
 
     async def record_intent(self, symbol: str, action: str, lots: float, sl: float, tp: float) -> int:
-        """Magic: 7007"""
+        """Magic: 70007"""
         async with aiosqlite.connect(self.db_path) as conn:
             cursor = await conn.execute(
                 "INSERT INTO trades (symbol, action, lots, sl, tp, status) VALUES (?, ?, ?, ?, ?, ?)",
@@ -85,13 +87,15 @@ class TradeLedger:
             return cursor.lastrowid
 
     async def update_execution(self, internal_id: int, ticket: int, status: str = "OPEN"):
-        """Magic: 7008"""
+        """Magic: 70008"""
         async with aiosqlite.connect(self.db_path) as conn:
             await conn.execute("BEGIN TRANSACTION")
             try:
+                # Get current price as open price for record
+                open_price = 0.0
                 await conn.execute(
-                    "UPDATE trades SET ticket = ?, status = ? WHERE id = ?",
-                    (ticket, status, internal_id)
+                    "UPDATE trades SET ticket = ?, status = ?, open_price = ? WHERE id = ?",
+                    (ticket, status, open_price, internal_id)
                 )
                 if status == "OPEN":
                     async with conn.execute("SELECT * FROM trades WHERE id = ?", (internal_id,)) as cursor:
@@ -105,21 +109,19 @@ class TradeLedger:
                 logger.error(f"Execution Update Failed: {e}")
 
     async def adopt_trade(self, ticket: int, symbol: str):
-        """Magic: 7009"""
+        """Magic: 70009"""
         if ticket in self._cache["active_trades"]: return
         async with aiosqlite.connect(self.db_path) as conn:
-            async with conn.execute("SELECT * FROM trades WHERE ticket = ?", (ticket,)) as cursor:
-                if await cursor.fetchone(): return
             await conn.execute(
                 "INSERT INTO trades (symbol, action, lots, sl, tp, status, ticket) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (symbol, "UNKNOWN", 0.0, 0, 0, "OPEN", ticket)
+                (symbol, "ADOPTED", 0.0, 0, 0, "OPEN", ticket)
             )
             await conn.commit()
             active = await self.get_active_trades_db(symbol)
             for t in active: self._cache["active_trades"][t["ticket"]] = t
 
     async def get_active_trades_db(self, symbol: str = None) -> List[Dict[str, Any]]:
-        """Magic: 7010"""
+        """Magic: 70010"""
         async with aiosqlite.connect(self.db_path) as conn:
             conn.row_factory = aiosqlite.Row
             query = "SELECT * FROM trades WHERE status = 'OPEN'" + (" AND symbol = ?" if symbol else "")
@@ -129,7 +131,7 @@ class TradeLedger:
                 return [dict(row) for row in rows]
 
     async def close_trade(self, ticket: int):
-        """Magic: 7011"""
+        """Magic: 70011"""
         async with aiosqlite.connect(self.db_path) as conn:
             await conn.execute(
                 "UPDATE trades SET status = 'CLOSED', close_time = CURRENT_TIMESTAMP WHERE ticket = ?",
