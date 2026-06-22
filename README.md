@@ -20,6 +20,8 @@ AAT utilizes a hybrid architecture designed for maximum reliability and zero-lat
 
 ## 🚀 Quick Start Guide (Institutional Setup)
 
+> **Windows 11 Users**: For exact, copy-paste commands, see [INSTALL_WINDOWS.md](INSTALL_WINDOWS.md).
+
 ### Phase 1: Environment Setup
 1. **Clone and Navigate**:
    ```bash

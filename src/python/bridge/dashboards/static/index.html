@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AAT Phoenix Dashboard</title>
+    <style>
+        body { background: #0f172a; color: #00f2ff; font-family: 'Segoe UI', sans-serif; }
+        .card { background: #1e293b; padding: 20px; border-radius: 10px; margin: 10px; border: 1px solid #334155; }
+        .value { font-size: 2em; font-weight: bold; }
+        .label { color: #94a3b8; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+    </style>
+</head>
+<body>
+    <h1>🦅 PHOENIX ASCENDANT WEB TERMINAL</h1>
+    <div class="grid">
+        <div class="card">
+            <div class="label">EQUITY</div>
+            <div id="equity" class="value">$0.00</div>
+        </div>
+        <div class="card">
+            <div class="label">DRAWDOWN</div>
+            <div id="drawdown" class="value">0.00%</div>
+        </div>
+        <div class="card">
+            <div class="label">SYSTEM STATUS</div>
+            <div id="status" class="value">CONNECTING...</div>
+        </div>
+    </div>
+    <script>
+        const ws = new WebSocket("ws://" + window.location.host + "/ws");
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            document.getElementById('equity').innerText = '$' + data.equity.toLocaleString();
+            document.getElementById('drawdown').innerText = data.drawdown.toFixed(2) + '%';
+            document.getElementById('status').innerText = 'ACTIVE';
+        };
+    </script>
+</body>
+</html>
