@@ -18,16 +18,27 @@ class BridgeServer:
         self.throttle_threshold = 0.05 # 50ms processing limit
 
     async def handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-        addr = writer.get_extra_info('peername')
-        client_id = f"{addr[0]}:{addr[1]}"
+        try:
+            addr = writer.get_extra_info('peername')
+            if not addr:
+                writer.close()
+                return
+            client_id = f"{addr[0]}:{addr[1]}"
+        except Exception:
+            writer.close()
+            return
+
         logger.info(f"Ultra-Bridge: New connection from {client_id}")
         self.clients[client_id] = writer
 
         buffer = bytearray()
         try:
             while True:
-                data = await reader.read(16384) # 16KB buffer for heavy MTF/warmup pushes
-                if not data: break
+                try:
+                    data = await reader.read(16384) # 16KB buffer for heavy MTF/warmup pushes
+                    if not data: break
+                except (ConnectionResetError, BrokenPipeError):
+                    break
 
                 buffer.extend(data)
                 while b'\n' in buffer:
@@ -52,38 +63,40 @@ class BridgeServer:
                             self.stats["last_latency"] = (time.perf_counter() - start_time)
                     except json.JSONDecodeError:
                         logger.error(f"Corruption in stream from {client_id}")
-                    except ConnectionResetError:
-                        # 13008: Suppress WinError 10054 on Windows
-                        logger.info(f"Connection Reset by {client_id}")
+                    except (ConnectionResetError, BrokenPipeError):
+                        logger.info(f"Connection Reset by {client_id} during write")
                         return
                     except Exception as e:
                         logger.error(f"Bridge Execution Error: {e}")
 
-        except (ConnectionResetError, BrokenPipeError):
-            logger.info(f"Client disconnected: {client_id}")
         except Exception as e:
             logger.error(f"Link Dropped: {client_id} ({e})")
         finally:
             self.clients.pop(client_id, None)
+            logger.info(f"Client offline: {client_id}")
             try:
                 writer.close()
                 await writer.wait_closed()
             except Exception:
-                logger.debug("Silent cleanup completed")
+                logger.debug("Silent cleanup completed for closed writer")
 
     async def broadcast(self, message: Dict[str, Any]):
         """13006: Broadcast message to all connected clients."""
         payload = json.dumps(message).encode() + b"\n"
-        for client_id, writer in list(self.clients.items()):
+        dead_clients = []
+        for client_id, writer in self.clients.items():
             try:
                 writer.write(payload)
                 await writer.drain()
                 self.stats["msgs_tx"] += 1
             except (ConnectionResetError, BrokenPipeError, socket.error):
-                self.clients.pop(client_id, None)
-                logger.info(f"Removing dead client during broadcast: {client_id}")
+                dead_clients.append(client_id)
             except Exception as e:
                 logger.debug(f"Broadcast failed to {client_id}: {e}")
+
+        for cid in dead_clients:
+            self.clients.pop(cid, None)
+            logger.info(f"Pruned dead client: {cid}")
 
     async def start(self):
         server = await asyncio.start_server(self.handle_client, self.host, self.port)

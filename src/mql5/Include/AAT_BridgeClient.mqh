@@ -17,23 +17,36 @@ public:
       m_h=h; m_p=p; m_u_d=ud; m_hb_i=hi*1000; m_l_hb=GetTickCount();
       if(m_u_d) {
          m_d.Create("AAT_Dash", 320, 450);
-         m_d.Render(_Symbol, "INITIALIZING", 0.5, "NEUTRAL", 0.0);
+         m_d.Render(_Symbol, "CONNECTING...", 0.5, "NEUTRAL", 0.0);
       }
-      m_s.Connect(m_h, m_p);
-      return true;
+      Print("AAT Bridge Client: Initializing on ", m_h, ":", m_p);
+      return m_s.Connect(m_h, m_p);
    }
    void OnTick() {
-      if(!m_s.IsConnected()) { m_s.Connect(m_h, m_p); m_syn=false; if(GetTickCount()-m_l_hb>60000) ActFS(); return; }
-      m_fs=false; if(!m_syn) { if(m_s.Send(CAATProtocol::BuildSYNC(_Symbol))) m_syn=true; return; }
+      if(!m_s.IsConnected()) {
+         if(m_s.Connect(m_h, m_p)) { Print("AAT Bridge: Reconnected."); m_syn=false; }
+         else { if(GetTickCount()-m_l_hb>60000) ActFS(); return; }
+      }
+      m_fs=false;
+      if(!m_syn) {
+         if(m_s.Send(CAATProtocol::BuildSYNC(_Symbol))) { m_syn=true; Print("AAT Bridge: SYNC Sent."); }
+         return;
+      }
       uint n=GetTickCount(); double cp=SymbolInfoDouble(_Symbol, SYMBOL_BID);
 
-      if(n-m_l_hb>m_hb_i) { if(m_s.Send(CAATProtocol::BuildHEARTBEAT(_Symbol, AccountInfoDouble(ACCOUNT_EQUITY), 0.0))) m_l_hb=n; }
-      if(m_l_pr==0 || MathAbs(cp-m_l_pr)>=m_p_th || n-m_l_dp>60000) { if(m_s.Send(CAATProtocol::BuildDATA_PUSH(_Symbol, _Period, 100))) { m_l_dp=n; m_l_pr=cp; } }
-
-      Proc(); if(n%500==0) Cln();
-      if(m_u_d && n % 1000 == 0) { // Keep clock ticking
-          m_d.Render(_Symbol, "ACTIVE", 0.5, "NEUTRAL", 0.0);
+      if(n-m_l_hb>m_hb_i) {
+         if(m_s.Send(CAATProtocol::BuildHEARTBEAT(_Symbol, AccountInfoDouble(ACCOUNT_EQUITY), 0.0))) m_l_hb=n;
       }
+      if(m_l_pr==0 || MathAbs(cp-m_l_pr)>=m_p_th || n-m_l_dp>60000) {
+         if(m_s.Send(CAATProtocol::BuildDATA_PUSH(_Symbol, _Period, 100))) { m_l_dp=n; m_l_pr=cp; }
+      }
+
+      Proc();
+      if(n%500==0) Cln();
+   }
+   void OnTimer() {
+      if(m_u_d) m_d.Render(_Symbol, m_s.IsConnected()?"ACTIVE":"DISCONNECTED", 0.5, "NEUTRAL", 0.0);
+      if(!m_s.IsConnected()) OnTick();
    }
    void Proc() {
       while(true) {

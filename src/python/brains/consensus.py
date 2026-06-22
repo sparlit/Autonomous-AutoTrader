@@ -26,6 +26,7 @@ class MetaBrain(BaseBrain):
         self.symbol_state: Dict[str, Dict[str, Any]] = {}
         self.brain_reliability: Dict[str, float] = {}
         self.required_sources = ["Trend_1", "Indicator_1", "Liquidity_1", "Regime_1"]
+        self._last_telemetry_broadcast = 0
 
     async def initialize(self):
         await super().initialize()
@@ -37,7 +38,6 @@ class MetaBrain(BaseBrain):
         state = self.symbol_state[symbol]; e_type = event.get("type")
 
         if e_type == "MARKET_DATA_REFRESH":
-            # 12604: Soft Refresh (Don't wipe evidence trail)
             state["received_sources"] = set()
             return None
 
@@ -57,11 +57,9 @@ class MetaBrain(BaseBrain):
             p_e_h = event.get("p_e_h", 0.50); p_e = event.get("p_e", 0.50)
             rel = self.brain_reliability.get(event["source"], 1.0)
 
-            # Record HTF Trend for dashboard if present
             if event["source"] == "Trend_1":
                 state["htf_trend"] = "BULLISH" if event.get("direction", 0) > 0 else "BEARISH" if event.get("direction", 0) < 0 else "NEUTRAL"
 
-            # Reliability-weighted evidence
             weighted_p_e_h = 0.50 + (p_e_h - 0.50) * rel
             prior = state["prior"]; posterior = (weighted_p_e_h * prior) / p_e
             impact = posterior - prior
@@ -80,17 +78,20 @@ class MetaBrain(BaseBrain):
                 state["atr"] = event["data"].get("atr", state["atr"])
                 state["rsi"] = event["data"].get("rsi", state["rsi"])
 
-        # Broadcast Telemetry on every evidence update or regime change
-        if e_type in ["EVIDENCE", "REGIME_STATUS"]:
+        # Broadcast Telemetry periodically or on every evidence update
+        now = time.time()
+        if e_type in ["EVIDENCE", "REGIME_STATUS"] or now - self._last_telemetry_broadcast > 5:
+            acc_stats = self.ipc.get_state("account_stats", {}) if self.ipc else {}
             telemetry = {
                 "type": "TELEMETRY",
                 "symbol": symbol,
                 "st": "ACTIVE",
                 "scr": round(state["prior"], 4),
                 "htf": state["htf_trend"],
-                "dd": 0.0 # Account drawdown handled by bridge
+                "dd": acc_stats.get("drawdown", 0.0)
             }
             self.publish(telemetry)
+            self._last_telemetry_broadcast = now
 
         if all(src in state["received_sources"] for src in self.required_sources):
             if state["prior"] >= self.threshold and not state["veto"]:
@@ -102,7 +103,6 @@ class MetaBrain(BaseBrain):
                         "evidence_trail": list(state["evidence_trail"]),
                         "explainability": [f"{e['source']} ({e['reliability']:.2f}): {'+' if e['impact'] >= 0 else ''}{e['impact']:.2f} -> P={e['posterior']:.2f}" for e in state['evidence_trail']]
                     }
-                    # Reset state for next cycle
                     self.symbol_state[symbol] = self._new_state()
                     return res
         return None

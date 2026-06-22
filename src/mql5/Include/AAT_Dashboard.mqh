@@ -54,7 +54,8 @@ bool CAATDashboard::Create(string name, int w, int h)
 
 void CAATDashboard::Render(string symbol, string status, double score, string htf_trend, double drawdown)
 {
-   m_canvas.Erase(ColorToARGB(m_clr_bg, 240));
+   // Erase with high opacity to ensure it's not invisible
+   m_canvas.Erase(ColorToARGB(m_clr_bg, 255));
 
    DrawHeader();
 
@@ -87,7 +88,7 @@ void CAATDashboard::Render(string symbol, string status, double score, string ht
    DrawAccountSection(y); y += 70;
 
    m_canvas.FontSet("Lucida Console", -10, FW_NORMAL);
-   m_canvas.TextOut(m_width/2, m_height - 15, "ENGINE: " + status, ColorToARGB(m_clr_neon_green), TA_CENTER);
+   m_canvas.TextOut(m_width/2, m_height - 15, "ENGINE: " + status, (status == "ACTIVE" ? ColorToARGB(m_clr_neon_green) : ColorToARGB(m_clr_neon_red)), TA_CENTER);
 
    m_canvas.Update();
 }
