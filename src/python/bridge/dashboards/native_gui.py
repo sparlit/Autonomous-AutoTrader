@@ -19,16 +19,26 @@ class NativeDashboard(Process):
         logging.basicConfig(level=logging.INFO, format="%(asctime)s - NativeGUI - %(levelname)s - %(message)s")
         logger = logging.getLogger("AAT_NativeGUI")
 
-        # Check for DISPLAY environment variable
-        if 'DISPLAY' not in os.environ:
-            logger.warning("DISPLAY environment variable not found. Skipping Native GUI launch.")
-            return
+        logger.info("Initializing Native Dashboard GUI...")
 
         try:
             dpg.create_context()
         except Exception as e:
             logger.error(f"Failed to create DPG context: {e}")
             return
+
+        # Pre-create Themes for dynamic coloring in DPG 2.x
+        with dpg.theme() as self.alert_theme:
+            with dpg.theme_component(dpg.mvAll):
+                dpg.add_theme_color(dpg.mvThemeCol_Text, [255, 81, 73], category=dpg.mvThemeCat_Core)
+
+        with dpg.theme() as self.active_theme:
+            with dpg.theme_component(dpg.mvAll):
+                dpg.add_theme_color(dpg.mvThemeCol_Text, [63, 185, 80], category=dpg.mvThemeCat_Core)
+
+        with dpg.theme() as self.neutral_theme:
+            with dpg.theme_component(dpg.mvAll):
+                dpg.add_theme_color(dpg.mvThemeCol_Text, [200, 200, 200], category=dpg.mvThemeCat_Core)
 
         with dpg.window(label="🦅 AAT PHOENIX ASCENDANT - INSTITUTIONAL MONITOR", width=980, height=680):
             with dpg.group(horizontal=True):
@@ -57,7 +67,7 @@ class NativeDashboard(Process):
                     self.latency_tag = dpg.add_text("LATENCY: 0.00ms")
                     self.reconnect_tag = dpg.add_text("CONNECTIONS: 0", color=[100, 200, 255])
 
-            dpg.add_spacing(count=5)
+            dpg.add_spacer(height=5)
             dpg.add_text("BRAIN CLUSTER HEALTH & BAYESIAN METRICS", color=[0, 242, 255])
             dpg.add_separator()
 
@@ -117,7 +127,7 @@ class NativeDashboard(Process):
             dpg.set_value(self.equity_tag, f"EQUITY: ${account.get('equity', 0):,.2f}")
             dd = account.get('drawdown', 0)
             dpg.set_value(self.dd_tag, f"DRAWDOWN: {dd:.2f}%")
-            dpg.set_item_color(self.dd_tag, dpg.mvPlotCol_Text, [255, 0, 0] if dd > 2 else [0, 255, 0])
+            dpg.bind_item_theme(self.dd_tag, self.alert_theme if dd > 2 else self.active_theme)
 
             spread = account.get('spread', 0)
             dpg.set_value(self.spread_tag, f"AVG SPREAD: {spread:.1f} pts")
@@ -148,7 +158,7 @@ class NativeDashboard(Process):
                     dpg.set_value(row["lat"], f"{health.get('latency', 0):.2f}")
                     last_seen = now - health.get("last_seen", now)
                     dpg.set_value(row["seen"], f"{last_seen:.1f}s ago")
-                    dpg.set_item_color(row["seen"], dpg.mvPlotCol_Text, [255, 0, 0] if last_seen > 10 else [200, 200, 200])
+                    dpg.bind_item_theme(row["seen"], self.alert_theme if last_seen > 10 else self.neutral_theme)
 
     def kill_switch(self):
         logging.critical("USER COMMAND: EMERGENCY KILL SWITCH ACTIVATED.")

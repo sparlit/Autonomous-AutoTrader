@@ -95,7 +95,7 @@ You must start the components in this exact order:
 
 1. **Start the Python Brain**:
    ```powershell
-   ..\venv\Scripts\python main_engine.py
+   .\venv\Scripts\python main_engine.py
    ```
    *Wait for: "🌌 Phoenix Ascendant Orchestrator Online."*
 
@@ -108,7 +108,7 @@ You must start the components in this exact order:
 
 ## 📊 Monitoring
 - The **Desktop Dashboard** will open automatically.
-- The **Web Dashboard** is available at `http://127.0.0.1:8000`.
+- The **Web Dashboard** is available at `http://127.0.0.1:8009`.
 
 **Institutional Support**: Jules (God Mode)
 

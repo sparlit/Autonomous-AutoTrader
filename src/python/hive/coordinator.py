@@ -33,6 +33,7 @@ class HiveOrchestrator:
             self.config.bridge.host, self.config.bridge.port, self.handle_client_message
         )
         self._initialize_brains()
+        self._initialize_ipc_queues() # Essential for Windows compatibility
         self._initialize_dashboards()
 
     def _initialize_brains(self):
@@ -58,6 +59,20 @@ class HiveOrchestrator:
         self.registry.register(MonitoringBrain("Monitoring_1", cpu_affinity=[19], ipc=self.ipc))
         self.registry.register(AnomalyBrain("Anomaly_1", cpu_affinity=[19], ipc=self.ipc))
         self.registry.register(PortfolioBrain("Portfolio_1", cpu_affinity=[19], ipc=self.ipc))
+
+    def _initialize_ipc_queues(self):
+        """Pre-create all queues in the parent process for Windows 'spawn' safety."""
+        queues = [
+            "stream:orchestrator", "stream:MarketData_1", "stream:MarketData_2",
+            "stream:Indicator_1", "stream:Indicator_2", "stream:Indicator_3",
+            "stream:Trend_1", "stream:Trend_2", "stream:Liquidity_1", "stream:Liquidity_2",
+            "stream:Regime_1", "stream:Meta_1", "stream:Contrarian_1", "stream:NewsRisk_1",
+            "stream:Risk_1", "stream:Risk_2", "stream:Execution_1", "stream:Execution_2",
+            "stream:Memory_1", "stream:Monitoring_1", "stream:Anomaly_1", "stream:Portfolio_1"
+        ]
+        for q in queues:
+            self.ipc.get_queue(q)
+        logger.info(f"Initialized {len(queues)} IPC streams for Windows compatibility.")
 
     def _initialize_dashboards(self):
         self.native_dash = NativeDashboard(ipc=self.ipc)
