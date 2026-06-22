@@ -3,6 +3,25 @@
 
 The definitive institutional-grade autonomous trading system for MetaTrader 5. Engineered for **Defensive Alpha**, AAT prioritizes capital preservation through rigorous Smart Money Concepts (SMC), Volume-Spread Analysis (VSA), and a multi-brain parallel consensus logic reinforced by a Rust-powered high-performance kernel.
 
+
+## ❓ Deployment & Operation FAQ
+
+### 1. Which symbol or symbols should I use?
+The system is optimized for high-liquidity instruments. We recommend:
+- **Major Pairs**: EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF, NZDUSD.
+- **Indices**: GER40 (DAX), US30 (Dow Jones), NAS100 (Nasdaq).
+- **Commodities**: XAUUSD (Gold).
+Ensure these symbols are visible in your MT5 Market Watch.
+
+### 2. Which Timeframe (TF) should I use?
+- **Attachment**: Attach the `AAT_DataCollector` to the **M1 or M5** chart of each symbol.
+- **Why?**: The system is built for Multi-Timeframe (MTF) analysis. The DataCollector automatically pushes M1/M5 (LTF), H1 (Intraday), and H4 (HTF) data to the Brain. Attaching to a low TF ensures the highest resolution for scalping and day-trading triggers while maintaining H4/D1 trend alignment.
+
+### 3. How many different symbols should I use at a time?
+- **Capacity**: The "Phoenix Ascendant" architecture is designed for high-concurrency across **up to 20 symbols** simultaneously.
+- **Scaling**: Each symbol's analysis is distributed across 18 specialized worker processes. For optimal performance on standard hardware (8-16 cores), we recommend starting with **5-10 symbols** and scaling up as you monitor system latency.
+
+
 ---
 
 ## 🏗️ The "Phoenix Ascendant" Paradigm
