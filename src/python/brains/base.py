@@ -9,7 +9,6 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional
 from multiprocessing import Process
 from pydantic import BaseModel
-from fakeredis import FakeRedis
 
 logger = logging.getLogger("AAT_BaseBrain")
 
@@ -43,21 +42,20 @@ class BaseBrain(Process, BrainContract):
     Reinforced with execution timeouts and bounded stream management.
     """
 
-    def __init__(self, name: str, cpu_affinity: Optional[List[int]] = None):
+    def __init__(self, name: str, cpu_affinity: Optional[List[int]] = None, ipc: Any = None):
         Process.__init__(self)
         self.name = name
         self.cpu_affinity = cpu_affinity
+        self.ipc = ipc
         self.is_running = True
         self._last_heartbeat = time.time()
         self._processed_count = 0
         self._latency_sum = 0.0
-        self.redis = None # Initialized in child process
         self.max_execution_time = 0.1 # 100ms hard deadline (12101)
         self.stream_max_len = 1000 # Bounded streams to prevent OOM (12102)
 
     async def initialize(self):
         """12005: Hardware and dependency setup."""
-        self.redis = FakeRedis()
         p = psutil.Process(os.getpid())
         if self.cpu_affinity:
             try:
@@ -83,35 +81,39 @@ class BaseBrain(Process, BrainContract):
     async def _main_loop(self):
         """12007: Async execution loop with timeouts and backpressure."""
         stream_name = f"stream:{self.name}"
+        last_health_report = 0
         while self.is_running:
             try:
+                # Periodic health reporting to shared state
+                if time.time() - last_health_report > 5:
+                    if self.ipc:
+                        self.ipc.set_state(f"brain_health:{self.name}", self.health())
+                    last_health_report = time.time()
+
                 # 12103: Drop old ticks if backlog exists (Coalescing/Backpressure)
-                messages = self.redis.xread({stream_name: '0'}, count=10, block=1)
-                if messages:
-                    for stream, msgs in messages:
-                        # Only process the LATEST message if it's high-frequency data
-                        # to ensure low-latency execution (12104)
-                        latest_msg = msgs[-1]
-                        msg_id, data = latest_msg
+                if self.ipc:
+                    messages = self.ipc.xread({stream_name: '0'}, count=10, block=1)
+                    if messages:
+                        for stream, msgs in messages:
+                            latest_msg = msgs[-1]
+                            msg_id, data = latest_msg
 
-                        event = json.loads(data[b'payload'])
-                        start_time = time.perf_counter()
+                            event = json.loads(data[b'payload'])
+                            start_time = time.perf_counter()
 
-                        try:
-                            # 12105: Hard execution deadline
-                            result = await asyncio.wait_for(self.process(event), timeout=self.max_execution_time)
-                            if result: self.publish(result)
-                        except asyncio.TimeoutError:
-                            logger.error(f"Brain {self.name} TIMEOUT on msg {msg_id}. Dropping result.")
+                            try:
+                                result = await asyncio.wait_for(self.process(event), timeout=self.max_execution_time)
+                                if result: self.publish(result)
+                            except asyncio.TimeoutError:
+                                logger.error(f"Brain {self.name} TIMEOUT on msg {msg_id}. Dropping result.")
 
-                        # 12106: Explicitly clear processed items
-                        for m_id, _ in msgs:
-                            self.redis.xdel(stream_name, m_id)
-
-                        self._latency_sum += (time.perf_counter() - start_time)
-                        self._processed_count += 1
+                            self.ipc.xdel(stream_name, msg_id)
+                            self._latency_sum += (time.perf_counter() - start_time)
+                            self._processed_count += 1
+                    else:
+                        await asyncio.sleep(0.0001)
                 else:
-                    await asyncio.sleep(0.0001) # Yield to CPU
+                    await asyncio.sleep(0.1)
             except Exception as e:
                 logger.error(f"Brain {self.name} Error: {e}")
                 await asyncio.sleep(0.1)
@@ -123,15 +125,23 @@ class BaseBrain(Process, BrainContract):
 
     def publish(self, result: Dict[str, Any]):
         """12010: Publish to the Orchestrator stream with bounded length."""
+        if not self.ipc: return
         result['source'] = self.name; result['timestamp'] = time.time()
         payload = json.dumps(result)
-        # 12107: Use MAXLEN for backpressure in message bus
-        self.redis.xadd("stream:orchestrator", {"payload": payload}, maxlen=self.stream_max_len)
+        self.ipc.xadd("stream:orchestrator", {"payload": payload}, maxlen=self.stream_max_len)
 
     def health(self) -> Dict[str, Any]:
         """12011: Collect health metrics."""
         p = psutil.Process(os.getpid()); avg_latency = self._latency_sum / self._processed_count if self._processed_count > 0 else 0
-        return {"name": self.name, "pid": os.getpid(), "cpu": p.cpu_percent(), "mem": p.memory_info().rss / 1024 / 1024, "count": self._processed_count, "latency": avg_latency * 1000}
+        return {
+            "name": self.name,
+            "pid": os.getpid(),
+            "cpu": p.cpu_percent(),
+            "mem": p.memory_info().rss / 1024 / 1024,
+            "count": self._processed_count,
+            "latency": avg_latency * 1000,
+            "last_seen": time.time()
+        }
 
     def _handle_exit(self, signum, frame):
         self.is_running = False

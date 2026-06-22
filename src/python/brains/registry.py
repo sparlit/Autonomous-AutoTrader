@@ -1,7 +1,7 @@
 import logging
 from typing import Dict, Any, List
-from multiprocessing import Queue
 from src.python.brains.base import BaseBrain
+from src.python.hive.ipc import get_ipc
 
 logger = logging.getLogger("AAT_BrainRegistry")
 
@@ -10,6 +10,7 @@ class BrainRegistry:
     def __init__(self):
         """Initialize an empty brain registry."""
         self._brains: Dict[str, BaseBrain] = {}
+        self.ipc = get_ipc()
 
     def register(self, brain: BaseBrain):
         """Register a brain instance."""
@@ -32,8 +33,13 @@ class BrainRegistry:
                 brain.join(timeout=2)
 
     def get_health_report(self) -> List[Dict[str, Any]]:
-        """Collect health metrics from all brains."""
-        # Note: In a real multi-process environment, health stats should be pushed to a shared state
-        # or collected via IPC. For simplicity here, we assume the Orchestrator tracks this.
-        return [brain.health() for brain in self._brains.values()]
-
+        """Collect health metrics from all brains via IPC shared state."""
+        reports = []
+        for name in self._brains.keys():
+            report = self.ipc.get_state(f"brain_health:{name}")
+            if report:
+                reports.append(report)
+            else:
+                # Fallback if no report yet
+                reports.append({"name": name, "status": "STARTING"})
+        return reports

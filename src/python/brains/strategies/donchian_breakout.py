@@ -1,3 +1,4 @@
+from typing import Any
 import pandas as pd
 from typing import Optional
 from src.python.brains.base import BaseBrain, SignalPayload
@@ -7,8 +8,8 @@ class DonchianBreakout(BaseBrain):
     Standard Donchian Channel breakout strategy.
     FOSS Strategy Implementation.
     """
-    def __init__(self, name: str):
-        super().__init__(name)
+    def __init__(self, name: str, ipc: Any = None):
+        super().__init__(name, ipc=ipc)
         self.magic = 2006
 
     async def process(self, data: dict) -> Optional[SignalPayload]:

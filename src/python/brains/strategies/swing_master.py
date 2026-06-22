@@ -1,3 +1,4 @@
+from typing import Any
 import pandas as pd
 import numpy as np
 import sys
@@ -20,8 +21,8 @@ class SwingMaster(BaseBrain):
     Filter: RSI Overextension (via Rust Veto).
     Magic: 20101
     """
-    def __init__(self, name: str):
-        super().__init__(name)
+    def __init__(self, name: str, ipc: Any = None):
+        super().__init__(name, ipc=ipc)
         self.magic = 20101
 
     async def process(self, data: dict) -> Optional[SignalPayload]:

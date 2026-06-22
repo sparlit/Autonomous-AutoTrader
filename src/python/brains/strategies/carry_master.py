@@ -1,3 +1,4 @@
+from typing import Any
 import pandas as pd
 from typing import Optional
 from src.python.brains.base import BaseBrain, SignalPayload
@@ -8,8 +9,8 @@ class CarryMaster(BaseBrain):
     Alignment: D1 Trend + High Interest Differential (Simulated).
     Magic: 20301
     """
-    def __init__(self, name: str):
-        super().__init__(name)
+    def __init__(self, name: str, ipc: Any = None):
+        super().__init__(name, ipc=ipc)
         self.magic = 20301
         # Simulated Carry Map (Positive = Long Carry)
         self.carry_bias = {"USDJPY": 1, "GBPUSD": -1, "EURUSD": -1, "AUDUSD": 1, "NZDUSD": 1}

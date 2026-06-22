@@ -72,7 +72,8 @@ class TrendBrain(BaseBrain):
             if not h4_df.empty:
                 if isinstance(event["h4"][0], list): h4_df.columns = ["o", "h", "l", "c", "t", "v"]
                 if self.smc.detect_market_structure(h4_df)["trend"] == struct["trend"]: aligned += 1
-            evidence = {"type": "EVIDENCE", "symbol": event["symbol"], "source": self.name, "direction": 1 if struct["trend"] == "BULLISH" else (-1 if struct["trend"] == "BEARISH" else 0)}
+
+            evidence = {"type": "EVIDENCE", "symbol": event["symbol"], "source": self.name, "direction": 1 if struct["trend"] == "BULLISH" else -1}
             if evidence["direction"] == 0: return None
             if aligned == 2: evidence.update({"p_e_h": 0.85, "p_e": 0.45})
             elif aligned == 1: evidence.update({"p_e_h": 0.70, "p_e": 0.55})

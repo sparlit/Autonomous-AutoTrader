@@ -19,8 +19,8 @@ class MetaBrain(BaseBrain):
     Self-Learning: Adjusts evidence weights based on brain reliability reports.
     Explainability: Returns detailed impact of each brain on final posterior.
     """
-    def __init__(self, name: str, cpu_affinity: Optional[List[int]] = None, threshold: float = 0.70):
-        super().__init__(name, cpu_affinity)
+    def __init__(self, name: str, cpu_affinity: Optional[List[int]] = None, threshold: float = 0.70, ipc: Any = None):
+        super().__init__(name, cpu_affinity, ipc=ipc)
         self.threshold = threshold
         self.symbol_state: Dict[str, Dict[str, Any]] = {}
         self.brain_reliability: Dict[str, float] = {}

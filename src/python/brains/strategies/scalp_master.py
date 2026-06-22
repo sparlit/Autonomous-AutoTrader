@@ -1,3 +1,4 @@
+from typing import Any
 from src.python.analyst.price_action import SMCAnalyst
 from src.python.brains.base import BaseBrain, SignalPayload
 import pandas as pd
@@ -9,8 +10,8 @@ class ScalpMaster(BaseBrain):
     Logic: Liquidity Sweep + Reversal Candle.
     Magic: 20401
     """
-    def __init__(self, name: str):
-        super().__init__(name)
+    def __init__(self, name: str, ipc: Any = None):
+        super().__init__(name, ipc=ipc)
         self.smc = SMCAnalyst()
         self.magic = 20401
 

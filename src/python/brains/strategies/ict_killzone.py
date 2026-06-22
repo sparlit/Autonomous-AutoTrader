@@ -1,11 +1,12 @@
+from typing import Any
 import pandas as pd
 import datetime
 from typing import Optional
 from src.python.brains.base import BaseBrain, SignalPayload
 
 class ICTKillzone(BaseBrain):
-    def __init__(self, name: str):
-        super().__init__(name)
+    def __init__(self, name: str, ipc: Any = None):
+        super().__init__(name, ipc=ipc)
         self.magic = 2004
 
     async def process(self, data: dict) -> Optional[SignalPayload]:

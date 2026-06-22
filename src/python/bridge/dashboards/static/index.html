@@ -3,36 +3,152 @@
 <head>
     <title>AAT Phoenix Dashboard</title>
     <style>
-        body { background: #0f172a; color: #00f2ff; font-family: 'Segoe UI', sans-serif; }
-        .card { background: #1e293b; padding: 20px; border-radius: 10px; margin: 10px; border: 1px solid #334155; }
-        .value { font-size: 2em; font-weight: bold; }
-        .label { color: #94a3b8; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+        body { background: #0b0f1a; color: #00f2ff; font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; line-height: 1.5; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 15px; }
+        .card { background: #161b22; padding: 18px; border-radius: 10px; border: 1px solid #30363d; box-shadow: 0 8px 24px rgba(0,0,0,0.2); transition: transform 0.2s; }
+        .card:hover { transform: translateY(-2px); border-color: #58a6ff; }
+        .value { font-size: 2.2em; font-weight: 800; margin: 8px 0; font-family: 'Courier New', Courier, monospace; }
+        .label { color: #8b949e; text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.75em; font-weight: 600; }
+        h1 { color: #f0f6fc; border-bottom: 2px solid #1f6feb; padding-bottom: 12px; margin-top: 0; display: flex; justify-content: space-between; align-items: center; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 15px; }
+        th { text-align: left; color: #8b949e; font-size: 0.7em; padding: 10px; border-bottom: 2px solid #30363d; }
+        td { padding: 10px; font-size: 0.85em; border-bottom: 1px solid #21262d; font-family: 'Segoe UI', sans-serif; }
+        .status-active { color: #3fb950; text-shadow: 0 0 10px rgba(63, 185, 80, 0.4); }
+        .status-alert { color: #f85149; text-shadow: 0 0 10px rgba(248, 81, 73, 0.4); }
+        .brain-name { font-weight: bold; color: #58a6ff; }
+        .metric-group { display: flex; gap: 20px; margin-top: 10px; }
+        .metric-item { flex: 1; }
+        .mini-label { font-size: 0.65em; color: #8b949e; }
+        .mini-value { font-size: 1.1em; font-weight: bold; }
+        #conn-status { border-radius: 20px; padding: 4px 12px; border: 1px solid currentColor; }
     </style>
 </head>
 <body>
-    <h1>🦅 PHOENIX ASCENDANT WEB TERMINAL</h1>
+    <h1>
+        <span>🦅 PHOENIX GAUNTLET V2.3 <small style="font-size: 0.5em; vertical-align: middle; opacity: 0.7;">INSTITUTIONAL PRO</small></span>
+        <span id="conn-status" style="font-size: 0.35em; color: #f85149;">DISCONNECTED</span>
+    </h1>
+
     <div class="grid">
         <div class="card">
-            <div class="label">EQUITY</div>
+            <div class="label">Balance & Liquidity</div>
             <div id="equity" class="value">$0.00</div>
+            <div class="metric-group">
+                <div class="metric-item">
+                    <div class="mini-label">DRAWDOWN</div>
+                    <div id="drawdown" class="mini-value status-active">0.00%</div>
+                </div>
+                <div class="metric-item">
+                    <div class="mini-label">AVG SPREAD</div>
+                    <div id="spread" class="mini-value">0.0</div>
+                </div>
+                <div class="metric-item">
+                    <div class="mini-label">CANDLE</div>
+                    <div id="timer" class="mini-value">--:--</div>
+                </div>
+            </div>
         </div>
+
         <div class="card">
-            <div class="label">DRAWDOWN</div>
-            <div id="drawdown" class="value">0.00%</div>
+            <div class="label">Engine Orchestrator</div>
+            <div id="engine-status" class="value status-active" style="font-size: 1.8em;">CONNECTED</div>
+            <div class="metric-group">
+                <div class="metric-item">
+                    <div class="mini-label">THROUGHPUT</div>
+                    <div id="msgs-rx" class="mini-value">0 RX</div>
+                </div>
+                <div class="metric-item">
+                    <div class="mini-label">LATENCY</div>
+                    <div id="latency" class="mini-value">0.00ms</div>
+                </div>
+                <div class="metric-item">
+                    <div class="mini-label">CLIENTS</div>
+                    <div id="active-clients" class="mini-value">0</div>
+                </div>
+            </div>
         </div>
-        <div class="card">
-            <div class="label">SYSTEM STATUS</div>
-            <div id="status" class="value">CONNECTING...</div>
+
+        <div class="card" style="grid-column: 1 / -1; background: #0d1117;">
+            <div class="label" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>Brain Cluster Matrix Telemetry</span>
+                <span id="brain-count" style="background: #1f6feb; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.9em;">0 UNITS</span>
+            </div>
+            <table id="brain-table">
+                <thead>
+                    <tr>
+                        <th>BRAIN UNIT</th>
+                        <th>PID</th>
+                        <th>CPU %</th>
+                        <th>MEM (MB)</th>
+                        <th>MESSAGES</th>
+                        <th>LATENCY (MS)</th>
+                        <th>STATUS</th>
+                    </tr>
+                </thead>
+                <tbody id="brain-body">
+                    <!-- Dynamic Rows -->
+                </tbody>
+            </table>
         </div>
     </div>
+
     <script>
         const ws = new WebSocket("ws://" + window.location.host + "/ws");
+        const connStatus = document.getElementById('conn-status');
+
+        ws.onopen = () => {
+            connStatus.innerText = 'CONNECTED';
+            connStatus.style.color = '#3fb950';
+        };
+
+        ws.onclose = () => {
+            connStatus.innerText = 'DISCONNECTED';
+            connStatus.style.color = '#f85149';
+        };
+
         ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            document.getElementById('equity').innerText = '$' + data.equity.toLocaleString();
-            document.getElementById('drawdown').innerText = data.drawdown.toFixed(2) + '%';
-            document.getElementById('status').innerText = 'ACTIVE';
+            const state = JSON.parse(event.data);
+
+            // Update Account
+            const acc = state['account_stats'] || {};
+            document.getElementById('equity').innerText = '$' + (acc.equity || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
+            const dd = acc.drawdown || 0;
+            const ddElem = document.getElementById('drawdown');
+            ddElem.innerText = dd.toFixed(2) + '%';
+            ddElem.className = 'mini-value ' + (dd > 2 ? 'status-alert' : 'status-active');
+            document.getElementById('spread').innerText = (acc.spread || 0).toFixed(1);
+            document.getElementById('timer').innerText = acc.candle_timer || '--:--';
+
+            // Update Engine
+            const eng = state['engine_stats'] || {};
+            const engStatus = document.getElementById('engine-status');
+            engStatus.innerText = eng.status || 'OPTIMAL';
+            engStatus.className = 'value ' + (eng.status === 'ERROR' ? 'status-alert' : 'status-active');
+            document.getElementById('msgs-rx').innerText = (eng.msgs_rx || 0).toLocaleString() + ' RX';
+            document.getElementById('latency').innerText = ((eng.latency || 0) * 1000).toFixed(2) + 'ms';
+            document.getElementById('active-clients').innerText = eng.active_clients || 0;
+
+            // Update Brains
+            const tbody = document.getElementById('brain-body');
+            const brains = Object.keys(state).filter(k => k.startsWith('brain_health:'));
+            document.getElementById('brain-count').innerText = brains.length + ' UNITS';
+
+            tbody.innerHTML = '';
+            brains.forEach(key => {
+                const b = state[key];
+                const lastSeen = Date.now()/1000 - b.last_seen;
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="brain-name">${b.name}</td>
+                    <td style="color: #8b949e;">${b.pid}</td>
+                    <td style="font-weight: bold;">${(b.cpu || 0).toFixed(1)}%</td>
+                    <td>${(b.mem || 0).toFixed(1)}</td>
+                    <td>${(b.count || 0).toLocaleString()}</td>
+                    <td style="color: ${b.latency > 50 ? '#f85149' : '#3fb950'}">${(b.latency || 0).toFixed(2)}</td>
+                    <td class="${lastSeen > 10 ? 'status-alert' : 'status-active'}">${lastSeen > 10 ? 'OFFLINE' : 'LIVE'}</td>
+                `;
+                tbody.appendChild(row);
+            });
         };
     </script>
 </body>
