@@ -1,7 +1,7 @@
 """
-Tests for PROJECT.md — V1.9.0 (Pragmatic Realignment)
+Tests for PROJECT.md — V2.3.0-ASCENDANT (Pragmatic Realignment)
 
-These tests validate the structural and content changes introduced in the V1.9.0
+These tests validate the structural and content changes introduced in the V2.3.0-ASCENDANT
 revision of PROJECT.md.
 """
 

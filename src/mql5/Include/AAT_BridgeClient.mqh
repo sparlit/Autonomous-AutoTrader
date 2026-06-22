@@ -44,7 +44,7 @@ public:
       int slp=(int)StringToInteger(CAATProtocol::GetV(m, "sl_p")), tpp=(int)StringToInteger(CAATProtocol::GetV(m, "tp_p"));
       double pr=(a=="BUY")?SymbolInfoDouble(_Symbol, SYMBOL_ASK):SymbolInfoDouble(_Symbol, SYMBOL_BID);
       double sl=(a=="BUY")?pr-slp*_Point:pr+slp*_Point, tp=(a=="BUY")?pr+tpp*_Point:pr-tpp*_Point;
-      MqlTradeRequest req={0}; MqlTradeResult res={0}; req.action=TRADE_ACTION_DEAL; req.symbol=_Symbol; req.volume=l; req.type=(a=="BUY")?ORDER_TYPE_BUY:ORDER_TYPE_SELL; req.price=pr; req.sl=sl; req.tp=tp; req.magic=123456; req.comment=StringFormat("AAT:%d", id);
+      MqlTradeRequest req; ZeroMemory(req); MqlTradeResult res; ZeroMemory(res); req.action=TRADE_ACTION_DEAL; req.symbol=_Symbol; req.volume=l; req.type=(a=="BUY")?ORDER_TYPE_BUY:ORDER_TYPE_SELL; req.price=pr; req.sl=sl; req.tp=tp; req.magic=123456; req.comment=StringFormat("AAT:%d", id);
       bool r=OrderSendAsync(req, res); m_s.Send(CAATProtocol::BuildTRADE_ACK(id, (int)res.order, r?"":IntegerToString(res.retcode)));
    }
    void ActFS() { if(m_fs) return; for(int i=PositionsTotal()-1; i>=0; i--) { if(PositionGetSymbol(i)==_Symbol) { ulong tk=PositionGetInteger(POSITION_TICKET); double en=PositionGetDouble(POSITION_PRICE_OPEN), tp=PositionGetDouble(POSITION_TP), cu=PositionGetDouble(POSITION_PRICE_CURRENT); if(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY && cu>en+50*_Point) m_t.PositionModify(tk, en+10*_Point, tp); else if(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_SELL && cu<en-50*_Point) m_t.PositionModify(tk, en-10*_Point, tp); } } m_fs=true; }

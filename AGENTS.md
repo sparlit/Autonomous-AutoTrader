@@ -44,7 +44,7 @@ This project is indexed by GitNexus as **Autonomous-AutoTrader** (701 symbols, 7
 
 ---
 
-## 🏛️ Institutional Developer Protocol (V2.3.0)
+## 🏛️ Institutional Developer Protocol (V2.3.0-ASCENDANT)
 
 As a Jules-class engineer, you must adhere to these standards:
 
