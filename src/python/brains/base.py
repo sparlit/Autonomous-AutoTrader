@@ -25,11 +25,11 @@ class SignalPayload(BaseModel):
 class BrainContract(ABC):
     """The strict contract every Brain must follow."""
     @abstractmethod
-    def initialize(self):
+    async def initialize(self):
         """12001: Hardware and dependency setup."""
         raise NotImplementedError()
     @abstractmethod
-    async def run(self):
+    def run(self):
         """12002: Process main event loop."""
         raise NotImplementedError()
     @abstractmethod
@@ -51,12 +51,13 @@ class BaseBrain(Process, BrainContract):
         self._last_heartbeat = time.time()
         self._processed_count = 0
         self._latency_sum = 0.0
-        self.redis = FakeRedis()
+        self.redis = None # Initialized in child process
         self.max_execution_time = 0.1 # 100ms hard deadline (12101)
         self.stream_max_len = 1000 # Bounded streams to prevent OOM (12102)
 
-    def initialize(self):
+    async def initialize(self):
         """12005: Hardware and dependency setup."""
+        self.redis = FakeRedis()
         p = psutil.Process(os.getpid())
         if self.cpu_affinity:
             try:
@@ -70,10 +71,14 @@ class BaseBrain(Process, BrainContract):
 
     def run(self):
         """12006: Process entry point."""
-        self.initialize()
         signal.signal(signal.SIGTERM, self._handle_exit)
         signal.signal(signal.SIGINT, self._handle_exit)
-        asyncio.run(self._main_loop())
+        asyncio.run(self._async_run())
+
+    async def _async_run(self):
+        """Internal async entry point to ensure loop is running for initialization."""
+        await self.initialize()
+        await self._main_loop()
 
     async def _main_loop(self):
         """12007: Async execution loop with timeouts and backpressure."""
