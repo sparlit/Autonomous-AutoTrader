@@ -1,0 +1,87 @@
+2026-06-22 11:00:13,926 - root - INFO - Supervisor pinned to CPU 0
+2026-06-22 11:00:13,926 - AAT_Main - INFO - 🌌 Launching Autonomous AutoTrader: Phoenix Ascendant
+2026-06-22 11:00:13,927 - AAT_BrainRegistry - INFO - Brain registered: MarketData_1
+2026-06-22 11:00:13,927 - AAT_BrainRegistry - INFO - Brain registered: MarketData_2
+2026-06-22 11:00:13,927 - AAT_BrainRegistry - INFO - Brain registered: Indicator_1
+2026-06-22 11:00:13,927 - AAT_BrainRegistry - INFO - Brain registered: Indicator_2
+2026-06-22 11:00:13,927 - AAT_BrainRegistry - INFO - Brain registered: Indicator_3
+2026-06-22 11:00:13,927 - AAT_BrainRegistry - INFO - Brain registered: Trend_1
+2026-06-22 11:00:13,927 - AAT_BrainRegistry - INFO - Brain registered: Trend_2
+2026-06-22 11:00:13,927 - AAT_BrainRegistry - INFO - Brain registered: Liquidity_1
+2026-06-22 11:00:13,927 - AAT_BrainRegistry - INFO - Brain registered: Liquidity_2
+2026-06-22 11:00:13,928 - AAT_BrainRegistry - INFO - Brain registered: Regime_1
+2026-06-22 11:00:13,928 - AAT_BrainRegistry - INFO - Brain registered: Meta_1
+2026-06-22 11:00:13,928 - AAT_BrainRegistry - INFO - Brain registered: Contrarian_1
+2026-06-22 11:00:13,928 - AAT_BrainRegistry - INFO - Brain registered: NewsRisk_1
+2026-06-22 11:00:13,928 - AAT_BrainRegistry - INFO - Brain registered: Risk_1
+2026-06-22 11:00:13,928 - AAT_BrainRegistry - INFO - Brain registered: Risk_2
+2026-06-22 11:00:13,928 - AAT_BrainRegistry - INFO - Brain registered: Execution_1
+2026-06-22 11:00:13,928 - AAT_BrainRegistry - INFO - Brain registered: Execution_2
+2026-06-22 11:00:13,928 - AAT_BrainRegistry - INFO - Brain registered: Memory_1
+2026-06-22 11:00:13,928 - AAT_BrainRegistry - INFO - Brain registered: Monitoring_1
+2026-06-22 11:00:13,928 - AAT_BrainRegistry - INFO - Brain registered: Anomaly_1
+2026-06-22 11:00:13,928 - AAT_BrainRegistry - INFO - Brain registered: Portfolio_1
+2026-06-22 11:00:13,929 - AAT_BrainRegistry - INFO - Starting brain process: MarketData_1
+2026-06-22 11:00:13,957 - AAT_BrainRegistry - INFO - Starting brain process: MarketData_2
+2026-06-22 11:00:13,964 - AAT_BrainRegistry - INFO - Starting brain process: Indicator_1
+2026-06-22 11:00:13,974 - AAT_BaseBrain - INFO - Brain MarketData_1 pinned to cores: [2]
+2026-06-22 11:00:13,974 - AAT_BaseBrain - INFO - Brain MarketData_1 online (PID 72594)
+2026-06-22 11:00:13,976 - AAT_BrainRegistry - INFO - Starting brain process: Indicator_2
+2026-06-22 11:00:13,988 - AAT_BaseBrain - INFO - Brain MarketData_2 pinned to cores: [3]
+2026-06-22 11:00:13,988 - AAT_BaseBrain - INFO - Brain MarketData_2 online (PID 72595)
+2026-06-22 11:00:13,988 - AAT_BrainRegistry - INFO - Starting brain process: Indicator_3
+2026-06-22 11:00:13,997 - AAT_BaseBrain - WARNING - Affinity fail for Indicator_1: invalid CPU 4; choose between [0, 1, 2, 3]
+2026-06-22 11:00:13,997 - AAT_BaseBrain - INFO - Brain Indicator_1 online (PID 72596)
+2026-06-22 11:00:14,012 - AAT_BaseBrain - WARNING - Affinity fail for Indicator_2: invalid CPU 5; choose between [0, 1, 2, 3]
+2026-06-22 11:00:14,012 - AAT_BaseBrain - INFO - Brain Indicator_2 online (PID 72597)
+2026-06-22 11:00:14,022 - AAT_BrainRegistry - INFO - Starting brain process: Trend_1
+2026-06-22 11:00:14,030 - AAT_BaseBrain - WARNING - Affinity fail for Indicator_3: invalid CPU 6; choose between [0, 1, 2, 3]
+2026-06-22 11:00:14,030 - AAT_BaseBrain - INFO - Brain Indicator_3 online (PID 72599)
+2026-06-22 11:00:14,046 - AAT_BrainRegistry - INFO - Starting brain process: Trend_2
+2026-06-22 11:00:14,080 - AAT_BrainRegistry - INFO - Starting brain process: Liquidity_1
+2026-06-22 11:00:14,084 - AAT_BaseBrain - WARNING - Affinity fail for Trend_1: invalid CPU 7; choose between [0, 1, 2, 3]
+2026-06-22 11:00:14,084 - AAT_BaseBrain - INFO - Brain Trend_1 online (PID 72602)
+2026-06-22 11:00:14,100 - AAT_BrainRegistry - INFO - Starting brain process: Liquidity_2
+2026-06-22 11:00:14,106 - AAT_BaseBrain - WARNING - Affinity fail for Trend_2: invalid CPU 8; choose between [0, 1, 2, 3]
+2026-06-22 11:00:14,106 - AAT_BaseBrain - INFO - Brain Trend_2 online (PID 72603)
+2026-06-22 11:00:14,124 - AAT_BrainRegistry - INFO - Starting brain process: Regime_1
+2026-06-22 11:00:14,156 - AAT_BrainRegistry - INFO - Starting brain process: Meta_1
+2026-06-22 11:00:14,172 - AAT_BaseBrain - WARNING - Affinity fail for Liquidity_2: invalid CPU 10; choose between [0, 1, 2, 3]
+2026-06-22 11:00:14,173 - AAT_BaseBrain - INFO - Brain Liquidity_2 online (PID 72606)
+2026-06-22 11:00:14,175 - AAT_BaseBrain - WARNING - Affinity fail for Liquidity_1: invalid CPU 9; choose between [0, 1, 2, 3]
+2026-06-22 11:00:14,175 - AAT_BaseBrain - INFO - Brain Liquidity_1 online (PID 72605)
+2026-06-22 11:00:14,204 - AAT_BaseBrain - WARNING - Affinity fail for Regime_1: invalid CPU 11; choose between [0, 1, 2, 3]
+2026-06-22 11:00:14,204 - AAT_BaseBrain - INFO - Brain Regime_1 online (PID 72608)
+2026-06-22 11:00:14,323 - AAT_BrainRegistry - INFO - Starting brain process: Contrarian_1
+2026-06-22 11:00:14,413 - AAT_BaseBrain - WARNING - Affinity fail for Meta_1: invalid CPU 11; choose between [0, 1, 2, 3]
+2026-06-22 11:00:14,413 - AAT_BaseBrain - INFO - Brain Meta_1 online (PID 72612)
+2026-06-22 11:00:14,411 - AAT_BrainRegistry - INFO - Starting brain process: NewsRisk_1
+2026-06-22 11:00:14,497 - AAT_BrainRegistry - INFO - Starting brain process: Risk_1
+2026-06-22 11:00:14,534 - AAT_BaseBrain - WARNING - Affinity fail for Contrarian_1: invalid CPU 12; choose between [0, 1, 2, 3]
+2026-06-22 11:00:14,534 - AAT_BaseBrain - INFO - Brain Contrarian_1 online (PID 72613)
+2026-06-22 11:00:14,554 - AAT_BrainRegistry - INFO - Starting brain process: Risk_2
+2026-06-22 11:00:14,601 - AAT_BaseBrain - WARNING - Affinity fail for NewsRisk_1: invalid CPU 13; choose between [0, 1, 2, 3]
+2026-06-22 11:00:14,602 - AAT_BaseBrain - INFO - Brain NewsRisk_1 online (PID 72614)
+2026-06-22 11:00:14,657 - AAT_BaseBrain - WARNING - Affinity fail for Risk_1: invalid CPU 14; choose between [0, 1, 2, 3]
+2026-06-22 11:00:14,658 - AAT_BaseBrain - INFO - Brain Risk_1 online (PID 72615)
+2026-06-22 11:00:14,811 - AAT_BrainRegistry - INFO - Starting brain process: Execution_1
+2026-06-22 11:00:14,945 - AAT_BaseBrain - WARNING - Affinity fail for Risk_2: invalid CPU 15; choose between [0, 1, 2, 3]
+2026-06-22 11:00:14,946 - AAT_BaseBrain - INFO - Brain Risk_2 online (PID 72618)
+2026-06-22 11:00:14,965 - AAT_BrainRegistry - INFO - Starting brain process: Execution_2
+2026-06-22 11:00:15,068 - AAT_BaseBrain - WARNING - Affinity fail for Execution_1: invalid CPU 16; choose between [0, 1, 2, 3]
+2026-06-22 11:00:15,068 - AAT_BaseBrain - INFO - Brain Execution_1 online (PID 72619)
+2026-06-22 11:00:15,082 - AAT_BrainRegistry - INFO - Starting brain process: Memory_1
+2026-06-22 11:00:15,215 - AAT_BaseBrain - WARNING - Affinity fail for Execution_2: invalid CPU 17; choose between [0, 1, 2, 3]
+2026-06-22 11:00:15,258 - AAT_BaseBrain - INFO - Brain Execution_2 online (PID 72621)
+2026-06-22 11:00:15,502 - AAT_BrainRegistry - INFO - Starting brain process: Monitoring_1
+2026-06-22 11:00:15,561 - AAT_BaseBrain - WARNING - Affinity fail for Memory_1: invalid CPU 18; choose between [0, 1, 2, 3]
+2026-06-22 11:00:15,561 - AAT_BaseBrain - INFO - Brain Memory_1 online (PID 72622)
+2026-06-22 11:00:15,636 - AAT_BrainRegistry - INFO - Starting brain process: Anomaly_1
+2026-06-22 11:00:15,723 - AAT_BaseBrain - WARNING - Affinity fail for Monitoring_1: invalid CPU 19; choose between [0, 1, 2, 3]
+2026-06-22 11:00:15,723 - AAT_BaseBrain - INFO - Brain Monitoring_1 online (PID 72624)
+2026-06-22 11:00:15,815 - AAT_BrainRegistry - INFO - Starting brain process: Portfolio_1
+2026-06-22 11:00:16,033 - AAT_BaseBrain - WARNING - Affinity fail for Anomaly_1: invalid CPU 19; choose between [0, 1, 2, 3]
+2026-06-22 11:00:16,033 - AAT_BaseBrain - INFO - Brain Anomaly_1 online (PID 72625)
+2026-06-22 11:00:16,512 - AAT_BaseBrain - WARNING - Affinity fail for Portfolio_1: invalid CPU 19; choose between [0, 1, 2, 3]
+2026-06-22 11:00:16,512 - AAT_BaseBrain - INFO - Brain Portfolio_1 online (PID 72626)
+2026-06-22 11:00:21,879 - AAT_Bridge - INFO - Ultra-Parallel Bridge active at 127.0.0.1:5555

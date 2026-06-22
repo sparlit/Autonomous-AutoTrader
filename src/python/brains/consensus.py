@@ -26,6 +26,10 @@ class MetaBrain(BaseBrain):
         self.brain_reliability: Dict[str, float] = {}
         self.required_sources = ["Trend_1", "Indicator_1", "Liquidity_1", "Regime_1"]
 
+    async def initialize(self):
+        await super().initialize()
+        # Additional async initialization if needed
+
     async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         symbol = event.get("symbol")
         if not symbol: return None
