@@ -11,7 +11,7 @@ Ensure you have the following installed. Run these commands in **PowerShell (Adm
 1. **Python 3.11** (Required for Orchestration):
    ```powershell
    python --version
-   # Expected: Python 3.11.x
+   # Expected: Python 3.11.x or higher
    ```
 2. **Git**:
    ```powershell
@@ -95,20 +95,29 @@ You must start the components in this exact order:
 
 1. **Start the Python Brain**:
    ```powershell
-   ..\venv\Scripts\python main_engine.py
+   .\venv\Scripts\python main_engine.py
    ```
-   *Wait for: "🌌 Phoenix Ascendant Orchestrator Online."*
 
-2. **Attach MT5 Agents**:
-   - Drag `AAT_DataCollector` onto every chart you want to trade.
-   - Drag `AAT_MasterExecutor` onto **ONE** chart (any symbol).
-   - Drag `AAT_GlobalDashboard` onto a separate blank chart.
+2. **Expert Advisor (EA) Attachment Matrix**:
+
+Follow this matrix exactly to ensure the Bayesian hive receives data and executes correctly:
+
+| Expert Advisor | Symbol(s) | Timeframe (TF) | Instances | Purpose |
+| :--- | :--- | :--- | :--- | :--- |
+| **`AAT_DataCollector`** | **ALL** symbols you trade | **M1** | 1 per symbol | Data feeding (High-precision) |
+| **`AAT_MasterExecutor`**| Any **ONE** symbol | **M1** | **Exactly 1** | Global Trade Execution |
+| **`AAT_GlobalDashboard`**| Any **ONE** separate chart | **M1** | **Exactly 1** | Real-time Bayesian HUD |
+
+**How to Attach**:
+- Drag `AAT_DataCollector` onto every M1 chart for the symbols you want to trade.
+- Drag `AAT_MasterExecutor` onto **ONE** of those charts.
+- Drag `AAT_GlobalDashboard` onto a separate blank M1 chart.
 
 ---
 
 ## 📊 Monitoring
 - The **Desktop Dashboard** will open automatically.
-- The **Web Dashboard** is available at `http://127.0.0.1:8000`.
+- The **Web Dashboard** is available at `http://127.0.0.1:8009`.
 
 **Institutional Support**: Jules (God Mode)
 
@@ -120,7 +129,7 @@ You must start the components in this exact order:
 AAT is designed for institutional liquidity. Use **Major Forex Pairs** (EURUSD, GBPUSD, etc.), **Major Indices** (NAS100, US30, GER40), and **XAUUSD**.
 
 ### 2. Timeframe Strategy
-Always attach the `AAT_DataCollector` to the **M1 or M5** chart. The system performs internal MTF alignment using H1 and H4 data pushed automatically by the agent. Low timeframe attachment ensures precise execution triggers.
+Always attach the `AAT_DataCollector` to the **M1** chart. The system performs internal MTF alignment using H1 and H4 data pushed automatically by the agent. Low timeframe attachment ensures precise execution triggers.
 
 ### 3. Portfolio Scaling
 You can trade up to **20 symbols** at once. For most retail-grade VPS or desktops, we recommend **5 to 10 symbols** to maintain sub-100ms processing latency.
