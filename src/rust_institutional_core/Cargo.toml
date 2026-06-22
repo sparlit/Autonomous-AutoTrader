@@ -8,7 +8,7 @@ name = "aat_institutional_core"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.21", features = ["extension-module"] }
+pyo3 = { version = "0.29", features = ["extension-module"] }
 rayon = "1.10"
 rust_decimal = "1.35"
 rust_decimal_macros = "1.35"
