@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.so
+build/
+dist/
+target/
+*.egg-info/
+.pytest_cache/
+audit_records.db
+src/python/bridge/aat_institutional_core*

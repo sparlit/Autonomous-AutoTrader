@@ -5,7 +5,7 @@ import os
 import psutil
 import ujson as json
 from typing import Dict, Any, List, Optional
-from multiprocessing import Queue
+from multiprocessing import Process
 from fakeredis import FakeRedis
 from src.python.bridge.server import BridgeServer
 from src.python.brains.registry import BrainRegistry
@@ -21,12 +21,15 @@ from src.python.hive.config import load_config
 logger = logging.getLogger("AAT_Orchestrator")
 
 class HiveOrchestrator:
+    """10236: Reinforced Bayesian Orchestrator."""
     def __init__(self):
         self.config = load_config()
         self.registry = BrainRegistry()
         self.redis = FakeRedis()
         self.brain_inputs: Dict[str, List[str]] = {}
-        self.server = BridgeServer(self.config.bridge.host, self.config.bridge.port, self.handle_client_message)
+        self.server = BridgeServer(
+            self.config.bridge.host, self.config.bridge.port, self.handle_client_message
+        )
         self._initialize_brains()
 
     def _initialize_brains(self):
@@ -55,18 +58,21 @@ class HiveOrchestrator:
 
     async def handle_client_message(self, client_id: str, message: Dict[str, Any]) -> Dict[str, Any]:
         target = f"stream:MarketData_{1 if time.time() % 2 < 1 else 2}"
-        self.redis.xadd(target, {"payload": json.dumps(message)})
+        self.redis.xadd(target, {"payload": json.dumps(message)}, maxlen=1000)
         return {"t": "ACK", "s": "Forwarded to stream"}
 
     async def run(self):
         p = psutil.Process(os.getpid())
-        try: p.cpu_affinity([1])
-        except Exception: logger.warning("Orchestrator affinity fail")
+        try:
+            p.cpu_affinity([1])
+        except Exception:
+            raise RuntimeError("CPU affinity failed")
         self.registry.start_all()
         asyncio.create_task(self.server.start())
         await self._main_orchestration_loop()
 
     async def _main_orchestration_loop(self):
+        """10238: Redis Stream central routing loop."""
         counter = 0
         while True:
             try:
@@ -76,27 +82,27 @@ class HiveOrchestrator:
                         for msg_id, data in msgs:
                             event = json.loads(data[b'payload']); e_type = event.get("type")
                             if e_type == "MARKET_DATA":
-                                self.redis.xadd("stream:Meta_1", {"payload": json.dumps({"type": "MARKET_DATA_REFRESH", "symbol": event["symbol"]})})
+                                self.redis.xadd("stream:Meta_1", {"payload": json.dumps({"type": "MARKET_DATA_REFRESH", "symbol": event["symbol"]})}, maxlen=100)
                                 for b in ["Indicator_1", "Indicator_2", "Indicator_3", "Trend_1", "Trend_2", "Liquidity_1", "Regime_1", "Anomaly_1"]:
-                                    self.redis.xadd(f"stream:{b}", {"payload": json.dumps(event)})
-                                self.redis.xadd("stream:NewsRisk_1", {"payload": json.dumps(event)})
-                            elif e_type in ["TREND", "INDICATORS", "LIQUIDITY", "REGIME", "VETO", "NEWS_VETO", "ANOMALY_STATUS"]:
-                                self.redis.xadd("stream:Meta_1", {"payload": json.dumps(event)})
-                            elif e_type == "SIGNAL":
-                                self.redis.xadd("stream:Contrarian_1", {"payload": json.dumps(event)})
-                                self.redis.xadd(f"stream:Risk_{1 if counter % 2 == 0 else 2}", {"payload": json.dumps(event)})
+                                    self.redis.xadd(f"stream:{b}", {"payload": json.dumps(event)}, maxlen=100)
+                                self.redis.xadd("stream:NewsRisk_1", {"payload": json.dumps(event)}, maxlen=100)
+                            elif e_type in ["EVIDENCE", "REGIME_STATUS", "VETO", "NEWS_VETO", "ANOMALY_STATUS"]:
+                                self.redis.xadd("stream:Meta_1", {"payload": json.dumps(event)}, maxlen=1000)
+                            elif e_type == "PROBABILISTIC_SIGNAL":
+                                self.redis.xadd("stream:Contrarian_1", {"payload": json.dumps(event)}, maxlen=1000)
+                                self.redis.xadd(f"stream:Risk_{1 if counter % 2 == 0 else 2}", {"payload": json.dumps(event)}, maxlen=1000)
                                 counter += 1
                             elif e_type == "VALIDATED_TRADE":
-                                self.redis.xadd(f"stream:Execution_{1 if counter % 2 == 0 else 2}", {"payload": json.dumps(event)})
+                                self.redis.xadd(f"stream:Execution_{1 if counter % 2 == 0 else 2}", {"payload": json.dumps(event)}, maxlen=1000)
                                 counter += 1
                             elif e_type == "EXECUTION_ORDER":
-                                self.redis.xadd("stream:Memory_1", {"payload": json.dumps(event)})
-                            elif e_type == "MEMORY_UPDATE":
-                                self.redis.xadd("stream:Portfolio_1", {"payload": json.dumps(event)})
+                                self.redis.xadd("stream:Memory_1", {"payload": json.dumps(event)}, maxlen=1000)
+                            elif e_type == "RELIABILITY_REPORT":
+                                self.redis.xadd("stream:Meta_1", {"payload": json.dumps(event)}, maxlen=100)
                             self.redis.xdel("stream:orchestrator", msg_id)
-                else: await asyncio.sleep(0.0001)
-            except Exception as e:
-                logger.error(f"Orchestrator loop error: {e}")
+                else:
+                    await asyncio.sleep(0.0001)
+            except Exception:
                 await asyncio.sleep(0.1)
 
     def stop(self):

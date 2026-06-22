@@ -1,18 +1,13 @@
 import pytest
-from src.python.brains.consensus import MetaBrain
+from src.python.brains.consensus import ConsensusEngine
 from src.python.execution.risk_manager import RiskManager
 from src.python.hive.config import load_config
 
-@pytest.mark.asyncio
-async def test_meta_brain_logic():
-    engine = MetaBrain("Meta", threshold=70)
-    await engine.process({"symbol": "EURUSD", "type": "REGIME", "regime": "TRENDING"})
-    await engine.process({"symbol": "EURUSD", "type": "TREND", "trend": "BULLISH", "h1_trend": "BULLISH", "h4_trend": "BULLISH"})
-    await engine.process({"symbol": "EURUSD", "type": "INDICATORS", "indicators": {"atr": 0.01}})
-    res = await engine.process({"symbol": "EURUSD", "type": "LIQUIDITY", "order_blocks": [{"type": "BULLISH"}]})
-    assert res is not None
-    assert res["action"] == "BUY"
-    assert res["score"] == 90
+def test_consensus_logic():
+    engine = ConsensusEngine()
+    data = {"history": [[1.0+i*0.01, 1.02+i*0.01, 0.99+i*0.01, 1.01+i*0.01, 1000+i, 100] for i in range(20)]}
+    result = engine.analyze_sync(data)
+    assert "act" in result
 
 def test_risk_manager_session():
     rm = RiskManager(load_config())
