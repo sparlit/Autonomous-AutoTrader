@@ -76,6 +76,17 @@ class BridgeServer:
             try: await writer.wait_closed()
             except: raise
 
+    async def broadcast(self, message: Dict[str, Any]):
+        """13006: Broadcast message to all connected clients."""
+        payload = json.dumps(message).encode() + b"\n"
+        for client_id, writer in list(self.clients.items()):
+            try:
+                writer.write(payload)
+                await writer.drain()
+                self.stats["msgs_tx"] += 1
+            except Exception as e:
+                logger.error(f"Broadcast failed to {client_id}: {e}")
+
     async def start(self):
         """
         Start the TCP server and listen indefinitely for client connections.

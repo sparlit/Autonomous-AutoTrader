@@ -233,7 +233,17 @@ class ExecutionBrain(BaseBrain):
     async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         if event.get("type") == "VALIDATED_TRADE":
             logger.info(f"Bayesian Actuation: {event['action']} {event['symbol']} P={event['probability']:.2f}")
-            return {"type": "EXECUTION_ORDER", "symbol": event["symbol"], "action": event["action"], "lots": event["lots"], "sl": event["sl_pts"], "tp": event["tp_pts"], "evidence_trail": event.get("evidence_trail")}
+            return {
+                "type": "EXECUTION_ORDER",
+                "t": "DEC",
+                "id": int(time.time()),
+                "s": event["symbol"],
+                "act": event["action"],
+                "lts": event["lots"],
+                "sl_p": event["sl_pts"],
+                "tp_p": event["tp_pts"],
+                "evidence_trail": event.get("evidence_trail")
+            }
         return None
 
 class AnomalyBrain(BaseBrain):

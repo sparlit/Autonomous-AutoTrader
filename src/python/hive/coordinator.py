@@ -97,6 +97,8 @@ class HiveOrchestrator:
                                 counter += 1
                             elif e_type == "EXECUTION_ORDER":
                                 self.redis.xadd("stream:Memory_1", {"payload": json.dumps(event)}, maxlen=1000)
+                                # 10240: Async broadcast to all MT5 clients
+                                asyncio.create_task(self.server.broadcast(event))
                             elif e_type == "RELIABILITY_REPORT":
                                 self.redis.xadd("stream:Meta_1", {"payload": json.dumps(event)}, maxlen=100)
                             self.redis.xdel("stream:orchestrator", msg_id)
