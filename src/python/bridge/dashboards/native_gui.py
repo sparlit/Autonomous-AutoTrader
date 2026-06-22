@@ -19,10 +19,8 @@ class NativeDashboard(Process):
         logging.basicConfig(level=logging.INFO, format="%(asctime)s - NativeGUI - %(levelname)s - %(message)s")
         logger = logging.getLogger("AAT_NativeGUI")
 
-        # Check for DISPLAY environment variable
-        if 'DISPLAY' not in os.environ:
-            logger.warning("DISPLAY environment variable not found. Skipping Native GUI launch.")
-            return
+        # Removed DISPLAY check for Windows compatibility
+        logger.info("Initializing Native Dashboard GUI...")
 
         try:
             dpg.create_context()
