@@ -13,19 +13,27 @@ private:
    double m_l_pr, m_p_th; bool m_syn, m_fs, m_u_d;
 public:
    CAATBridgeClient() : m_l_hb(0), m_l_dp(0), m_hb_i(10000), m_l_pr(0), m_p_th(0.0005), m_syn(false), m_fs(false), m_u_d(false) { m_t.SetExpertMagicNumber(123456); }
-   bool Init(string h, int p, bool ud=false, int hi=10) { m_h=h; m_p=p; m_u_d=ud; m_hb_i=hi*1000; m_l_hb=GetTickCount(); if(m_u_d) m_d.Create("AAT_Dash", 320, 450); m_s.Connect(m_h, m_p); return true; }
+   bool Init(string h, int p, bool ud=false, int hi=10) {
+      m_h=h; m_p=p; m_u_d=ud; m_hb_i=hi*1000; m_l_hb=GetTickCount();
+      if(m_u_d) {
+         m_d.Create("AAT_Dash", 320, 450);
+         m_d.Render(_Symbol, "INITIALIZING", 0.5, "NEUTRAL", 0.0);
+      }
+      m_s.Connect(m_h, m_p);
+      return true;
+   }
    void OnTick() {
       if(!m_s.IsConnected()) { m_s.Connect(m_h, m_p); m_syn=false; if(GetTickCount()-m_l_hb>60000) ActFS(); return; }
       m_fs=false; if(!m_syn) { if(m_s.Send(CAATProtocol::BuildSYNC(_Symbol))) m_syn=true; return; }
       uint n=GetTickCount(); double cp=SymbolInfoDouble(_Symbol, SYMBOL_BID);
 
-      // Heartbeat independent of data push
       if(n-m_l_hb>m_hb_i) { if(m_s.Send(CAATProtocol::BuildHEARTBEAT(_Symbol, AccountInfoDouble(ACCOUNT_EQUITY), 0.0))) m_l_hb=n; }
-
-      // Data push frequency check
       if(m_l_pr==0 || MathAbs(cp-m_l_pr)>=m_p_th || n-m_l_dp>60000) { if(m_s.Send(CAATProtocol::BuildDATA_PUSH(_Symbol, _Period, 100))) { m_l_dp=n; m_l_pr=cp; } }
 
       Proc(); if(n%500==0) Cln();
+      if(m_u_d && n % 1000 == 0) { // Keep clock ticking
+          m_d.Render(_Symbol, "ACTIVE", 0.5, "NEUTRAL", 0.0);
+      }
    }
    void Proc() {
       while(true) {
@@ -43,11 +51,12 @@ public:
    }
    void HandleTlm(string m) {
       if(!m_u_d) return;
+      string sym = CAATProtocol::GetV(m, "s"); if(sym == "") sym = _Symbol;
       string st = CAATProtocol::GetV(m, "st");
       double scr = StringToDouble(CAATProtocol::GetV(m, "scr"));
       string htf = CAATProtocol::GetV(m, "htf");
       double dd = StringToDouble(CAATProtocol::GetV(m, "dd"));
-      m_d.Render(_Symbol, st, scr, htf, dd);
+      m_d.Render(sym, st, scr, htf, dd);
    }
    void HandleMgmt(string j) {
       string a=CAATProtocol::GetV(j, "act"); long tk=StringToInteger(CAATProtocol::GetV(j, "tk"));

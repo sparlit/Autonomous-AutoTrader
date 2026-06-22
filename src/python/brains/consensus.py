@@ -37,7 +37,8 @@ class MetaBrain(BaseBrain):
         state = self.symbol_state[symbol]; e_type = event.get("type")
 
         if e_type == "MARKET_DATA_REFRESH":
-            self.symbol_state[symbol] = self._new_state()
+            # 12604: Soft Refresh (Don't wipe evidence trail)
+            state["received_sources"] = set()
             return None
 
         if e_type == "RELIABILITY_REPORT":
@@ -79,16 +80,17 @@ class MetaBrain(BaseBrain):
                 state["atr"] = event["data"].get("atr", state["atr"])
                 state["rsi"] = event["data"].get("rsi", state["rsi"])
 
-        # Broadcast Telemetry on every update
-        telemetry = {
-            "type": "TELEMETRY",
-            "symbol": symbol,
-            "st": "ACTIVE",
-            "scr": round(state["prior"], 4),
-            "htf": state["htf_trend"],
-            "dd": 0.0 # Account drawdown handled by bridge
-        }
-        self.publish(telemetry)
+        # Broadcast Telemetry on every evidence update or regime change
+        if e_type in ["EVIDENCE", "REGIME_STATUS"]:
+            telemetry = {
+                "type": "TELEMETRY",
+                "symbol": symbol,
+                "st": "ACTIVE",
+                "scr": round(state["prior"], 4),
+                "htf": state["htf_trend"],
+                "dd": 0.0 # Account drawdown handled by bridge
+            }
+            self.publish(telemetry)
 
         if all(src in state["received_sources"] for src in self.required_sources):
             if state["prior"] >= self.threshold and not state["veto"]:
@@ -97,10 +99,11 @@ class MetaBrain(BaseBrain):
                     res = {
                         "type": "PROBABILISTIC_SIGNAL", "symbol": symbol, "action": action,
                         "probability": state["prior"], "regime": state["regime"], "atr": state["atr"], "rsi": state["rsi"],
-                        "evidence_trail": state["evidence_trail"],
+                        "evidence_trail": list(state["evidence_trail"]),
                         "explainability": [f"{e['source']} ({e['reliability']:.2f}): {'+' if e['impact'] >= 0 else ''}{e['impact']:.2f} -> P={e['posterior']:.2f}" for e in state['evidence_trail']]
                     }
-                    state["received_sources"] = set()
+                    # Reset state for next cycle
+                    self.symbol_state[symbol] = self._new_state()
                     return res
         return None
 
