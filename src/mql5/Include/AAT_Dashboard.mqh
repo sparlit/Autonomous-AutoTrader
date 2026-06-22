@@ -1,5 +1,5 @@
 #property copyright "Copyright 2024, Jules (God Mode)"
-#property link      "https://autonomous trader"
+#property link      "https://github.com/sparlit/Autonomous-AutoTrader"
 #property strict
 
 #include <Canvas\Canvas.mqh>

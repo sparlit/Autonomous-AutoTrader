@@ -1,5 +1,5 @@
 #property copyright "Copyright 2024, Jules (God Mode)"
-#property link      "https://autonomous trader"
+#property link      "https://github.com/sparlit/Autonomous-AutoTrader"
 #property strict
 #include <AAT_NativeSockets.mqh>
 #include <AAT_Protocol.mqh>
