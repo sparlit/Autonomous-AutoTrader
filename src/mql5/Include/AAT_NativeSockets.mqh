@@ -70,7 +70,7 @@ string CAATNativeSocket::Receive()
          m_receive_buffer += CharArrayToString(buffer, 0, received, CP_UTF8);
          end_pos = StringFind(m_receive_buffer, "\n");
          if(end_pos >= 0) { string msg = StringSubstr(m_receive_buffer, 0, end_pos); m_receive_buffer = StringSubstr(m_receive_buffer, end_pos + 1); return msg; }
-      } else if(received < 0 && GetLastError() != ERR_NET_SOCKET_NO_DATA) { Disconnect(); }
+      } else if(received < 0 && GetLastError() != ERR_NET_SOCKET_TIMEOUT) { Disconnect(); }
    }
    return "";
 }

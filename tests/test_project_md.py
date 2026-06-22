@@ -195,7 +195,7 @@ class TestCoreValuesSection(unittest.TestCase):
         self.values_block = match.group(0) if match else ""
 
     def test_core_values_section_exists(self):
-        self.assertIn("Core Values (V7.1.0)", self.content)
+        self.assertIn("Core Values (V2.3.0-ASCENDANT - Zero-Tolerance)", self.content)
 
     def test_sovereignty_value_present(self):
         self.assertIn("Sovereignty", self.values_block)

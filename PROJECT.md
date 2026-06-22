@@ -1,12 +1,12 @@
 # 🌌 Project Autonomous AutoTrader (AAT)
 **Internal Code-Name**: Phoenix Gauntlet
-**Version**: V2.3.0-ASCENDANT
+**Version**: V2.3.0-ASCENDANT (Institutional Pro)
 
 ## 📖 1. Project Identity & Vision
 AAT operates under a Zero-Tolerance Standard for stubs and placeholders.
 AAT is a high-probability, autonomous trading system engineered for MetaTrader 5, powered by a Python-based "Brain." It operates on the principle of **Defensive Alpha**: capital preservation is the primary objective; profit is a secondary outcome of discipline.
 
-### 💎 Core Values (V7.1.0)
+### 💎 Core Values (V2.3.0-ASCENDANT - Zero-Tolerance)
 - **Sovereignty:** 100% FOSS. Your data, your keys, your execution.
 - **Transparency:** No black boxes. Every decision is logged, audited, and verifiable.
 - **Python + MT5:** Leveraging the best of both ecosystems.
@@ -88,3 +88,6 @@ To resolve logic conflicts, AAT uses a hierarchical decision engine:
 ## 📜 13. Appendices
 - Institutional Reality Audit: PostgreSQL mandatory for governance.
 - SQLite is not for Audit.
+
+## 🛡️ Zero-Tolerance Standard
+AAT enforces a 100% Zero-Tolerance standard across all tiers.
