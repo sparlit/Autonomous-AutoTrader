@@ -13,7 +13,7 @@ private:
    double m_l_pr, m_p_th; bool m_syn, m_fs, m_u_d;
 public:
    CAATBridgeClient() : m_l_hb(0), m_l_dp(0), m_hb_i(10000), m_l_pr(0), m_p_th(0.0005), m_syn(false), m_fs(false), m_u_d(false) { m_t.SetExpertMagicNumber(123456); }
-   bool Init(string h, int p, bool ud=false, int hi=10) { m_h=h; m_p=p; m_u_d=ud; m_hb_i=hi*1000; m_l_hb=GetTickCount(); if(m_u_d) m_d.Create("AAT_Dash", 320, 400); return m_s.Connect(m_h, m_p); }
+   bool Init(string h, int p, bool ud=false, int hi=10) { m_h=h; m_p=p; m_u_d=ud; m_hb_i=hi*1000; m_l_hb=GetTickCount(); if(m_u_d) m_d.Create("AAT_Dash", 320, 400); m_s.Connect(m_h, m_p); return true; }
    void OnTick() {
       if(!m_s.IsConnected()) { m_s.Connect(m_h, m_p); m_syn=false; if(GetTickCount()-m_l_hb>60000) ActFS(); return; }
       m_fs=false; if(!m_syn) { if(m_s.Send(CAATProtocol::BuildSYNC(_Symbol))) m_syn=true; return; }

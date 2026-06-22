@@ -20,7 +20,7 @@ bool warmup_done = false;
 
 int OnInit()
 {
-   if(!socket.Connect("127.0.0.1", 5555)) return INIT_FAILED;
+   socket.Connect("127.0.0.1", 5555);
    return INIT_SUCCEEDED;
 }
 
