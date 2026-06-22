@@ -4,7 +4,6 @@ ujson>=5.0
 numpy>=2.0.0
 pandas>=2.0.0
 psutil>=5.9.0
-fakeredis>=2.0.0
 redis>=5.0.0
 aiosqlite>=0.20.0
 polars>=1.0.0

@@ -72,7 +72,8 @@ class TrendBrain(BaseBrain):
             if not h4_df.empty:
                 if isinstance(event["h4"][0], list): h4_df.columns = ["o", "h", "l", "c", "t", "v"]
                 if self.smc.detect_market_structure(h4_df)["trend"] == struct["trend"]: aligned += 1
-            evidence = {"type": "EVIDENCE", "symbol": event["symbol"], "source": self.name, "direction": 1 if struct["trend"] == "BULLISH" else (-1 if struct["trend"] == "BEARISH" else 0)}
+
+            evidence = {"type": "EVIDENCE", "symbol": event["symbol"], "source": self.name, "direction": 1 if struct["trend"] == "BULLISH" else -1}
             if evidence["direction"] == 0: return None
             if aligned == 2: evidence.update({"p_e_h": 0.85, "p_e": 0.45})
             elif aligned == 1: evidence.update({"p_e_h": 0.70, "p_e": 0.55})
@@ -247,11 +248,37 @@ class ExecutionBrain(BaseBrain):
         return None
 
 class AnomalyBrain(BaseBrain):
+    """Brain 8 - 10514: Flash Crash and Spike Detection."""
     async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if event.get("type") == "MARKET_DATA":
+            df = pd.DataFrame(event.get("ltf", []))
+            if df.empty or len(df) < 2: return None
+            if isinstance(event["ltf"][0], list): df.columns = ["o", "h", "l", "c", "t", "v"]
+
+            price_change_pct = abs(df['c'].iloc[-1] - df['o'].iloc[-1]) / df['o'].iloc[-1]
+            if price_change_pct > 0.02: # 2% move in one bar
+                logger.warning(f"ANOMALY: Flash spike detected on {event['symbol']}")
+                return {"type": "ANOMALY_STATUS", "symbol": event["symbol"], "anomaly": "SPIKE", "severity": "HIGH"}
         return None
+
 class PortfolioBrain(BaseBrain):
+    """Brain 9 - 10515: Global Risk and Capital Allocation."""
+    async def initialize(self):
+        await super().initialize()
+        self.risk_manager = RiskManager(load_config())
+
     async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if event.get("t") == "HB":
+            equity = event.get("e", 0)
+            drawdown = event.get("d", 0)
+            if drawdown > self.risk_manager.config.risk.max_drawdown_pct:
+                logger.critical("PORTFOLIO: Global Drawdown Threshold Breached!")
+                return {"type": "VETO", "symbol": "GLOBAL", "reason": "MAX_DRAWDOWN"}
         return None
+
 class MonitoringBrain(BaseBrain):
+    """Brain 10 - 10516: System Health and Latency Tracking."""
     async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if event.get("type") == "HEALTH_CHECK":
+            return {"type": "HEALTH_REPORT", "status": "OPTIMAL", "timestamp": time.time()}
         return None

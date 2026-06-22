@@ -1,3 +1,4 @@
+from typing import Any
 import pandas as pd
 import datetime
 from typing import Optional
@@ -9,8 +10,8 @@ class DayMaster(BaseBrain):
     Focus: Breakout of 07:00-08:00 UTC range.
     Magic: 20201
     """
-    def __init__(self, name: str):
-        super().__init__(name)
+    def __init__(self, name: str, ipc: Any = None):
+        super().__init__(name, ipc=ipc)
         self.magic = 20201
 
     async def process(self, data: dict) -> Optional[SignalPayload]:

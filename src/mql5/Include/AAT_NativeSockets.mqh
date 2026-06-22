@@ -1,10 +1,10 @@
 //+------------------------------------------------------------------+
 //|                                           AAT_NativeSockets.mqh |
 //|                                  Copyright 2024, Jules (God Mode)|
-//|                                       https://autonomous trader |
+//|                                       https://github.com/sparlit/Autonomous-AutoTrader |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, Jules (God Mode)"
-#property link      "https://autonomous trader"
+#property link      "https://github.com/sparlit/Autonomous-AutoTrader"
 #ifndef ERR_NET_SOCKET_TIMEOUT
 #define ERR_NET_SOCKET_TIMEOUT 5273
 #endif
