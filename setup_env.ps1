@@ -28,3 +28,5 @@ if (Test-Path 'src\rust_institutional_core') {
 }
 
 Write-Host '[SUCCESS] environment ready. Launch with: .\venv\Scripts\python main_engine.py' -ForegroundColor Green
+
+.\venv\Scripts\python main_engine.py
