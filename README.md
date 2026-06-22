@@ -34,12 +34,12 @@ AAT utilizes a hybrid architecture designed for maximum reliability and zero-lat
    ```
 3. **Compile Rust Kernels** (Requires Rust toolchain):
    ```bash
-   cd src/rust_core && maturin develop
+   cd src/rust_institutional_core && maturin develop
    # Repeat for rust_heavy and rust_brain (if present)
    ```
 4. **Launch the Engine**:
    ```bash
-   python main_engine.py
+   ..\venv\Scripts\python main_engine.py
    ```
    *Expected: `Ultra-Parallel Bridge active at 127.0.0.1:5555`.*
 

@@ -46,7 +46,7 @@ Run these commands one-by-one in your terminal:
    ```
 4. **Compile Performance Kernels (Rust)**:
    ```powershell
-   cd src/rust_core
+   cd src/rust_institutional_core
    maturin develop
    cd ../..
    ```
@@ -95,7 +95,7 @@ You must start the components in this exact order:
 
 1. **Start the Python Brain**:
    ```powershell
-   python main_engine.py
+   ..\venv\Scripts\python main_engine.py
    ```
    *Wait for: "🌌 Phoenix Ascendant Orchestrator Online."*
 

@@ -20,11 +20,11 @@ Write-Host '[INFO] Installing Dependencies...' -ForegroundColor Yellow
 & .\venv\Scripts\pip install polars torch scikit-learn xgboost fastapi dearpygui maturin psutil fakeredis
 
 # 4. Build Rust Kernels
-if (Test-Path 'src\rust_core') {
-    Write-Host '[INFO] Building Rust Core Kernel...' -ForegroundColor Yellow
-    Set-Location src\rust_core
+if (Test-Path 'src\rust_institutional_core') {
+    Write-Host '[INFO] Building Rust Institutional Core Kernel...' -ForegroundColor Yellow
+    Set-Location src\rust_institutional_core
     & ..\..\venv\Scripts\maturin develop
     Set-Location ..\..
 }
 
-Write-Host '[SUCCESS] environment ready. Launch with: python main_engine.py' -ForegroundColor Green
+Write-Host '[SUCCESS] environment ready. Launch with: .\venv\Scripts\python main_engine.py' -ForegroundColor Green
