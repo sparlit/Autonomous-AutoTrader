@@ -1,3 +1,4 @@
+from typing import Any
 import pandas as pd
 import numpy as np
 from typing import Optional
@@ -8,8 +9,8 @@ class SupertrendTrend(BaseBrain):
     Institutional Supertrend implementation.
     FOSS Strategy Implementation.
     """
-    def __init__(self, name: str):
-        super().__init__(name)
+    def __init__(self, name: str, ipc: Any = None):
+        super().__init__(name, ipc=ipc)
         self.magic = 2007
 
     async def process(self, data: dict) -> Optional[SignalPayload]:
