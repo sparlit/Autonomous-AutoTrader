@@ -5,6 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, Jules (God Mode)"
 #property link      "https://autonomous trader"
+#ifndef ERR_NET_SOCKET_NO_DATA
+#define ERR_NET_SOCKET_NO_DATA 5273
+#endif
 #property strict
 
 class CAATNativeSocket

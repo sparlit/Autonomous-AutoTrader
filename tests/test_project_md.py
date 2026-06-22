@@ -1,7 +1,7 @@
 """
-Tests for PROJECT.md — V1.9.0 (Pragmatic Realignment)
+Tests for PROJECT.md — V2.3.0-ASCENDANT (Pragmatic Realignment)
 
-These tests validate the structural and content changes introduced in the V1.9.0
+These tests validate the structural and content changes introduced in the V2.3.0-ASCENDANT
 revision of PROJECT.md.
 """
 
@@ -23,10 +23,10 @@ class TestVersionBump(unittest.TestCase):
         self.content = _read_md()
 
     def test_title_contains_v1_9_0(self):
-        self.assertIn("Version**: 1.9.0", self.content)
+        self.assertIn("Version**: V2.3.0-ASCENDANT", self.content)
 
     def test_operational_mode_is_v1_9_0(self):
-        self.assertIn("Version**: 1.9.0", self.content)
+        self.assertIn("Version**: V2.3.0-ASCENDANT", self.content)
 
 
 class TestInstitutionalRealityAuditSection(unittest.TestCase):

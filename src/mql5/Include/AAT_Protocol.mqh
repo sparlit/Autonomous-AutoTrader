@@ -28,9 +28,9 @@ public:
    static string GetMsgType(string j) { string t = GetV(j, "t"); return (t=="HB")?"HEARTBEAT":(t=="DP")?"DATA_PUSH":(t=="PNG")?"PING":(t=="DEC")?"DECISION":(t=="T_ACK")?"TRADE_ACK":(t=="SYNC")?"SYNC":t; }
    static string GetV(string j, string k) {
       string s = "\"" + k + "\":"; int p = StringFind(j, s); if(p<0) return "";
-      int st = p + StringLen(s); uchar fc = StringGetCharacter(j, st); int e = -1;
+      int st = p + StringLen(s); ushort fc = StringGetCharacter(j, st); int e = -1;
       if(fc == '\"') { st++; e = StringFind(j, "\"", st); }
-      else if(fc == '[') { int d = 0; for(int i=st; i<StringLen(j); i++) { uchar c=StringGetCharacter(j, i); if(c=='[') d++; if(c==']') d--; if(d==0) {e=i+1; break;} } }
+      else if(fc == '[') { int d = 0; for(int i=st; i<StringLen(j); i++) { ushort c=StringGetCharacter(j, i); if(c=='[') d++; if(c==']') d--; if(d==0) {e=i+1; break;} } }
       else { e = StringFind(j, ",", st); if(e<0) e = StringFind(j, "}", st); }
       if(e<0) return ""; string v = StringSubstr(j, st, e-st); StringReplace(v, "\"", ""); return v;
    }
