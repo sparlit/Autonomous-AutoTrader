@@ -9,13 +9,13 @@ public:
 
    static string BuildHEARTBEAT(string s, double e, double d) {
       double spread = SymbolInfoDouble(s, SYMBOL_ASK) - SymbolInfoDouble(s, SYMBOL_BID);
-      int digits = (int)SymbolInfoInteger(s, SYMBOL_DIGITS);
       double pt = SymbolInfoDouble(s, SYMBOL_POINT);
-      double spread_pts = spread / pt;
+      double spread_pts = (pt > 0) ? spread / pt : 0;
 
       datetime candle_end = (datetime)SeriesInfoInteger(s, _Period, SERIES_LASTBAR_DATE) + PeriodSeconds(_Period);
       long remaining = candle_end - TimeCurrent();
-      string timer = StringFormat("%02d:%02d", remaining / 60, remaining % 60);
+      if(remaining < 0) remaining = 0;
+      string timer = StringFormat("%02d:%02d", (int)(remaining / 60), (int)(remaining % 60));
 
       return StringFormat("{\"t\":\"HB\",\"s\":\"%s\",\"e\":%.2f,\"d\":%.2f,\"sp\":%.1f,\"ct\":\"%s\"}", s, e, d, spread_pts, timer);
    }
@@ -25,7 +25,8 @@ public:
       string h_h1 = BuildH(s, PERIOD_H1, 50);
       string h_h4 = BuildH(s, PERIOD_H4, 30);
 
-      double spread = (SymbolInfoDouble(s, SYMBOL_ASK) - SymbolInfoDouble(s, SYMBOL_BID)) / SymbolInfoDouble(s, SYMBOL_POINT);
+      double pt = SymbolInfoDouble(s, SYMBOL_POINT);
+      double spread = (pt > 0) ? (SymbolInfoDouble(s, SYMBOL_ASK) - SymbolInfoDouble(s, SYMBOL_BID)) / pt : 0;
 
       return StringFormat("{\"t\":\"DP\",\"s\":\"%s\",\"tf\":%d,\"bi\":%.5f,\"as\":%.5f,\"sp\":%.1f,\"tv\":%.5f,\"ts\":%.5f,\"ltf\":%s,\"h1\":%s,\"h4\":%s}",
                           s, (int)tf, SymbolInfoDouble(s, SYMBOL_BID), SymbolInfoDouble(s, SYMBOL_ASK), spread,
@@ -51,15 +52,34 @@ public:
       tks += "]"; return StringFormat("{\"t\":\"SYNC\",\"s\":\"%s\",\"tk\":%s}", s, tks);
    }
 
-   static string GetMsgType(string j) { string t = GetV(j, "t"); return (t=="HB")?"HEARTBEAT":(t=="DP")?"DATA_PUSH":(t=="PNG")?"PING":(t=="DEC")?"DECISION":(t=="T_ACK")?"TRADE_ACK":(t=="SYNC")?"SYNC":t; }
+   static string GetMsgType(string j) {
+      string t = GetV(j, "t");
+      if(t == "HB") return "HEARTBEAT";
+      if(t == "DP") return "DATA_PUSH";
+      if(t == "PNG") return "PING";
+      if(t == "DEC") return "DECISION";
+      if(t == "TLM") return "TELEMETRY";
+      if(t == "T_ACK") return "TRADE_ACK";
+      if(t == "SYNC") return "SYNC";
+      return t;
+   }
 
    static string GetV(string j, string k) {
       string s = "\"" + k + "\":"; int p = StringFind(j, s); if(p<0) return "";
       int st = p + StringLen(s); ushort fc = StringGetCharacter(j, st); int e = -1;
+
+      // Skip whitespace
+      while(fc == ' ' || fc == '\t' || fc == '\r' || fc == '\n') { st++; fc = StringGetCharacter(j, st); }
+
       if(fc == '\"') { st++; e = StringFind(j, "\"", st); }
       else if(fc == '[') { int d = 0; for(int i=st; i<StringLen(j); i++) { ushort c=StringGetCharacter(j, i); if(c=='[') d++; if(c==']') d--; if(d==0) {e=i+1; break;} } }
+      else if(fc == '{') { int d = 0; for(int i=st; i<StringLen(j); i++) { ushort c=StringGetCharacter(j, i); if(c=='{') d++; if(c=='}') d--; if(d==0) {e=i+1; break;} } }
       else { e = StringFind(j, ",", st); if(e<0) e = StringFind(j, "}", st); }
-      if(e<0) return ""; string v = StringSubstr(j, st, e-st); StringReplace(v, "\"", ""); return v;
+
+      if(e<0) return "";
+      string v = StringSubstr(j, st, e-st);
+      // Do NOT replace double quotes here, handle per-type
+      return v;
    }
 
 private:

@@ -147,6 +147,17 @@ class HiveOrchestrator:
                                 asyncio.create_task(self.server.broadcast(event))
                             elif e_type == "RELIABILITY_REPORT":
                                 self.ipc.xadd("stream:Meta_1", {"payload": json.dumps(event)}, maxlen=100)
+                            elif e_type == "TELEMETRY":
+                                # 13007: Broadcast Bayesian telemetry to MT5 clients
+                                telemetry_msg = {
+                                    "t": "TLM",
+                                    "s": event["symbol"],
+                                    "st": event["st"],
+                                    "scr": event["scr"],
+                                    "htf": event["htf"],
+                                    "dd": event["dd"]
+                                }
+                                asyncio.create_task(self.server.broadcast(telemetry_msg))
                             elif e_type == "EMERGENCY_KILL":
                                 logger.critical("EMERGENCY KILL RECEIVED FROM DASHBOARD")
                                 self.stop()

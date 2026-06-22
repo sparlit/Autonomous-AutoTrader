@@ -54,7 +54,8 @@ bool CAATDashboard::Create(string name, int w, int h)
 
 void CAATDashboard::Render(string symbol, string status, double score, string htf_trend, double drawdown)
 {
-   m_canvas.Erase(ColorToARGB(m_clr_bg, 240));
+   // Erase with high opacity to ensure it's not invisible
+   m_canvas.Erase(ColorToARGB(m_clr_bg, 255));
 
    DrawHeader();
 
@@ -66,15 +67,18 @@ void CAATDashboard::Render(string symbol, string status, double score, string ht
 
    datetime candle_end = (datetime)SeriesInfoInteger(symbol, _Period, SERIES_LASTBAR_DATE) + PeriodSeconds(_Period);
    long remaining = candle_end - TimeCurrent();
-   string timer = StringFormat("%02d:%02d", remaining / 60, remaining % 60);
+   if(remaining < 0) remaining = 0;
+   string timer = StringFormat("%02d:%02d", (int)(remaining / 60), (int)(remaining % 60));
    DrawSection(20, y, "CANDLE", timer, clrCyan); y += 35;
 
    m_canvas.Line(10, y, m_width-10, y, ColorToARGB(m_clr_header)); y += 20;
 
-   color signal_clr = (score > 0) ? m_clr_neon_green : (score < 0 ? m_clr_neon_red : m_clr_text);
-   DrawSection(20, y, "SIGNAL", (score > 0 ? "BULLISH BIAS" : (score < 0 ? "BEARISH BIAS" : "NEUTRAL")), signal_clr); y += 35;
+   // Bayesian Logic: score is 0.0 to 1.0, pivot at 0.5
+   color signal_clr = (score > 0.5) ? m_clr_neon_green : (score < 0.5 ? m_clr_neon_red : m_clr_text);
+   string bias = (score > 0.55) ? "BULLISH BIAS" : (score < 0.45 ? "BEARISH BIAS" : "NEUTRAL");
+   DrawSection(20, y, "SIGNAL", bias, signal_clr); y += 35;
 
-   DrawSection(20, y, "POSTERIOR", DoubleToString(MathAbs(score), 2), signal_clr); y += 35;
+   DrawSection(20, y, "POSTERIOR", DoubleToString(score, 2), signal_clr); y += 35;
 
    color htf_clr = (htf_trend == "BULLISH") ? m_clr_neon_green : (htf_trend == "BEARISH" ? m_clr_neon_red : m_clr_text);
    DrawSection(20, y, "HTF ALIGN", htf_trend, htf_clr); y += 35;
@@ -84,7 +88,7 @@ void CAATDashboard::Render(string symbol, string status, double score, string ht
    DrawAccountSection(y); y += 70;
 
    m_canvas.FontSet("Lucida Console", -10, FW_NORMAL);
-   m_canvas.TextOut(m_width/2, m_height - 15, "ENGINE: " + status, ColorToARGB(m_clr_neon_green), TA_CENTER);
+   m_canvas.TextOut(m_width/2, m_height - 15, "ENGINE: " + status, (status == "ACTIVE" ? ColorToARGB(m_clr_neon_green) : ColorToARGB(m_clr_neon_red)), TA_CENTER);
 
    m_canvas.Update();
 }

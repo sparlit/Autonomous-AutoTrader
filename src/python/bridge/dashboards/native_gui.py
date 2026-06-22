@@ -110,7 +110,10 @@ class NativeDashboard(Process):
         dpg.show_viewport()
 
         while dpg.is_dearpygui_running():
-            self._update_from_ipc()
+            try:
+                self._update_from_ipc()
+            except Exception as e:
+                logger.error(f"UI Update Error: {e}")
             dpg.render_dearpygui_frame()
 
         dpg.destroy_context()
