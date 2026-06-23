@@ -36,6 +36,10 @@ class HiveOrchestrator:
         self._initialize_ipc_queues() # Essential for Windows compatibility
         self._initialize_dashboards()
 
+        # 13011: Initialize state immediately to avoid empty dashboards
+        self.ipc.set_state("account_stats", {"equity": 0.0, "drawdown": 0.0, "spread": 0.0, "candle_timer": "--:--"})
+        self.ipc.set_state("engine_stats", {"status": "STARTING", "msgs_rx": 0, "msgs_tx": 0, "latency": 0.0, "active_clients": 0})
+
     def _initialize_brains(self):
         self.brain_inputs["MarketData"] = ["stream:MarketData_1", "stream:MarketData_2"]
         self.registry.register(MarketDataBrain("MarketData_1", cpu_affinity=[2], ipc=self.ipc))
@@ -81,7 +85,7 @@ class HiveOrchestrator:
     async def handle_client_message(self, client_id: str, message: Dict[str, Any]) -> Dict[str, Any]:
         m_type = message.get("t")
         if m_type == "HB":
-            # 13010: Persistent account stat synchronization
+            logger.info(f"MT5 Heartbeat: {message.get('s')} | Equity: {message.get('e')}")
             self.ipc.set_state("account_stats", {
                 "equity": message.get("e", 0.0),
                 "drawdown": message.get("d", 0.0),
@@ -90,7 +94,6 @@ class HiveOrchestrator:
                 "last_update": time.time()
             })
 
-        # Route to Brains
         target = f"stream:MarketData_{1 if time.time() % 2 < 1 else 2}"
         self.ipc.xadd(target, {"payload": json.dumps(message)}, maxlen=1000)
         return {"t": "ACK"}

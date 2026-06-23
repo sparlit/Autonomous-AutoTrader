@@ -1,126 +1,75 @@
 #property copyright "Copyright 2024, Jules (God Mode)"
 #property link      "https://github.com/sparlit/Autonomous-AutoTrader"
 #property strict
-
 #include <Canvas\Canvas.mqh>
 
 class CAATDashboard
 {
 private:
-   CCanvas           m_canvas;
-   int               m_width;
-   int               m_height;
-   string            m_name;
-
-   color             m_clr_bg;
-   color             m_clr_header;
-   color             m_clr_neon_green;
-   color             m_clr_neon_red;
-   color             m_clr_text;
-   color             m_clr_dim;
+   CCanvas m_canvas;
+   int m_width, m_height;
+   string m_name;
+   color m_bg, m_hdr, m_grn, m_red, m_txt, m_dim;
 
 public:
-                     CAATDashboard();
-                    ~CAATDashboard();
+   CAATDashboard() : m_name("AAT_Dash"), m_width(320), m_height(450) {
+      m_bg = C'15,20,30'; m_hdr = C'30,40,60'; m_grn = C'57,255,20'; m_red = C'FF,49,18'; m_txt = clrWhite; m_dim = clrGray;
+   }
+   ~CAATDashboard() { m_canvas.Destroy(); }
 
-   bool              Create(string name, int w, int h);
-   void              Render(string symbol, string status, double score, string htf_trend, double drawdown);
-   void              DrawHeader();
-   void              DrawSection(int x, int y, string title, string val, color clr);
-   void              DrawAccountSection(int y);
+   bool Create(string name, int w, int h) {
+      m_name = name; m_width = w; m_height = h;
+      if(!m_canvas.CreateBitmapLabel(m_name, 10, 30, m_width, m_height, COLOR_FORMAT_XRGB_NOALPHA)) return false;
+      m_canvas.Erase(ColorToARGB(m_bg, 255));
+      m_canvas.Update();
+      return true;
+   }
+
+   void Render(string symbol, string status, double score, string htf_trend, double drawdown) {
+      m_canvas.Erase(ColorToARGB(m_bg, 255));
+      m_canvas.FillRectangle(0, 0, m_width, 45, ColorToARGB(m_hdr, 255));
+      m_canvas.FontSet("Lucida Console", -14, FW_BOLD);
+      m_canvas.TextOut(m_width/2, 22, "PHOENIX GAUNTLET PRO", ColorToARGB(m_txt), TA_CENTER|TA_VCENTER);
+
+      int y = 60;
+      DrawS(20, y, "SYMBOL", symbol + " [" + EnumToString(_Period) + "]", m_txt); y += 35;
+      double pt = SymbolInfoDouble(symbol, SYMBOL_POINT);
+      double sp = (pt > 0) ? (SymbolInfoDouble(symbol, SYMBOL_ASK) - SymbolInfoDouble(symbol, SYMBOL_BID)) / pt : 0;
+      DrawS(20, y, "SPREAD", DoubleToString(sp, 1) + " pts", (sp > 20 ? m_red : m_txt)); y += 35;
+
+      datetime last_bar = (datetime)SeriesInfoInteger(symbol, _Period, SERIES_LASTBAR_DATE);
+      long rem = (long)last_bar + PeriodSeconds(_Period) - (long)TimeCurrent();
+      if(rem < 0) rem = 0;
+      DrawS(20, y, "CANDLE", StringFormat("%02d:%02d", (int)(rem/60), (int)(rem%60)), clrCyan); y += 35;
+      m_canvas.Line(10, y, m_width-10, y, ColorToARGB(m_hdr)); y += 20;
+
+      color s_clr = (score > 0.55) ? m_grn : (score < 0.45 ? m_red : m_txt);
+      string bias = (score > 0.55) ? "BULLISH BIAS" : (score < 0.45 ? "BEARISH BIAS" : "NEUTRAL");
+      DrawS(20, y, "SIGNAL", bias, s_clr); y += 35;
+      DrawS(20, y, "POSTERIOR", DoubleToString(score, 2), s_clr); y += 35;
+      color h_clr = (htf_trend == "BULLISH") ? m_grn : (htf_trend == "BEARISH" ? m_red : m_txt);
+      DrawS(20, y, "HTF ALIGN", htf_trend, h_clr); y += 35;
+      m_canvas.Line(10, y, m_width-10, y, ColorToARGB(m_hdr)); y += 20;
+
+      m_canvas.FontSet("Lucida Console", -11, FW_BOLD);
+      m_canvas.TextOut(20, y, "ACCOUNT TELEMETRY", ColorToARGB(m_dim)); y += 25;
+
+      double eq = AccountInfoDouble(ACCOUNT_EQUITY);
+      double bal = AccountInfoDouble(ACCOUNT_BALANCE);
+      double dd = (bal > 0) ? (1.0 - eq/bal) * 100.0 : 0;
+
+      m_canvas.TextOut(20, y, "EQUITY: $" + DoubleToString(eq, 2), ColorToARGB(m_txt)); y += 20;
+      m_canvas.TextOut(20, y, "DRAWDOWN: " + DoubleToString(dd, 2) + "%", ColorToARGB(dd > 2 ? m_red : m_grn)); y += 40;
+
+      m_canvas.FontSet("Lucida Console", -10, FW_NORMAL);
+      m_canvas.TextOut(m_width/2, m_height - 15, "ENGINE: " + status, (status == "ACTIVE" ? ColorToARGB(m_grn) : ColorToARGB(m_red)), TA_CENTER);
+      m_canvas.Update();
+   }
+
+   void DrawS(int x, int y, string t, string v, color c) {
+      m_canvas.FontSet("Lucida Console", -11, FW_NORMAL);
+      m_canvas.TextOut(x, y, t + ":", ColorToARGB(m_dim));
+      m_canvas.FontSet("Lucida Console", -13, FW_BOLD);
+      m_canvas.TextOut(x + 110, y - 1, v, ColorToARGB(c));
+   }
 };
-
-CAATDashboard::CAATDashboard() : m_name("AAT_Dash"), m_width(320), m_height(450)
-{
-   m_clr_bg = C'15,20,30';
-   m_clr_header = C'30,40,60';
-   m_clr_neon_green = C'57,255,20';
-   m_clr_neon_red = C'FF,49,18';
-   m_clr_text = clrWhite;
-   m_clr_dim = clrGray;
-}
-
-CAATDashboard::~CAATDashboard()
-{
-   m_canvas.Destroy();
-}
-
-bool CAATDashboard::Create(string name, int w, int h)
-{
-   m_name = name; m_width = w; m_height = h;
-   if(!m_canvas.CreateBitmapLabel(m_name, 10, 30, m_width, m_height, COLOR_FORMAT_XRGB_NOALPHA)) return false;
-   return true;
-}
-
-void CAATDashboard::Render(string symbol, string status, double score, string htf_trend, double drawdown)
-{
-   if(!m_canvas.IsCreate()) return;
-   m_canvas.Erase(ColorToARGB(m_clr_bg));
-
-   DrawHeader();
-
-   int y = 60;
-   m_canvas.FontSet("Lucida Console", -11, FW_NORMAL);
-   DrawSection(20, y, "SYMBOL", symbol + " [" + EnumToString(_Period) + "]", m_clr_text); y += 35;
-
-   double pt = SymbolInfoDouble(symbol, SYMBOL_POINT);
-   double spread = (pt > 0) ? (SymbolInfoDouble(symbol, SYMBOL_ASK) - SymbolInfoDouble(symbol, SYMBOL_BID)) / pt : 0;
-   DrawSection(20, y, "SPREAD", DoubleToString(spread, 1) + " pts", (spread > 20 ? m_clr_neon_red : m_clr_text)); y += 35;
-
-   datetime candle_end = (datetime)SeriesInfoInteger(symbol, _Period, SERIES_LASTBAR_DATE) + PeriodSeconds(_Period);
-   long remaining = candle_end - TimeCurrent();
-   if(remaining < 0) remaining = 0;
-   string timer = StringFormat("%02d:%02d", (int)(remaining / 60), (int)(remaining % 60));
-   DrawSection(20, y, "CANDLE", timer, clrCyan); y += 35;
-
-   m_canvas.Line(10, y, m_width-10, y, ColorToARGB(m_clr_header)); y += 20;
-
-   color signal_clr = (score > 0.5) ? m_clr_neon_green : (score < 0.5 ? m_clr_neon_red : m_clr_text);
-   string bias = (score > 0.55) ? "BULLISH BIAS" : (score < 0.45 ? "BEARISH BIAS" : "NEUTRAL");
-   DrawSection(20, y, "SIGNAL", bias, signal_clr); y += 35;
-
-   DrawSection(20, y, "POSTERIOR", DoubleToString(score, 2), signal_clr); y += 35;
-
-   color htf_clr = (htf_trend == "BULLISH") ? m_clr_neon_green : (htf_trend == "BEARISH" ? m_clr_neon_red : m_clr_text);
-   DrawSection(20, y, "HTF ALIGN", htf_trend, htf_clr); y += 35;
-
-   m_canvas.Line(10, y, m_width-10, y, ColorToARGB(m_clr_header)); y += 20;
-
-   DrawAccountSection(y);
-
-   m_canvas.FontSet("Lucida Console", -10, FW_NORMAL);
-   m_canvas.TextOut(m_width/2, m_height - 15, "ENGINE: " + status, (status == "ACTIVE" ? ColorToARGB(m_clr_neon_green) : ColorToARGB(m_clr_neon_red)), TA_CENTER);
-
-   m_canvas.Update();
-}
-
-void CAATDashboard::DrawHeader()
-{
-   m_canvas.FillRectangle(0, 0, m_width, 45, ColorToARGB(m_clr_header));
-   m_canvas.FontSet("Lucida Console", -14, FW_BOLD);
-   m_canvas.TextOut(m_width/2, 22, "PHOENIX GAUNTLET PRO", ColorToARGB(m_clr_text), TA_CENTER|TA_VCENTER);
-}
-
-void CAATDashboard::DrawSection(int x, int y, string title, string val, color clr)
-{
-   m_canvas.FontSet("Lucida Console", -11, FW_NORMAL);
-   m_canvas.TextOut(x, y, title + ":", ColorToARGB(m_clr_dim));
-   m_canvas.FontSet("Lucida Console", -13, FW_BOLD);
-   m_canvas.TextOut(x + 110, y - 1, val, ColorToARGB(clr));
-}
-
-void CAATDashboard::DrawAccountSection(int y)
-{
-   double equity = AccountInfoDouble(ACCOUNT_EQUITY);
-   double balance = AccountInfoDouble(ACCOUNT_BALANCE);
-   double dd = (balance > 0) ? (1.0 - equity/balance) * 100.0 : 0;
-
-   m_canvas.FontSet("Lucida Console", -11, FW_BOLD);
-   m_canvas.TextOut(20, y, "ACCOUNT TELEMETRY", ColorToARGB(m_clr_dim));
-
-   y += 25;
-   m_canvas.FontSet("Lucida Console", -12, FW_BOLD);
-   m_canvas.TextOut(20, y, "EQUITY: $" + DoubleToString(equity, 2), ColorToARGB(m_clr_text));
-   y += 20;
-   m_canvas.TextOut(20, y, "DRAWDOWN: " + DoubleToString(dd, 2) + "%", ColorToARGB(dd > 2 ? m_clr_neon_red : m_clr_neon_green));
-}
