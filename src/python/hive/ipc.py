@@ -58,7 +58,8 @@ class HiveIPC:
                 q = self.get_queue(stream_name)
                 msgs = []
                 for _ in range(count):
-                    if q.empty(): break
+                    if q.empty():
+                        break
                     msgs.append(("msg_id", {b'payload': q.get_nowait().get("payload")}))
                 if msgs:
                     results.append((stream_name, msgs))
