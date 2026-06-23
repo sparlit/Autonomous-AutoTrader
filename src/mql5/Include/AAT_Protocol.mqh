@@ -38,11 +38,12 @@ public:
    static string BuildSYNC(string s) {
       string tks = "["; bool first = true;
       for(int i=0; i<PositionsTotal(); i++) {
-         if(PositionGetSymbol(i) == s) {
+         ulong tk = PositionGetTicket(i);
+         if(PositionSelectByTicket(tk) && PositionGetString(POSITION_SYMBOL) == s) {
             if(!first) tks += ",";
             tks += StringFormat("{\"tk\":%lld,\"type\":%d,\"vol\":%.2f,\"tp\":%.5f,\"sl\":%.5f}",
-               PositionGetInteger(POSITION_TICKET),
-               PositionGetInteger(POSITION_TYPE),
+               (long)tk,
+               (int)PositionGetInteger(POSITION_TYPE),
                PositionGetDouble(POSITION_VOLUME),
                PositionGetDouble(POSITION_TP),
                PositionGetDouble(POSITION_SL));
@@ -66,11 +67,15 @@ public:
 
    static string GetV(string j, string k) {
       string s = "\"" + k + "\":"; int p = StringFind(j, s); if(p<0) return "";
-      int st = p + StringLen(s); ushort fc = StringGetCharacter(j, st); int e = -1;
+      int st = p + StringLen(s);
+      if(st >= StringLen(j)) return "";
+
+      ushort fc = StringGetCharacter(j, st);
 
       // Skip whitespace
-      while(fc == ' ' || fc == '\t' || fc == '\r' || fc == '\n') { st++; fc = StringGetCharacter(j, st); }
+      while((fc == ' ' || fc == '\t' || fc == '\r' || fc == '\n') && st < StringLen(j)-1) { st++; fc = StringGetCharacter(j, st); }
 
+      int e = -1;
       if(fc == '\"') { st++; e = StringFind(j, "\"", st); }
       else if(fc == '[') { int d = 0; for(int i=st; i<StringLen(j); i++) { ushort c=StringGetCharacter(j, i); if(c=='[') d++; if(c==']') d--; if(d==0) {e=i+1; break;} } }
       else if(fc == '{') { int d = 0; for(int i=st; i<StringLen(j); i++) { ushort c=StringGetCharacter(j, i); if(c=='{') d++; if(c=='}') d--; if(d==0) {e=i+1; break;} } }
@@ -78,7 +83,6 @@ public:
 
       if(e<0) return "";
       string v = StringSubstr(j, st, e-st);
-      // Do NOT replace double quotes here, handle per-type
       return v;
    }
 

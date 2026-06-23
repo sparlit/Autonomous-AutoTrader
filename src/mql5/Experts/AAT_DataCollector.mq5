@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, Jules (God Mode)"
 #property link      "https://github.com/sparlit/Autonomous-AutoTrader"
-#property version   "1.20"
+#property version   "1.21"
 #property strict
 
 #include <AAT_BridgeClient.mqh>
@@ -26,10 +26,10 @@ void OnDeinit(const int reason)
 
 void OnTick()
 {
-   bridge.Update();
+   bridge.PerformUpdate();
 }
 
 void OnTimer()
 {
-   bridge.Update();
+   bridge.PerformUpdate();
 }

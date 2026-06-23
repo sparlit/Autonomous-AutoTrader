@@ -48,7 +48,7 @@ CAATDashboard::~CAATDashboard()
 bool CAATDashboard::Create(string name, int w, int h)
 {
    m_name = name; m_width = w; m_height = h;
-   // Use XRGB to avoid transparency issues on some GPUs
+   // Use XRGB to ensure opacity on all platforms
    if(!m_canvas.CreateBitmapLabel(m_name, 10, 30, m_width, m_height, COLOR_FORMAT_XRGB_NOALPHA)) return false;
    return true;
 }
@@ -60,9 +60,11 @@ void CAATDashboard::Render(string symbol, string status, double score, string ht
    DrawHeader();
 
    int y = 60;
+   m_canvas.FontSet("Lucida Console", -11, FW_NORMAL);
    DrawSection(20, y, "SYMBOL", symbol + " [" + EnumToString(_Period) + "]", m_clr_text); y += 35;
 
-   double spread = (SymbolInfoDouble(symbol, SYMBOL_ASK) - SymbolInfoDouble(symbol, SYMBOL_BID)) / (SymbolInfoDouble(symbol, SYMBOL_POINT) > 0 ? SymbolInfoDouble(symbol, SYMBOL_POINT) : 1);
+   double pt = SymbolInfoDouble(symbol, SYMBOL_POINT);
+   double spread = (pt > 0) ? (SymbolInfoDouble(symbol, SYMBOL_ASK) - SymbolInfoDouble(symbol, SYMBOL_BID)) / pt : 0;
    DrawSection(20, y, "SPREAD", DoubleToString(spread, 1) + " pts", (spread > 20 ? m_clr_neon_red : m_clr_text)); y += 35;
 
    datetime candle_end = (datetime)SeriesInfoInteger(symbol, _Period, SERIES_LASTBAR_DATE) + PeriodSeconds(_Period);

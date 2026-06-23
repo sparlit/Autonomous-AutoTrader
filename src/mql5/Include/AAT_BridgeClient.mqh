@@ -22,11 +22,11 @@ public:
       Print("AAT Bridge Client: Connecting to ", m_h, ":", m_p);
       return m_s.Connect(m_h, m_p, 10000);
    }
-   void Update() {
+   void PerformUpdate() {
       if(!m_s.IsConnected()) {
          if(m_s.Connect(m_h, m_p)) { Print("AAT Bridge: Reconnected."); m_syn=false; }
          else {
-            if(m_u_d) m_d.Render(_Symbol, "DISCONNECTED", 0.5, "NEUTRAL", 0.0);
+            if(m_u_d) m_d.Render(_Symbol, "OFFLINE", 0.5, "NEUTRAL", 0.0);
             if(GetTickCount()-m_l_hb>60000) ActFS();
             return;
          }
@@ -53,7 +53,7 @@ public:
    }
    void Proc() {
       int limit=0;
-      while(limit < 10) {
+      while(limit < 20) {
          string m=m_s.Receive(); if(m=="") break;
          string t=CAATProtocol::GetMsgType(m);
          if(t=="DECISION") {
@@ -100,7 +100,18 @@ public:
       bool r=OrderSendAsync(req, res);
       m_s.Send(CAATProtocol::BuildTRADE_ACK(id, (int)res.order, r?"":IntegerToString(res.retcode)));
    }
-   void ActFS() { if(m_fs) return; for(int i=PositionsTotal()-1; i>=0; i--) { if(PositionGetSymbol(i)==_Symbol) { ulong tk=PositionGetInteger(POSITION_TICKET); double en=PositionGetDouble(POSITION_PRICE_OPEN), tp=PositionGetDouble(POSITION_TP), cu=PositionGetDouble(POSITION_PRICE_CURRENT); if(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY && cu>en+50*_Point) m_t.PositionModify(tk, en+10*_Point, tp); else if(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_SELL && cu<en-50*_Point) m_t.PositionModify(tk, en-10*_Point, tp); } } m_fs=true; }
+   void ActFS() {
+      if(m_fs) return;
+      for(int i=PositionsTotal()-1; i>=0; i--) {
+         ulong tk=PositionGetTicket(i);
+         if(PositionSelectByTicket(tk) && PositionGetString(POSITION_SYMBOL)==_Symbol) {
+            double en=PositionGetDouble(POSITION_PRICE_OPEN), tp=PositionGetDouble(POSITION_TP), cu=PositionGetDouble(POSITION_PRICE_CURRENT);
+            if(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY && cu>en+50*_Point) m_t.PositionModify(tk, en+10*_Point, tp);
+            else if(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_SELL && cu<en-50*_Point) m_t.PositionModify(tk, en-10*_Point, tp);
+         }
+      }
+      m_fs=true;
+   }
    void Cln() { datetime lt=iTime(_Symbol, _Period, 50); for(int i=ObjectsTotal(0)-1; i>=0; i--) { string n=ObjectName(0, i); if(StringFind(n, "OB_")==0 || StringFind(n, "AAT_")==0) { if((datetime)ObjectGetInteger(0, n, OBJPROP_TIME, 0)<lt) ObjectDelete(0, n); } } }
    void Drw(string j) { if(StringFind(j, "RECTANGLE")>=0) { string n=CAATProtocol::GetV(j, "name"); double t=StringToDouble(CAATProtocol::GetV(j, "top")), b=StringToDouble(CAATProtocol::GetV(j, "bottom")); if(!ObjectCreate(0, n, OBJ_RECTANGLE, 0, TimeCurrent(), t, TimeCurrent()-86400, b)) { ObjectMove(0, n, 0, TimeCurrent(), t); ObjectMove(0, n, 1, TimeCurrent()-86400, b); } ObjectSetInteger(0, n, OBJPROP_COLOR, clrDodgerBlue); ObjectSetInteger(0, n, OBJPROP_BACK, true); } }
 };
