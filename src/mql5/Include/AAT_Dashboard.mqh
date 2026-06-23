@@ -48,13 +48,13 @@ CAATDashboard::~CAATDashboard()
 bool CAATDashboard::Create(string name, int w, int h)
 {
    m_name = name; m_width = w; m_height = h;
-   // Use XRGB to ensure opacity on all platforms
    if(!m_canvas.CreateBitmapLabel(m_name, 10, 30, m_width, m_height, COLOR_FORMAT_XRGB_NOALPHA)) return false;
    return true;
 }
 
 void CAATDashboard::Render(string symbol, string status, double score, string htf_trend, double drawdown)
 {
+   if(!m_canvas.IsCreate()) return;
    m_canvas.Erase(ColorToARGB(m_clr_bg));
 
    DrawHeader();
@@ -86,7 +86,7 @@ void CAATDashboard::Render(string symbol, string status, double score, string ht
 
    m_canvas.Line(10, y, m_width-10, y, ColorToARGB(m_clr_header)); y += 20;
 
-   DrawAccountSection(y); y += 70;
+   DrawAccountSection(y);
 
    m_canvas.FontSet("Lucida Console", -10, FW_NORMAL);
    m_canvas.TextOut(m_width/2, m_height - 15, "ENGINE: " + status, (status == "ACTIVE" ? ColorToARGB(m_clr_neon_green) : ColorToARGB(m_clr_neon_red)), TA_CENTER);
@@ -120,7 +120,7 @@ void CAATDashboard::DrawAccountSection(int y)
 
    y += 25;
    m_canvas.FontSet("Lucida Console", -12, FW_BOLD);
-   m_canvas.TextOut(20, y, "EQUITY:  $" + DoubleToString(equity, 2), ColorToARGB(m_clr_text));
+   m_canvas.TextOut(20, y, "EQUITY: $" + DoubleToString(equity, 2), ColorToARGB(m_clr_text));
    y += 20;
    m_canvas.TextOut(20, y, "DRAWDOWN: " + DoubleToString(dd, 2) + "%", ColorToARGB(dd > 2 ? m_clr_neon_red : m_clr_neon_green));
 }

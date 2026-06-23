@@ -17,7 +17,9 @@ public:
       if(remaining < 0) remaining = 0;
       string timer = StringFormat("%02d:%02d", (int)(remaining / 60), (int)(remaining % 60));
 
-      return StringFormat("{\"t\":\"HB\",\"s\":\"%s\",\"e\":%.2f,\"d\":%.2f,\"sp\":%.1f,\"ct\":\"%s\"}", s, e, d, spread_pts, timer);
+      return "{\"t\":\"HB\",\"s\":\"" + s + "\",\"e\":" + DoubleToString(e, 2) +
+             ",\"d\":" + DoubleToString(d, 2) + ",\"sp\":" + DoubleToString(spread_pts, 1) +
+             ",\"ct\":\"" + timer + "\"}";
    }
 
    static string BuildDATA_PUSH(string s, ENUM_TIMEFRAMES tf, int c) {
@@ -28,12 +30,21 @@ public:
       double pt = SymbolInfoDouble(s, SYMBOL_POINT);
       double spread = (pt > 0) ? (SymbolInfoDouble(s, SYMBOL_ASK) - SymbolInfoDouble(s, SYMBOL_BID)) / pt : 0;
 
-      return StringFormat("{\"t\":\"DP\",\"s\":\"%s\",\"tf\":%d,\"bi\":%.5f,\"as\":%.5f,\"sp\":%.1f,\"tv\":%.5f,\"ts\":%.5f,\"ltf\":%s,\"h1\":%s,\"h4\":%s}",
-                          s, (int)tf, SymbolInfoDouble(s, SYMBOL_BID), SymbolInfoDouble(s, SYMBOL_ASK), spread,
-                          SymbolInfoDouble(s, SYMBOL_TRADE_TICK_VALUE), SymbolInfoDouble(s, SYMBOL_TRADE_TICK_SIZE), h_ltf, h_h1, h_h4);
+      string res = "{\"t\":\"DP\",\"s\":\"" + s + "\",\"tf\":" + IntegerToString((int)tf) +
+                   ",\"bi\":" + DoubleToString(SymbolInfoDouble(s, SYMBOL_BID), 5) +
+                   ",\"as\":" + DoubleToString(SymbolInfoDouble(s, SYMBOL_ASK), 5) +
+                   ",\"sp\":" + DoubleToString(spread, 1) +
+                   ",\"tv\":" + DoubleToString(SymbolInfoDouble(s, SYMBOL_TRADE_TICK_VALUE), 5) +
+                   ",\"ts\":" + DoubleToString(SymbolInfoDouble(s, SYMBOL_TRADE_TICK_SIZE), 5) +
+                   ",\"ltf\":" + h_ltf +
+                   ",\"h1\":" + h_h1 +
+                   ",\"h4\":" + h_h4 + "}";
+      return res;
    }
 
-   static string BuildTRADE_ACK(int id, int tk, string err) { return StringFormat("{\"t\":\"T_ACK\",\"id\":%d,\"tk\":%d,\"err\":\"%s\"}", id, tk, err); }
+   static string BuildTRADE_ACK(int id, int tk, string err) {
+      return "{\"t\":\"T_ACK\",\"id\":" + IntegerToString(id) + ",\"tk\":" + IntegerToString(tk) + ",\"err\":\"" + err + "\"}";
+   }
 
    static string BuildSYNC(string s) {
       string tks = "["; bool first = true;
@@ -41,16 +52,15 @@ public:
          ulong tk = PositionGetTicket(i);
          if(PositionSelectByTicket(tk) && PositionGetString(POSITION_SYMBOL) == s) {
             if(!first) tks += ",";
-            tks += StringFormat("{\"tk\":%lld,\"type\":%d,\"vol\":%.2f,\"tp\":%.5f,\"sl\":%.5f}",
-               (long)tk,
-               (int)PositionGetInteger(POSITION_TYPE),
-               PositionGetDouble(POSITION_VOLUME),
-               PositionGetDouble(POSITION_TP),
-               PositionGetDouble(POSITION_SL));
+            tks += "{\"tk\":" + IntegerToString((long)tk) + ",\"type\":" + IntegerToString((int)PositionGetInteger(POSITION_TYPE)) +
+                   ",\"vol\":" + DoubleToString(PositionGetDouble(POSITION_VOLUME), 2) +
+                   ",\"tp\":" + DoubleToString(PositionGetDouble(POSITION_TP), 5) +
+                   ",\"sl\":" + DoubleToString(PositionGetDouble(POSITION_SL), 5) + "}";
             first = false;
          }
       }
-      tks += "]"; return StringFormat("{\"t\":\"SYNC\",\"s\":\"%s\",\"tk\":%s}", s, tks);
+      tks += "]";
+      return "{\"t\":\"SYNC\",\"s\":\"" + s + "\",\"tk\":" + tks + "}";
    }
 
    static string GetMsgType(string j) {
@@ -71,8 +81,6 @@ public:
       if(st >= StringLen(j)) return "";
 
       ushort fc = StringGetCharacter(j, st);
-
-      // Skip whitespace
       while((fc == ' ' || fc == '\t' || fc == '\r' || fc == '\n') && st < StringLen(j)-1) { st++; fc = StringGetCharacter(j, st); }
 
       int e = -1;
@@ -89,7 +97,12 @@ public:
 private:
    static string BuildH(string s, ENUM_TIMEFRAMES tf, int c) {
       MqlRates r[]; ArraySetAsSeries(r, true); int cp = CopyRates(s, tf, 0, c, r);
-      string h = "["; for(int i=cp-1; i>=0; i--) { h += StringFormat("[%.5f,%.5f,%.5f,%.5f,%lld,%lld]", r[i].open, r[i].high, r[i].low, r[i].close, (long)r[i].time, r[i].tick_volume); if(i>0) h += ","; }
+      string h = "["; for(int i=cp-1; i>=0; i--) {
+         h += "[" + DoubleToString(r[i].open, 5) + "," + DoubleToString(r[i].high, 5) + "," +
+              DoubleToString(r[i].low, 5) + "," + DoubleToString(r[i].close, 5) + "," +
+              IntegerToString((long)r[i].time) + "," + IntegerToString((long)r[i].tick_volume) + "]";
+         if(i>0) h += ",";
+      }
       h += "]"; return h;
    }
 };

@@ -9,15 +9,15 @@ class HiveIPC:
     Hardened for Windows 'spawn' compatibility."""
     def __init__(self):
         self.manager = multiprocessing.Manager()
-        self._queues: Dict[str, multiprocessing.Queue] = self.manager.dict()
+        self._queues = self.manager.dict()
         self._shared_state = self.manager.dict()
         self._lock = self.manager.Lock()
 
     def __getstate__(self):
         """Prepare state for pickling (Windows compatibility)."""
         state = self.__dict__.copy()
-        # Remove the manager and lock as they cannot be pickled
         # The proxy objects (_queues, _shared_state) are picklable.
+        # We exclude the manager and lock as they cannot be pickled directly.
         del state['manager']
         del state['_lock']
         return state
@@ -25,17 +25,14 @@ class HiveIPC:
     def __setstate__(self, state):
         """Restore state after pickling."""
         self.__dict__.update(state)
-        self.manager = None # Not available in child
-        self._lock = None   # Not available in child
+        self.manager = None
+        self._lock = None
 
     def get_queue(self, name: str) -> multiprocessing.Queue:
-        # Avoid creating excessive queues if not needed
         if name not in self._queues:
             if self._lock is None:
                 # In child process, we cannot create new queues if they don't exist
-                # because we don't have the manager/lock.
-                # This requires the parent to pre-initialize all queues.
-                raise RuntimeError(f"Queue '{name}' not found in child process and cannot be created dynamically on Windows.")
+                raise RuntimeError(f"Queue '{name}' not found in child process. Parent must pre-initialize.")
 
             with self._lock:
                 if name not in self._queues:
@@ -47,11 +44,8 @@ class HiveIPC:
         try:
             q = self.get_queue(stream)
             if q.full():
-                try:
-                    q.get_nowait()
-                except Exception:
-                    # Queue might have been cleared by another process
-                    logger.debug("Failed to get_nowait from full queue")
+                try: q.get_nowait()
+                except Exception: logger.debug("IPC cleanup")
             q.put_nowait(data)
         except Exception as e:
             logger.error(f"IPC XADD Fail on {stream}: {e}")
@@ -64,29 +58,35 @@ class HiveIPC:
                 q = self.get_queue(stream_name)
                 msgs = []
                 for _ in range(count):
-                    if q.empty():
-                        break
+                    if q.empty(): break
                     msgs.append(("msg_id", {b'payload': q.get_nowait().get("payload")}))
                 if msgs:
                     results.append((stream_name, msgs))
-            except Exception:
-                # Log or ignore error during read
-                logger.debug(f"XREAD failed for {stream_name}")
+            except Exception: logger.debug("IPC cleanup")
         return results
 
     def xdel(self, stream: str, msg_id: str):
-        """10251: Delete message (placeholder for Redis compatibility)."""
         return True
 
     def set_state(self, key: str, value: Any):
-        self._shared_state[key] = value
+        """Thread-safe state update."""
+        try:
+            self._shared_state[key] = value
+        except Exception as e:
+            logger.error(f"IPC State Set Fail: {e}")
 
     def get_state(self, key: str, default: Any = None) -> Any:
-        return self._shared_state.get(key, default)
+        """Thread-safe state retrieval."""
+        try:
+            return self._shared_state.get(key, default)
+        except Exception:
+            return default
 
     def get_all_state(self) -> Dict[str, Any]:
-        # Return a static copy to avoid proxy issues in loops
-        return dict(self._shared_state)
+        try:
+            return dict(self._shared_state)
+        except Exception:
+            return {}
 
 _ipc_instance = None
 

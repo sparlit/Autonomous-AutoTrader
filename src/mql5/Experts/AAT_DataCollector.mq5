@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, Jules (God Mode)"
 #property link      "https://github.com/sparlit/Autonomous-AutoTrader"
-#property version   "1.21"
+#property version   "1.22"
 #property strict
 
 #include <AAT_BridgeClient.mqh>

@@ -28,7 +28,7 @@ def test_hive_ipc_picklable():
     # Check that creating NEW queue in child fails (as expected by design)
     with pytest.raises(RuntimeError) as excinfo:
         unpickled_ipc.get_queue("new_stream")
-    assert "cannot be created dynamically on Windows" in str(excinfo.value)
+    assert "Parent must pre-initialize" in str(excinfo.value)
 
 if __name__ == "__main__":
     test_hive_ipc_picklable()
