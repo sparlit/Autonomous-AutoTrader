@@ -26,6 +26,7 @@ public:
    }
 
    void Render(string symbol, string status, double score, string htf_trend, double drawdown) {
+      if(!m_canvas.IsCreate()) return;
       m_canvas.Erase(ColorToARGB(m_bg, 255));
       m_canvas.FillRectangle(0, 0, m_width, 45, ColorToARGB(m_hdr, 255));
       m_canvas.FontSet("Lucida Console", -14, FW_BOLD);
@@ -53,13 +54,8 @@ public:
 
       m_canvas.FontSet("Lucida Console", -11, FW_BOLD);
       m_canvas.TextOut(20, y, "ACCOUNT TELEMETRY", ColorToARGB(m_dim)); y += 25;
-
-      double eq = AccountInfoDouble(ACCOUNT_EQUITY);
-      double bal = AccountInfoDouble(ACCOUNT_BALANCE);
-      double dd = (bal > 0) ? (1.0 - eq/bal) * 100.0 : 0;
-
-      m_canvas.TextOut(20, y, "EQUITY: $" + DoubleToString(eq, 2), ColorToARGB(m_txt)); y += 20;
-      m_canvas.TextOut(20, y, "DRAWDOWN: " + DoubleToString(dd, 2) + "%", ColorToARGB(dd > 2 ? m_red : m_grn)); y += 40;
+      m_canvas.TextOut(20, y, "EQUITY: $" + DoubleToString(AccountInfoDouble(ACCOUNT_EQUITY), 2), ColorToARGB(m_txt)); y += 20;
+      m_canvas.TextOut(20, y, "DRAWDOWN: " + DoubleToString(drawdown, 2) + "%", ColorToARGB(drawdown > 2 ? m_red : m_grn)); y += 40;
 
       m_canvas.FontSet("Lucida Console", -10, FW_NORMAL);
       m_canvas.TextOut(m_width/2, m_height - 15, "ENGINE: " + status, (status == "ACTIVE" ? ColorToARGB(m_grn) : ColorToARGB(m_red)), TA_CENTER);

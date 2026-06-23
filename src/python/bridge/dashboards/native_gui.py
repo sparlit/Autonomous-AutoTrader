@@ -105,6 +105,7 @@ class NativeDashboard(Process):
 
         with dpg.window(label="⚙️ System Diagnostics", width=400, height=200, pos=[990, 0]):
             self.diag_text = dpg.add_text("IPC State: Waiting for data...")
+            self.last_mt5_text = dpg.add_text("Last MT5 Update: Never")
 
         dpg.create_viewport(title='AAT Phoenix Proactive Monitor', width=1400, height=720)
         dpg.setup_dearpygui()
@@ -116,15 +117,16 @@ class NativeDashboard(Process):
             except Exception as e:
                 logger.error(f"UI Update Error: {e}")
             dpg.render_dearpygui_frame()
+            time.sleep(0.01)
 
         dpg.destroy_context()
 
     def _update_from_ipc(self):
         if not self.ipc: return
-
         all_state = self.ipc.get_all_state()
         if not all_state: return
 
+        now = time.time()
         dpg.set_value(self.diag_text, f"IPC State: {len(all_state)} keys active.")
 
         # Update Clock
@@ -133,6 +135,12 @@ class NativeDashboard(Process):
         # Update Global Stats
         account = all_state.get("account_stats", {})
         if account:
+            last_upd = account.get("last_update", 0)
+            if last_upd > 0:
+                elapsed = now - last_upd
+                dpg.set_value(self.last_mt5_text, f"Last MT5 Update: {elapsed:.1f}s ago")
+                dpg.bind_item_theme(self.last_mt5_text, self.alert_theme if elapsed > 30 else self.neutral_theme)
+
             dpg.set_value(self.equity_tag, f"EQUITY: ${account.get('equity', 0):,.2f}")
             dd = account.get('drawdown', 0)
             dpg.set_value(self.dd_tag, f"DRAWDOWN: {dd:.2f}%")
@@ -149,7 +157,6 @@ class NativeDashboard(Process):
             dpg.set_value(self.reconnect_tag, f"CONNECTIONS: {engine.get('active_clients', 0)}")
 
         # Update Brain Table
-        now = time.time()
         for key, health in all_state.items():
             if key.startswith("brain_health:"):
                 name = health.get("name")

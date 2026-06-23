@@ -14,17 +14,9 @@ public:
       if(remaining < 0) remaining = 0;
       string timer = StringFormat("%02d:%02d", (int)(remaining / 60), (int)(remaining % 60));
 
-      string res = "{\"t\":\"HB\",\"s\":\"";
-      res += s;
-      res += "\",\"e\":";
-      res += DoubleToString(e, 2);
-      res += ",\"d\":";
-      res += DoubleToString(d, 2);
-      res += ",\"sp\":";
-      res += DoubleToString(spread_pts, 1);
-      res += ",\"ct\":\"";
-      res += timer;
-      res += "\"}";
+      string res = "{\"t\":\"HB\",\"s\":\"" + s + "\",\"e\":" + DoubleToString(e, 2) +
+                   ",\"d\":" + DoubleToString(d, 2) + ",\"sp\":" + DoubleToString(spread_pts, 1) +
+                   ",\"ct\":\"" + timer + "\"}";
       return res;
    }
 
@@ -35,39 +27,18 @@ public:
       double pt = SymbolInfoDouble(s, SYMBOL_POINT);
       double spread = (pt > 0) ? (SymbolInfoDouble(s, SYMBOL_ASK) - SymbolInfoDouble(s, SYMBOL_BID)) / pt : 0;
 
-      string res = "{\"t\":\"DP\",\"s\":\"";
-      res += s;
-      res += "\",\"tf\":";
-      res += IntegerToString((int)tf);
-      res += ",\"bi\":";
-      res += DoubleToString(SymbolInfoDouble(s, SYMBOL_BID), 5);
-      res += ",\"as\":";
-      res += DoubleToString(SymbolInfoDouble(s, SYMBOL_ASK), 5);
-      res += ",\"sp\":";
-      res += DoubleToString(spread, 1);
-      res += ",\"tv\":";
-      res += DoubleToString(SymbolInfoDouble(s, SYMBOL_TRADE_TICK_VALUE), 5);
-      res += ",\"ts\":";
-      res += DoubleToString(SymbolInfoDouble(s, SYMBOL_TRADE_TICK_SIZE), 5);
-      res += ",\"ltf\":";
-      res += h_ltf;
-      res += ",\"h1\":";
-      res += h_h1;
-      res += ",\"h4\":";
-      res += h_h4;
-      res += "}";
+      string res = "{\"t\":\"DP\",\"s\":\"" + s + "\",\"tf\":" + IntegerToString((int)tf) +
+                   ",\"bi\":" + DoubleToString(SymbolInfoDouble(s, SYMBOL_BID), 5) +
+                   ",\"as\":" + DoubleToString(SymbolInfoDouble(s, SYMBOL_ASK), 5) +
+                   ",\"sp\":" + DoubleToString(spread, 1) +
+                   ",\"tv\":" + DoubleToString(SymbolInfoDouble(s, SYMBOL_TRADE_TICK_VALUE), 5) +
+                   ",\"ts\":" + DoubleToString(SymbolInfoDouble(s, SYMBOL_TRADE_TICK_SIZE), 5) +
+                   ",\"ltf\":" + h_ltf + ",\"h1\":" + h_h1 + ",\"h4\":" + h_h4 + "}";
       return res;
    }
 
    static string BuildTRADE_ACK(int id, int tk, string err) {
-      string res = "{\"t\":\"T_ACK\",\"id\":";
-      res += IntegerToString(id);
-      res += ",\"tk\":";
-      res += IntegerToString(tk);
-      res += ",\"err\":\"";
-      res += err;
-      res += "\"}";
-      return res;
+      return "{\"t\":\"T_ACK\",\"id\":" + IntegerToString(id) + ",\"tk\":" + IntegerToString(tk) + ",\"err\":\"" + err + "\"}";
    }
 
    static string BuildSYNC(string s) {
@@ -76,28 +47,14 @@ public:
          ulong tk = PositionGetTicket(i);
          if(PositionSelectByTicket(tk) && PositionGetString(POSITION_SYMBOL) == s) {
             if(!first) tks += ",";
-            string p_str = "{\"tk\":";
-            p_str += IntegerToString((long)tk);
-            p_str += ",\"type\":";
-            p_str += IntegerToString((int)PositionGetInteger(POSITION_TYPE));
-            p_str += ",\"vol\":";
-            p_str += DoubleToString(PositionGetDouble(POSITION_VOLUME), 2);
-            p_str += ",\"tp\":";
-            p_str += DoubleToString(PositionGetDouble(POSITION_TP), 5);
-            p_str += ",\"sl\":";
-            p_str += DoubleToString(PositionGetDouble(POSITION_SL), 5);
-            p_str += "}";
-            tks += p_str;
+            tks += "{\"tk\":" + IntegerToString((long)tk) + ",\"type\":" + IntegerToString((int)PositionGetInteger(POSITION_TYPE)) +
+                   ",\"vol\":" + DoubleToString(PositionGetDouble(POSITION_VOLUME), 2) +
+                   ",\"tp\":" + DoubleToString(PositionGetDouble(POSITION_TP), 5) +
+                   ",\"sl\":" + DoubleToString(PositionGetDouble(POSITION_SL), 5) + "}";
             first = false;
          }
       }
-      tks += "]";
-      string res = "{\"t\":\"SYNC\",\"s\":\"";
-      res += s;
-      res += "\",\"tk\":";
-      res += tks;
-      res += "}";
-      return res;
+      tks += "]"; return "{\"t\":\"SYNC\",\"s\":\"" + s + "\",\"tk\":" + tks + "}";
    }
 
    static string GetMsgType(string j) {
@@ -128,14 +85,9 @@ private:
    static string BuildH(string s, ENUM_TIMEFRAMES tf, int c) {
       MqlRates r[]; ArraySetAsSeries(r, true); int cp = CopyRates(s, tf, 0, c, r);
       string h = "["; for(int i=cp-1; i>=0; i--) {
-         string b_str = "[";
-         b_str += DoubleToString(r[i].open, 5) + ",";
-         b_str += DoubleToString(r[i].high, 5) + ",";
-         b_str += DoubleToString(r[i].low, 5) + ",";
-         b_str += DoubleToString(r[i].close, 5) + ",";
-         b_str += IntegerToString((long)r[i].time) + ",";
-         b_str += IntegerToString((long)r[i].tick_volume) + "]";
-         h += b_str;
+         h += "[" + DoubleToString(r[i].open, 5) + "," + DoubleToString(r[i].high, 5) + "," +
+              DoubleToString(r[i].low, 5) + "," + DoubleToString(r[i].close, 5) + "," +
+              IntegerToString((long)r[i].time) + "," + IntegerToString((long)r[i].tick_volume) + "]";
          if(i>0) h += ",";
       }
       h += "]"; return h;

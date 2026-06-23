@@ -1,5 +1,6 @@
 import multiprocessing
 import logging
+import time
 from typing import Dict, Any, List, Optional
 
 logger = logging.getLogger("AAT_IPC")
@@ -14,16 +15,12 @@ class HiveIPC:
         self._lock = self.manager.Lock()
 
     def __getstate__(self):
-        """Prepare state for pickling (Windows compatibility)."""
         state = self.__dict__.copy()
-        # The proxy objects (_queues, _shared_state) are picklable.
-        # We exclude the manager and lock as they cannot be pickled directly.
         del state['manager']
         del state['_lock']
         return state
 
     def __setstate__(self, state):
-        """Restore state after pickling."""
         self.__dict__.update(state)
         self.manager = None
         self._lock = None
@@ -31,7 +28,6 @@ class HiveIPC:
     def get_queue(self, name: str) -> multiprocessing.Queue:
         if name not in self._queues:
             if self._lock is None:
-                # In child process, we cannot create new queues if they don't exist
                 raise RuntimeError(f"Queue '{name}' not found in child process. Parent must pre-initialize.")
 
             with self._lock:
@@ -40,18 +36,16 @@ class HiveIPC:
         return self._queues[name]
 
     def xadd(self, stream: str, data: Dict[str, Any], maxlen: int = 1000):
-        """Emulate Redis XADD."""
         try:
             q = self.get_queue(stream)
             if q.full():
                 try: q.get_nowait()
-                except Exception: logger.debug("IPC cleanup")
+                except Exception: logger.debug("IPC queue pop failed")
             q.put_nowait(data)
         except Exception as e:
             logger.error(f"IPC XADD Fail on {stream}: {e}")
 
     def xread(self, streams: Dict[str, str], count: int = 1, block: int = 0) -> List[Any]:
-        """Emulate Redis XREAD."""
         results = []
         for stream_name in streams.keys():
             try:
@@ -62,25 +56,29 @@ class HiveIPC:
                     msgs.append(("msg_id", {b'payload': q.get_nowait().get("payload")}))
                 if msgs:
                     results.append((stream_name, msgs))
-            except Exception: logger.debug("IPC cleanup")
+            except Exception: logger.debug("IPC xread transient fail")
         return results
 
     def xdel(self, stream: str, msg_id: str):
         return True
 
     def set_state(self, key: str, value: Any):
-        """Thread-safe state update."""
-        try:
-            self._shared_state[key] = value
-        except Exception as e:
-            logger.error(f"IPC State Set Fail: {e}")
+        # Retry loop for Windows manager proxy access
+        for i in range(3):
+            try:
+                self._shared_state[key] = value
+                return
+            except Exception as e:
+                if i == 2: logger.error(f"IPC State Set Fail after 3 attempts: {e}")
+                time.sleep(0.01)
 
     def get_state(self, key: str, default: Any = None) -> Any:
-        """Thread-safe state retrieval."""
-        try:
-            return self._shared_state.get(key, default)
-        except Exception:
-            return default
+        for i in range(3):
+            try:
+                return self._shared_state.get(key, default)
+            except Exception:
+                if i == 2: return default
+                time.sleep(0.01)
 
     def get_all_state(self) -> Dict[str, Any]:
         try:

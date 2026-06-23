@@ -50,7 +50,7 @@ class HiveOrchestrator:
         self._initialize_ipc_queues()
         self._initialize_dashboards()
 
-        self.ipc.set_state("account_stats", {"equity": 0.0, "drawdown": 0.0, "spread": 0.0, "candle_timer": "--:--"})
+        self.ipc.set_state("account_stats", {"equity": 0.0, "drawdown": 0.0, "spread": 0.0, "candle_timer": "--:--", "last_update": 0})
         self.ipc.set_state("engine_stats", {"status": "STARTING", "msgs_rx": 0, "msgs_tx": 0, "latency": 0.0, "active_clients": 0})
 
     def _initialize_brains(self):
@@ -101,12 +101,14 @@ class HiveOrchestrator:
     async def handle_client_message(self, client_id: str, message: Dict[str, Any]) -> Dict[str, Any]:
         m_type = message.get("t")
         if m_type == "HB":
+            logger.info(f"Bridge [HB] from {message.get('s')} | Equity: {message.get('e')}")
             self.ipc.set_state("account_stats", {
                 "equity": message.get("e", 0.0),
                 "drawdown": message.get("d", 0.0),
                 "spread": message.get("sp", 0.0),
                 "candle_timer": message.get("ct", "--:--"),
-                "last_update": time.time()
+                "last_update": time.time(),
+                "s": message.get("s")
             })
 
         target = f"stream:MarketData_{1 if time.time() % 2 < 1 else 2}"
@@ -114,13 +116,13 @@ class HiveOrchestrator:
         try:
             if q.full(): q.get_nowait()
             q.put_nowait({"payload": json.dumps(message)})
-        except Exception as e: logger.debug(f"IPC Error: {e}")
+        except Exception as e: logger.debug(f"IPC Queue full/fail: {e}")
         return {"t": "ACK"}
 
     async def run(self):
         p = psutil.Process(os.getpid())
         try: p.cpu_affinity([1])
-        except Exception as e: logger.debug(f"IPC Error: {e}")
+        except Exception as e: logger.debug(f"Affinity fail: {e}")
 
         self.native_dash.start()
         self.web_dash.start()
@@ -149,7 +151,7 @@ class HiveOrchestrator:
                     for _ in range(20):
                         if orch_q.empty(): break
                         messages.append(orch_q.get_nowait())
-                except Exception as e: logger.debug(f"IPC Error: {e}")
+                except Exception as e: logger.debug(f"IPC Get Fail: {e}")
 
                 if messages:
                     for data in messages:

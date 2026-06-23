@@ -17,29 +17,36 @@ public:
 
    bool Init(string h, int p, bool ud=false, int hi=5) {
       m_h=h; m_p=p; m_u_d=ud; m_hb_i=hi*1000; m_l_hb=GetTickCount();
-      if(m_u_d) {
-         m_d.Create("AAT_Dash", 320, 450);
-         m_d.Render(_Symbol, "INIT", 0.5, "NEUTRAL", 0.0);
-      }
-      Print("AAT Bridge Client: Initializing on ", m_h, ":", m_p);
-      m_s.Connect(m_h, m_p, 10000);
+      if(m_u_d) m_d.Create("AAT_Dash", 320, 450);
+      Print("AAT Bridge: Initializing connection to ", m_h, ":", m_p);
       return true;
    }
 
    void PerformUpdate() {
       if(!m_s.IsConnected()) {
-         if(m_s.Connect(m_h, m_p, 5000)) { Print("AAT Bridge: Connected."); m_syn=false; }
-         else { if(m_u_d) m_d.Render(_Symbol, "OFFLINE", 0.5, "NEUTRAL", 0.0); return; }
+         if(m_s.Connect(m_h, m_p, 5000)) {
+            Print("AAT Bridge: Connected to Hive.");
+            m_syn=false;
+         }
+         else {
+            if(m_u_d) m_d.Render(_Symbol, "OFFLINE", 0.5, "NEUTRAL", 0.0);
+            return;
+         }
       }
 
       if(!m_syn) {
          string sync_msg = CAATProtocol::BuildSYNC(_Symbol);
-         if(m_s.Send(sync_msg)) { m_syn=true; Print("AAT Bridge: SYNC Handshake Completed."); }
+         if(m_s.Send(sync_msg)) {
+            m_syn=true;
+            Print("AAT Bridge: SYNC Handshake Completed.");
+         }
          return;
       }
 
-      uint n=GetTickCount(); double cp=SymbolInfoDouble(_Symbol, SYMBOL_BID);
+      uint n=GetTickCount();
+      double cp=SymbolInfoDouble(_Symbol, SYMBOL_BID);
 
+      // Fast Heartbeat (5s)
       if(n-m_l_hb>m_hb_i) {
          double eq=AccountInfoDouble(ACCOUNT_EQUITY), bal=AccountInfoDouble(ACCOUNT_BALANCE);
          double dd=(bal>0)?(1.0-eq/bal)*100.0:0;
@@ -47,9 +54,13 @@ public:
          if(m_s.Send(hb_msg)) m_l_hb=n;
       }
 
+      // Frequent Data Push (10s or 1 pip change)
       if(m_l_pr==0 || MathAbs(cp-m_l_pr)>=m_p_th || n-m_l_dp>10000) {
          string dp_msg = CAATProtocol::BuildDATA_PUSH(_Symbol, _Period, 100);
-         if(m_s.Send(dp_msg)) { m_l_dp=n; m_l_pr=cp; }
+         if(m_s.Send(dp_msg)) {
+            m_l_dp=n;
+            m_l_pr=cp;
+         }
       }
 
       Proc();
@@ -58,8 +69,10 @@ public:
 
    void Proc() {
       int limit=0;
-      while(limit < 20) {
-         string m=m_s.Receive(); if(m=="") break;
+      while(limit < 50) {
+         string m=m_s.Receive();
+         if(m=="") break;
+
          string t=CAATProtocol::GetMsgType(m);
          if(t=="DECISION") {
             Print("AAT Bridge: Decision received.");
@@ -91,11 +104,16 @@ public:
       int slp=(int)StringToInteger(CAATProtocol::GetV(m, "sl_p")), tpp=(int)StringToInteger(CAATProtocol::GetV(m, "tp_p"));
       double pt=SymbolInfoDouble(s, SYMBOL_POINT), pr=(a=="BUY")?SymbolInfoDouble(s, SYMBOL_ASK):SymbolInfoDouble(s, SYMBOL_BID);
       double sl=(a=="BUY")?pr-slp*pt:pr+slp*pt, tp=(a=="BUY")?pr+tpp*pt:pr-tpp*pt;
+
       MqlTradeRequest req; ZeroMemory(req); MqlTradeResult res; ZeroMemory(res);
       req.action=TRADE_ACTION_DEAL; req.symbol=s; req.volume=l; req.type=(a=="BUY")?ORDER_TYPE_BUY:ORDER_TYPE_SELL; req.price=pr;
       req.sl=NormalizeDouble(sl, (int)SymbolInfoInteger(s, SYMBOL_DIGITS)); req.tp=NormalizeDouble(tp, (int)SymbolInfoInteger(s, SYMBOL_DIGITS));
       req.magic=123456; req.comment=StringFormat("AAT:%d", id);
-      OrderSendAsync(req, res); m_s.Send(CAATProtocol::BuildTRADE_ACK(id, (int)res.order, IntegerToString(res.retcode)));
+
+      if(!OrderSendAsync(req, res)) {
+         Print("AAT Bridge: Trade failed: ", GetLastError());
+      }
+      m_s.Send(CAATProtocol::BuildTRADE_ACK(id, (int)res.order, IntegerToString(res.retcode)));
    }
 
    void ActFS() {
