@@ -15,10 +15,10 @@ async def test_bridge_handling():
     response = await orchestrator.handle_client_message("test_client", msg)
     assert response["t"] == "ACK"
 
-    # Check redis stream directly
+    # Check IPC stream directly
     found = False
     for stream in orchestrator.brain_inputs["MarketData"]:
-        messages = orchestrator.redis.xread({stream: '0'}, count=1)
+        messages = orchestrator.ipc.xread({stream: '0'}, count=1)
         if messages:
             found = True
             break

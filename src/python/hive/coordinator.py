@@ -19,8 +19,21 @@ from src.python.hive.config import load_config
 from src.python.hive.ipc import get_ipc
 from src.python.bridge.dashboards.native_gui import NativeDashboard
 from src.python.bridge.dashboards.web_server import WebDashboard
+from src.python.execution.risk_manager import RiskManager
 
 logger = logging.getLogger("AAT_Orchestrator")
+
+class HiveCoordinator:
+    """Legacy alias for backward compatibility."""
+    def __init__(self):
+        self.config = load_config()
+        self.registry = BrainRegistry()
+        self.risk_manager = RiskManager(self.config)
+        self.agent_states = {}
+        self.orchestrator = HiveOrchestrator()
+
+    async def run(self):
+        await self.orchestrator.run()
 
 class HiveOrchestrator:
     """10236: Reinforced Bayesian Orchestrator."""
@@ -29,11 +42,16 @@ class HiveOrchestrator:
         self.registry = BrainRegistry()
         self.ipc = get_ipc()
         self.brain_inputs: Dict[str, List[str]] = {}
+        self._queue_cache: Dict[str, Any] = {}
         self.server = BridgeServer(
             self.config.bridge.host, self.config.bridge.port, self.handle_client_message
         )
         self._initialize_brains()
+        self._initialize_ipc_queues()
         self._initialize_dashboards()
+
+        self.ipc.set_state("account_stats", {"equity": 0.0, "drawdown": 0.0, "spread": 0.0, "candle_timer": "--:--"})
+        self.ipc.set_state("engine_stats", {"status": "STARTING", "msgs_rx": 0, "msgs_tx": 0, "latency": 0.0, "active_clients": 0})
 
     def _initialize_brains(self):
         self.brain_inputs["MarketData"] = ["stream:MarketData_1", "stream:MarketData_2"]
@@ -59,30 +77,50 @@ class HiveOrchestrator:
         self.registry.register(AnomalyBrain("Anomaly_1", cpu_affinity=[19], ipc=self.ipc))
         self.registry.register(PortfolioBrain("Portfolio_1", cpu_affinity=[19], ipc=self.ipc))
 
+    def _initialize_ipc_queues(self):
+        queues = [
+            "stream:orchestrator", "stream:MarketData_1", "stream:MarketData_2",
+            "stream:Indicator_1", "stream:Indicator_2", "stream:Indicator_3",
+            "stream:Trend_1", "stream:Trend_2", "stream:Liquidity_1", "stream:Liquidity_2",
+            "stream:Regime_1", "stream:Meta_1", "stream:Contrarian_1", "stream:NewsRisk_1",
+            "stream:Risk_1", "stream:Risk_2", "stream:Execution_1", "stream:Execution_2",
+            "stream:Memory_1", "stream:Monitoring_1", "stream:Anomaly_1", "stream:Portfolio_1"
+        ]
+        for q_name in queues:
+            self._queue_cache[q_name] = self.ipc.get_queue(q_name)
+
     def _initialize_dashboards(self):
         self.native_dash = NativeDashboard(ipc=self.ipc)
         self.web_dash = WebDashboard(ipc=self.ipc, port=8009)
+
+    def _get_queue(self, name: str):
+        if name not in self._queue_cache:
+            self._queue_cache[name] = self.ipc.get_queue(name)
+        return self._queue_cache[name]
 
     async def handle_client_message(self, client_id: str, message: Dict[str, Any]) -> Dict[str, Any]:
         m_type = message.get("t")
         if m_type == "HB":
             self.ipc.set_state("account_stats", {
-                "equity": message.get("e", 0),
-                "drawdown": message.get("d", 0),
-                "spread": message.get("sp", 0),
-                "candle_timer": message.get("ct", "--:--")
+                "equity": message.get("e", 0.0),
+                "drawdown": message.get("d", 0.0),
+                "spread": message.get("sp", 0.0),
+                "candle_timer": message.get("ct", "--:--"),
+                "last_update": time.time()
             })
 
         target = f"stream:MarketData_{1 if time.time() % 2 < 1 else 2}"
-        self.ipc.xadd(target, {"payload": json.dumps(message)}, maxlen=1000)
-        return {"t": "ACK", "s": "Forwarded to stream"}
+        q = self._get_queue(target)
+        try:
+            if q.full(): q.get_nowait()
+            q.put_nowait({"payload": json.dumps(message)})
+        except Exception as e: logger.debug(f"IPC Error: {e}")
+        return {"t": "ACK"}
 
     async def run(self):
         p = psutil.Process(os.getpid())
-        try:
-            p.cpu_affinity([1])
-        except Exception:
-            logger.warning("CPU affinity failed for Orchestrator")
+        try: p.cpu_affinity([1])
+        except Exception as e: logger.debug(f"IPC Error: {e}")
 
         self.native_dash.start()
         self.web_dash.start()
@@ -92,51 +130,55 @@ class HiveOrchestrator:
         await self._main_orchestration_loop()
 
     async def _main_orchestration_loop(self):
-        """10238: Shared IPC central routing loop."""
         counter = 0
         last_stat_update = 0
+        orch_q = self._get_queue("stream:orchestrator")
         while True:
             try:
-                if time.time() - last_stat_update > 2:
+                now = time.time()
+                if now - last_stat_update > 2:
                     self.ipc.set_state("engine_stats", {
-                        "status": "OPTIMAL",
-                        "msgs_rx": self.server.stats["msgs_rx"],
-                        "msgs_tx": self.server.stats["msgs_tx"],
-                        "latency": self.server.stats["last_latency"],
-                        "active_clients": len(self.server.clients),
-                        "uptime": time.time()
+                        "status": "OPTIMAL", "msgs_rx": self.server.stats["msgs_rx"],
+                        "msgs_tx": self.server.stats["msgs_tx"], "latency": self.server.stats["last_latency"],
+                        "active_clients": len(self.server.clients), "uptime": now
                     })
-                    last_stat_update = time.time()
+                    last_stat_update = now
 
-                messages = self.ipc.xread({"stream:orchestrator": '0'}, count=10, block=1)
+                messages = []
+                try:
+                    for _ in range(20):
+                        if orch_q.empty(): break
+                        messages.append(orch_q.get_nowait())
+                except Exception as e: logger.debug(f"IPC Error: {e}")
+
                 if messages:
-                    for stream, msgs in messages:
-                        for msg_id, data in msgs:
-                            event = json.loads(data[b'payload']); e_type = event.get("type")
-                            if e_type == "MARKET_DATA":
-                                self.ipc.xadd("stream:Meta_1", {"payload": json.dumps({"type": "MARKET_DATA_REFRESH", "symbol": event["symbol"]})}, maxlen=100)
-                                for b in ["Indicator_1", "Indicator_2", "Indicator_3", "Trend_1", "Trend_2", "Liquidity_1", "Regime_1", "Anomaly_1"]:
-                                    self.ipc.xadd(f"stream:{b}", {"payload": json.dumps(event)}, maxlen=100)
-                                self.ipc.xadd("stream:NewsRisk_1", {"payload": json.dumps(event)}, maxlen=100)
-                            elif e_type in ["EVIDENCE", "REGIME_STATUS", "VETO", "NEWS_VETO", "ANOMALY_STATUS"]:
-                                self.ipc.xadd("stream:Meta_1", {"payload": json.dumps(event)}, maxlen=1000)
-                            elif e_type == "PROBABILISTIC_SIGNAL":
-                                self.ipc.xadd("stream:Contrarian_1", {"payload": json.dumps(event)}, maxlen=1000)
-                                self.ipc.xadd(f"stream:Risk_{1 if counter % 2 == 0 else 2}", {"payload": json.dumps(event)}, maxlen=1000)
-                                counter += 1
-                            elif e_type == "VALIDATED_TRADE":
-                                self.ipc.xadd(f"stream:Execution_{1 if counter % 2 == 0 else 2}", {"payload": json.dumps(event)}, maxlen=1000)
-                                counter += 1
-                            elif e_type == "EXECUTION_ORDER":
-                                self.ipc.xadd("stream:Memory_1", {"payload": json.dumps(event)}, maxlen=1000)
-                                asyncio.create_task(self.server.broadcast(event))
-                            elif e_type == "RELIABILITY_REPORT":
-                                self.ipc.xadd("stream:Meta_1", {"payload": json.dumps(event)}, maxlen=100)
-                            elif e_type == "EMERGENCY_KILL":
-                                logger.critical("EMERGENCY KILL RECEIVED FROM DASHBOARD")
-                                self.stop()
-                                return
-                            self.ipc.xdel("stream:orchestrator", msg_id)
+                    for data in messages:
+                        event = json.loads(data['payload'])
+                        e_type = event.get("type")
+                        if e_type == "MARKET_DATA":
+                            self._get_queue("stream:Meta_1").put_nowait({"payload": json.dumps({"type": "MARKET_DATA_REFRESH", "symbol": event["symbol"]})})
+                            for b in ["Indicator_1", "Indicator_2", "Indicator_3", "Trend_1", "Trend_2", "Liquidity_1", "Regime_1", "Anomaly_1"]:
+                                self._get_queue(f"stream:{b}").put_nowait({"payload": json.dumps(event)})
+                            self._get_queue("stream:NewsRisk_1").put_nowait({"payload": json.dumps(event)})
+                        elif e_type in ["EVIDENCE", "REGIME_STATUS", "VETO", "NEWS_VETO", "ANOMALY_STATUS"]:
+                            self._get_queue("stream:Meta_1").put_nowait({"payload": json.dumps(event)})
+                        elif e_type == "PROBABILISTIC_SIGNAL":
+                            self._get_queue("stream:Contrarian_1").put_nowait({"payload": json.dumps(event)})
+                            self._get_queue(f"stream:Risk_{1 if counter % 2 == 0 else 2}").put_nowait({"payload": json.dumps(event)})
+                            counter += 1
+                        elif e_type == "VALIDATED_TRADE":
+                            self._get_queue(f"stream:Execution_{1 if counter % 2 == 0 else 2}").put_nowait({"payload": json.dumps(event)})
+                            counter += 1
+                        elif e_type == "EXECUTION_ORDER":
+                            self._get_queue("stream:Memory_1").put_nowait({"payload": json.dumps(event)})
+                            asyncio.create_task(self.server.broadcast(event))
+                        elif e_type == "RELIABILITY_REPORT":
+                            self._get_queue("stream:Meta_1").put_nowait({"payload": json.dumps(event)})
+                        elif e_type == "TELEMETRY":
+                            telemetry_msg = { "t": "TLM", "s": event["symbol"], "st": event["st"], "scr": event["scr"], "htf": event["htf"], "dd": event.get("dd", 0.0) }
+                            asyncio.create_task(self.server.broadcast(telemetry_msg))
+                        elif e_type == "EMERGENCY_KILL":
+                            self.stop(); return
                 else:
                     await asyncio.sleep(0.001)
             except Exception as e:

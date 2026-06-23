@@ -19,16 +19,25 @@ class NativeDashboard(Process):
         logging.basicConfig(level=logging.INFO, format="%(asctime)s - NativeGUI - %(levelname)s - %(message)s")
         logger = logging.getLogger("AAT_NativeGUI")
 
-        # Check for DISPLAY environment variable
-        if 'DISPLAY' not in os.environ:
-            logger.warning("DISPLAY environment variable not found. Skipping Native GUI launch.")
-            return
+        logger.info("Initializing Native Dashboard GUI...")
 
         try:
             dpg.create_context()
         except Exception as e:
             logger.error(f"Failed to create DPG context: {e}")
             return
+
+        with dpg.theme() as self.alert_theme:
+            with dpg.theme_component(dpg.mvAll):
+                dpg.add_theme_color(dpg.mvThemeCol_Text, [255, 81, 73], category=dpg.mvThemeCat_Core)
+
+        with dpg.theme() as self.active_theme:
+            with dpg.theme_component(dpg.mvAll):
+                dpg.add_theme_color(dpg.mvThemeCol_Text, [63, 185, 80], category=dpg.mvThemeCat_Core)
+
+        with dpg.theme() as self.neutral_theme:
+            with dpg.theme_component(dpg.mvAll):
+                dpg.add_theme_color(dpg.mvThemeCol_Text, [200, 200, 200], category=dpg.mvThemeCat_Core)
 
         with dpg.window(label="🦅 AAT PHOENIX ASCENDANT - INSTITUTIONAL MONITOR", width=980, height=680):
             with dpg.group(horizontal=True):
@@ -57,11 +66,10 @@ class NativeDashboard(Process):
                     self.latency_tag = dpg.add_text("LATENCY: 0.00ms")
                     self.reconnect_tag = dpg.add_text("CONNECTIONS: 0", color=[100, 200, 255])
 
-            dpg.add_spacing(count=5)
+            dpg.add_spacer(height=5)
             dpg.add_text("BRAIN CLUSTER HEALTH & BAYESIAN METRICS", color=[0, 242, 255])
             dpg.add_separator()
 
-            # Enhanced Table for Brains
             with dpg.table(header_row=True, borders_innerH=True, borders_outerH=True, borders_innerV=True, borders_outerV=True, resizable=True, sortable=True):
                 dpg.add_table_column(label="BRAIN UNIT")
                 dpg.add_table_column(label="PID")
@@ -95,12 +103,18 @@ class NativeDashboard(Process):
                 dpg.add_button(label="EMERGENCY KILL", callback=self.kill_switch, width=150, height=40)
                 dpg.add_button(label="FORCE RECON", callback=self.force_sync, width=150, height=40)
 
-        dpg.create_viewport(title='AAT Phoenix Proactive Monitor', width=1000, height=720)
+        with dpg.window(label="⚙️ System Diagnostics", width=400, height=200, pos=[990, 0]):
+            self.diag_text = dpg.add_text("IPC State: Waiting for data...")
+
+        dpg.create_viewport(title='AAT Phoenix Proactive Monitor', width=1400, height=720)
         dpg.setup_dearpygui()
         dpg.show_viewport()
 
         while dpg.is_dearpygui_running():
-            self._update_from_ipc()
+            try:
+                self._update_from_ipc()
+            except Exception as e:
+                logger.error(f"UI Update Error: {e}")
             dpg.render_dearpygui_frame()
 
         dpg.destroy_context()
@@ -108,24 +122,25 @@ class NativeDashboard(Process):
     def _update_from_ipc(self):
         if not self.ipc: return
 
+        all_state = self.ipc.get_all_state()
+        if not all_state: return
+
+        dpg.set_value(self.diag_text, f"IPC State: {len(all_state)} keys active.")
+
         # Update Clock
         dpg.set_value(self.clock_tag, time.strftime("%H:%M:%S"))
 
         # Update Global Stats
-        account = self.ipc.get_state("account_stats", {})
+        account = all_state.get("account_stats", {})
         if account:
             dpg.set_value(self.equity_tag, f"EQUITY: ${account.get('equity', 0):,.2f}")
             dd = account.get('drawdown', 0)
             dpg.set_value(self.dd_tag, f"DRAWDOWN: {dd:.2f}%")
-            dpg.set_item_color(self.dd_tag, dpg.mvPlotCol_Text, [255, 0, 0] if dd > 2 else [0, 255, 0])
+            dpg.bind_item_theme(self.dd_tag, self.alert_theme if dd > 2 else self.active_theme)
+            dpg.set_value(self.spread_tag, f"AVG SPREAD: {account.get('spread', 0):.1f} pts")
+            dpg.set_value(self.timer_tag, f"CANDLE TIMER: {account.get('candle_timer', '--:--')}")
 
-            spread = account.get('spread', 0)
-            dpg.set_value(self.spread_tag, f"AVG SPREAD: {spread:.1f} pts")
-
-            timer = account.get('candle_timer', '--:--')
-            dpg.set_value(self.timer_tag, f"CANDLE TIMER: {timer}")
-
-        engine = self.ipc.get_state("engine_stats", {})
+        engine = all_state.get("engine_stats", {})
         if engine:
             dpg.set_value(self.msg_rx_tag, f"MSGS RX: {engine.get('msgs_rx', 0)}")
             dpg.set_value(self.msg_tx_tag, f"MSGS TX: {engine.get('msgs_tx', 0)}")
@@ -134,7 +149,6 @@ class NativeDashboard(Process):
             dpg.set_value(self.reconnect_tag, f"CONNECTIONS: {engine.get('active_clients', 0)}")
 
         # Update Brain Table
-        all_state = self.ipc.get_all_state()
         now = time.time()
         for key, health in all_state.items():
             if key.startswith("brain_health:"):
@@ -148,7 +162,7 @@ class NativeDashboard(Process):
                     dpg.set_value(row["lat"], f"{health.get('latency', 0):.2f}")
                     last_seen = now - health.get("last_seen", now)
                     dpg.set_value(row["seen"], f"{last_seen:.1f}s ago")
-                    dpg.set_item_color(row["seen"], dpg.mvPlotCol_Text, [255, 0, 0] if last_seen > 10 else [200, 200, 200])
+                    dpg.bind_item_theme(row["seen"], self.alert_theme if last_seen > 10 else self.neutral_theme)
 
     def kill_switch(self):
         logging.critical("USER COMMAND: EMERGENCY KILL SWITCH ACTIVATED.")
