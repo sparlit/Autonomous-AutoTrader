@@ -1,0 +1,19 @@
+name: Auto-Resolve Conflicts
+on:
+  pull_request:
+    types: [synchronize, opened]
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve specific file conflicts automatically
+        uses: VeyronSakai/conflict-resolver@v1
+        with:
+          paths: 'src/**/*.json' # Target specific file patterns
+          strategy: 'theirs'      # Choose 'ours' or 'theirs' to overwrite automatically
