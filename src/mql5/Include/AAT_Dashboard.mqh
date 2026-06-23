@@ -48,33 +48,36 @@ CAATDashboard::~CAATDashboard()
 bool CAATDashboard::Create(string name, int w, int h)
 {
    m_name = name; m_width = w; m_height = h;
-   if(!m_canvas.CreateBitmapLabel(m_name, 10, 30, m_width, m_height, COLOR_FORMAT_ARGB_NORMALIZE)) return false;
+   // Use XRGB to avoid transparency issues on some GPUs
+   if(!m_canvas.CreateBitmapLabel(m_name, 10, 30, m_width, m_height, COLOR_FORMAT_XRGB_NOALPHA)) return false;
    return true;
 }
 
 void CAATDashboard::Render(string symbol, string status, double score, string htf_trend, double drawdown)
 {
-   m_canvas.Erase(ColorToARGB(m_clr_bg, 240));
+   m_canvas.Erase(ColorToARGB(m_clr_bg));
 
    DrawHeader();
 
    int y = 60;
    DrawSection(20, y, "SYMBOL", symbol + " [" + EnumToString(_Period) + "]", m_clr_text); y += 35;
 
-   double spread = (SymbolInfoDouble(symbol, SYMBOL_ASK) - SymbolInfoDouble(symbol, SYMBOL_BID)) / SymbolInfoDouble(symbol, SYMBOL_POINT);
+   double spread = (SymbolInfoDouble(symbol, SYMBOL_ASK) - SymbolInfoDouble(symbol, SYMBOL_BID)) / (SymbolInfoDouble(symbol, SYMBOL_POINT) > 0 ? SymbolInfoDouble(symbol, SYMBOL_POINT) : 1);
    DrawSection(20, y, "SPREAD", DoubleToString(spread, 1) + " pts", (spread > 20 ? m_clr_neon_red : m_clr_text)); y += 35;
 
    datetime candle_end = (datetime)SeriesInfoInteger(symbol, _Period, SERIES_LASTBAR_DATE) + PeriodSeconds(_Period);
    long remaining = candle_end - TimeCurrent();
-   string timer = StringFormat("%02d:%02d", remaining / 60, remaining % 60);
+   if(remaining < 0) remaining = 0;
+   string timer = StringFormat("%02d:%02d", (int)(remaining / 60), (int)(remaining % 60));
    DrawSection(20, y, "CANDLE", timer, clrCyan); y += 35;
 
    m_canvas.Line(10, y, m_width-10, y, ColorToARGB(m_clr_header)); y += 20;
 
-   color signal_clr = (score > 0) ? m_clr_neon_green : (score < 0 ? m_clr_neon_red : m_clr_text);
-   DrawSection(20, y, "SIGNAL", (score > 0 ? "BULLISH BIAS" : (score < 0 ? "BEARISH BIAS" : "NEUTRAL")), signal_clr); y += 35;
+   color signal_clr = (score > 0.5) ? m_clr_neon_green : (score < 0.5 ? m_clr_neon_red : m_clr_text);
+   string bias = (score > 0.55) ? "BULLISH BIAS" : (score < 0.45 ? "BEARISH BIAS" : "NEUTRAL");
+   DrawSection(20, y, "SIGNAL", bias, signal_clr); y += 35;
 
-   DrawSection(20, y, "POSTERIOR", DoubleToString(MathAbs(score), 2), signal_clr); y += 35;
+   DrawSection(20, y, "POSTERIOR", DoubleToString(score, 2), signal_clr); y += 35;
 
    color htf_clr = (htf_trend == "BULLISH") ? m_clr_neon_green : (htf_trend == "BEARISH" ? m_clr_neon_red : m_clr_text);
    DrawSection(20, y, "HTF ALIGN", htf_trend, htf_clr); y += 35;
@@ -84,14 +87,14 @@ void CAATDashboard::Render(string symbol, string status, double score, string ht
    DrawAccountSection(y); y += 70;
 
    m_canvas.FontSet("Lucida Console", -10, FW_NORMAL);
-   m_canvas.TextOut(m_width/2, m_height - 15, "ENGINE: " + status, ColorToARGB(m_clr_neon_green), TA_CENTER);
+   m_canvas.TextOut(m_width/2, m_height - 15, "ENGINE: " + status, (status == "ACTIVE" ? ColorToARGB(m_clr_neon_green) : ColorToARGB(m_clr_neon_red)), TA_CENTER);
 
    m_canvas.Update();
 }
 
 void CAATDashboard::DrawHeader()
 {
-   m_canvas.FillRectangle(0, 0, m_width, 45, ColorToARGB(m_clr_header, 255));
+   m_canvas.FillRectangle(0, 0, m_width, 45, ColorToARGB(m_clr_header));
    m_canvas.FontSet("Lucida Console", -14, FW_BOLD);
    m_canvas.TextOut(m_width/2, 22, "PHOENIX GAUNTLET PRO", ColorToARGB(m_clr_text), TA_CENTER|TA_VCENTER);
 }
@@ -114,6 +117,7 @@ void CAATDashboard::DrawAccountSection(int y)
    m_canvas.TextOut(20, y, "ACCOUNT TELEMETRY", ColorToARGB(m_clr_dim));
 
    y += 25;
+   m_canvas.FontSet("Lucida Console", -12, FW_BOLD);
    m_canvas.TextOut(20, y, "EQUITY:  $" + DoubleToString(equity, 2), ColorToARGB(m_clr_text));
    y += 20;
    m_canvas.TextOut(20, y, "DRAWDOWN: " + DoubleToString(dd, 2) + "%", ColorToARGB(dd > 2 ? m_clr_neon_red : m_clr_neon_green));

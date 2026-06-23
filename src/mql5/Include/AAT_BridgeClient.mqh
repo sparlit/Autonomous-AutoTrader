@@ -13,25 +13,69 @@ private:
    double m_l_pr, m_p_th; bool m_syn, m_fs, m_u_d;
 public:
    CAATBridgeClient() : m_l_hb(0), m_l_dp(0), m_hb_i(10000), m_l_pr(0), m_p_th(0.0005), m_syn(false), m_fs(false), m_u_d(false) { m_t.SetExpertMagicNumber(123456); }
-   bool Init(string h, int p, bool ud=false, int hi=10) { m_h=h; m_p=p; m_u_d=ud; m_hb_i=hi*1000; m_l_hb=GetTickCount(); if(m_u_d) m_d.Create("AAT_Dash", 320, 400); m_s.Connect(m_h, m_p); return true; }
-   void OnTick() {
-      if(!m_s.IsConnected()) { m_s.Connect(m_h, m_p); m_syn=false; if(GetTickCount()-m_l_hb>60000) ActFS(); return; }
-      m_fs=false; if(!m_syn) { if(m_s.Send(CAATProtocol::BuildSYNC(_Symbol))) m_syn=true; return; }
+   bool Init(string h, int p, bool ud=false, int hi=10) {
+      m_h=h; m_p=p; m_u_d=ud; m_hb_i=hi*1000; m_l_hb=GetTickCount();
+      if(m_u_d) {
+         m_d.Create("AAT_Dash", 320, 450);
+         m_d.Render(_Symbol, "INIT", 0.5, "NEUTRAL", 0.0);
+      }
+      Print("AAT Bridge Client: Connecting to ", m_h, ":", m_p);
+      return m_s.Connect(m_h, m_p, 10000);
+   }
+   void Update() {
+      if(!m_s.IsConnected()) {
+         if(m_s.Connect(m_h, m_p)) { Print("AAT Bridge: Reconnected."); m_syn=false; }
+         else {
+            if(m_u_d) m_d.Render(_Symbol, "DISCONNECTED", 0.5, "NEUTRAL", 0.0);
+            if(GetTickCount()-m_l_hb>60000) ActFS();
+            return;
+         }
+      }
+      m_fs=false;
+      if(!m_syn) {
+         if(m_s.Send(CAATProtocol::BuildSYNC(_Symbol))) { m_syn=true; Print("AAT Bridge: SYNC Completed."); }
+         return;
+      }
       uint n=GetTickCount(); double cp=SymbolInfoDouble(_Symbol, SYMBOL_BID);
-      if(n-m_l_dp>10000) { if(m_s.Send(CAATProtocol::BuildHEARTBEAT(_Symbol, AccountInfoDouble(ACCOUNT_EQUITY), 0.0))) m_l_dp=n; }
-      if(m_l_pr==0 || MathAbs(cp-m_l_pr)>=m_p_th || n-m_l_dp>60000) { if(m_s.Send(CAATProtocol::BuildDATA_PUSH(_Symbol, _Period, 100))) { m_l_dp=n; m_l_pr=cp; } }
-      Proc(); if(n%500==0) Cln();
+
+      if(n-m_l_hb>m_hb_i) {
+         double eq = AccountInfoDouble(ACCOUNT_EQUITY);
+         double bal = AccountInfoDouble(ACCOUNT_BALANCE);
+         double dd = (bal > 0) ? (1.0 - eq/bal) * 100.0 : 0;
+         if(m_s.Send(CAATProtocol::BuildHEARTBEAT(_Symbol, eq, dd))) m_l_hb=n;
+      }
+      if(m_l_pr==0 || MathAbs(cp-m_l_pr)>=m_p_th || n-m_l_dp>60000) {
+         if(m_s.Send(CAATProtocol::BuildDATA_PUSH(_Symbol, _Period, 100))) { m_l_dp=n; m_l_pr=cp; }
+      }
+
+      Proc();
+      if(n%500==0) Cln();
    }
    void Proc() {
-      string m=m_s.Receive(); if(m=="") return; m_l_hb=GetTickCount();
-      string t=CAATProtocol::GetMsgType(m); if(t=="DECISION") {
-         string dr=CAATProtocol::GetV(m, "drw"); if(dr!="") Drw(dr);
-         string tl=CAATProtocol::GetV(m, "tlm"); if(tl!="") HandleTlm(tl);
-         string mg=CAATProtocol::GetV(m, "mgmt"); if(mg!="") HandleMgmt(mg);
-         string ac=CAATProtocol::GetV(m, "act"); if(ac!="" && ac!="WAIT") HandleTr(m);
+      int limit=0;
+      while(limit < 10) {
+         string m=m_s.Receive(); if(m=="") break;
+         string t=CAATProtocol::GetMsgType(m);
+         if(t=="DECISION") {
+            string dr=CAATProtocol::GetV(m, "drw"); if(dr!="") Drw(dr);
+            string mg=CAATProtocol::GetV(m, "mgmt"); if(mg!="") HandleMgmt(mg);
+            string ac=CAATProtocol::GetV(m, "act"); if(ac!="" && ac!="WAIT") HandleTr(m);
+         }
+         else if(t=="TELEMETRY") {
+            HandleTlm(m);
+         }
+         limit++;
       }
    }
-   void HandleTlm(string j) { if(!m_u_d) return; m_d.Render(_Symbol, CAATProtocol::GetV(j, "st"), StringToDouble(CAATProtocol::GetV(j, "scr")), CAATProtocol::GetV(j, "htf"), StringToDouble(CAATProtocol::GetV(j, "dd"))); }
+   void HandleTlm(string m) {
+      if(!m_u_d) return;
+      string sym = CAATProtocol::GetV(m, "s"); if(sym == "") sym = _Symbol;
+      string st = CAATProtocol::GetV(m, "st");
+      double scr = StringToDouble(CAATProtocol::GetV(m, "scr"));
+      string htf = CAATProtocol::GetV(m, "htf");
+      double dd = StringToDouble(CAATProtocol::GetV(m, "dd"));
+      m_d.Render(sym, st, scr, htf, dd);
+   }
    void HandleMgmt(string j) {
       string a=CAATProtocol::GetV(j, "act"); long tk=StringToInteger(CAATProtocol::GetV(j, "tk"));
       if(PositionSelectByTicket(tk)) {
@@ -39,7 +83,7 @@ public:
          else if(a=="MODIFY_SL") m_t.PositionModify(tk, StringToDouble(CAATProtocol::GetV(j, "sl")), PositionGetDouble(POSITION_TP));
       }
    }
-      void HandleTr(string m) {
+   void HandleTr(string m) {
       int id=(int)StringToInteger(CAATProtocol::GetV(m, "id"));
       string s=CAATProtocol::GetV(m, "s"); if(s=="") s=_Symbol;
       string a=CAATProtocol::GetV(m, "act"); double l=StringToDouble(CAATProtocol::GetV(m, "lts"));
