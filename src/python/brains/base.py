@@ -48,7 +48,6 @@ class BaseBrain(Process, BrainContract):
         self.cpu_affinity = cpu_affinity
         self.ipc = ipc
         self.is_running = True
-        self._last_heartbeat = time.time()
         self._processed_count = 0
         self._latency_sum = 0.0
         self.max_execution_time = 0.1 # 100ms hard deadline (12101)
@@ -71,7 +70,10 @@ class BaseBrain(Process, BrainContract):
         """12006: Process entry point."""
         signal.signal(signal.SIGTERM, self._handle_exit)
         signal.signal(signal.SIGINT, self._handle_exit)
-        asyncio.run(self._async_run())
+        try:
+            asyncio.run(self._async_run())
+        except Exception as e:
+            logger.error(f"Brain {self.name} crashed: {e}")
 
     async def _async_run(self):
         """Internal async entry point to ensure loop is running for initialization."""
@@ -84,17 +86,18 @@ class BaseBrain(Process, BrainContract):
         last_health_report = 0
         while self.is_running:
             try:
-                # Periodic health reporting to shared state
-                if time.time() - last_health_report > 5:
+                # 12105: Periodic health reporting (High Frequency)
+                now = time.time()
+                if now - last_health_report > 2:
                     if self.ipc:
                         self.ipc.set_state(f"brain_health:{self.name}", self.health())
-                    last_health_report = time.time()
+                    last_health_report = now
 
-                # 12103: Drop old ticks if backlog exists (Coalescing/Backpressure)
                 if self.ipc:
                     messages = self.ipc.xread({stream_name: '0'}, count=10, block=1)
                     if messages:
                         for stream, msgs in messages:
+                            # 12103: Coalesce (take latest if backlog exists)
                             latest_msg = msgs[-1]
                             msg_id, data = latest_msg
 
@@ -105,17 +108,16 @@ class BaseBrain(Process, BrainContract):
                                 result = await asyncio.wait_for(self.process(event), timeout=self.max_execution_time)
                                 if result: self.publish(result)
                             except asyncio.TimeoutError:
-                                logger.error(f"Brain {self.name} TIMEOUT on msg {msg_id}. Dropping result.")
+                                logger.error(f"Brain {self.name} TIMEOUT on msg {msg_id}.")
 
-                            self.ipc.xdel(stream_name, msg_id)
                             self._latency_sum += (time.perf_counter() - start_time)
                             self._processed_count += 1
                     else:
-                        await asyncio.sleep(0.0001)
+                        await asyncio.sleep(0.001)
                 else:
                     await asyncio.sleep(0.1)
             except Exception as e:
-                logger.error(f"Brain {self.name} Error: {e}")
+                logger.error(f"Brain {self.name} Loop Error: {e}")
                 await asyncio.sleep(0.1)
 
     @abstractmethod
@@ -124,15 +126,17 @@ class BaseBrain(Process, BrainContract):
         raise NotImplementedError()
 
     def publish(self, result: Dict[str, Any]):
-        """12010: Publish to the Orchestrator stream with bounded length."""
+        """12010: Publish to the Orchestrator stream."""
         if not self.ipc: return
-        result['source'] = self.name; result['timestamp'] = time.time()
+        result['source'] = self.name
+        result['timestamp'] = time.time()
         payload = json.dumps(result)
         self.ipc.xadd("stream:orchestrator", {"payload": payload}, maxlen=self.stream_max_len)
 
     def health(self) -> Dict[str, Any]:
         """12011: Collect health metrics."""
-        p = psutil.Process(os.getpid()); avg_latency = self._latency_sum / self._processed_count if self._processed_count > 0 else 0
+        p = psutil.Process(os.getpid())
+        avg_latency = self._latency_sum / self._processed_count if self._processed_count > 0 else 0
         return {
             "name": self.name,
             "pid": os.getpid(),

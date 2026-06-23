@@ -36,6 +36,10 @@ class HiveOrchestrator:
         self._initialize_ipc_queues() # Essential for Windows compatibility
         self._initialize_dashboards()
 
+        # 13011: Initialize state immediately to avoid empty dashboards
+        self.ipc.set_state("account_stats", {"equity": 0.0, "drawdown": 0.0, "spread": 0.0, "candle_timer": "--:--"})
+        self.ipc.set_state("engine_stats", {"status": "STARTING", "msgs_rx": 0, "msgs_tx": 0, "latency": 0.0, "active_clients": 0})
+
     def _initialize_brains(self):
         self.brain_inputs["MarketData"] = ["stream:MarketData_1", "stream:MarketData_2"]
         self.registry.register(MarketDataBrain("MarketData_1", cpu_affinity=[2], ipc=self.ipc))
@@ -72,7 +76,7 @@ class HiveOrchestrator:
         ]
         for q in queues:
             self.ipc.get_queue(q)
-        logger.info(f"Initialized {len(queues)} IPC streams for Windows compatibility.")
+        logger.info(f"Initialized {len(queues)} IPC streams.")
 
     def _initialize_dashboards(self):
         self.native_dash = NativeDashboard(ipc=self.ipc)
@@ -81,16 +85,18 @@ class HiveOrchestrator:
     async def handle_client_message(self, client_id: str, message: Dict[str, Any]) -> Dict[str, Any]:
         m_type = message.get("t")
         if m_type == "HB":
+            logger.info(f"MT5 Heartbeat: {message.get('s')} | Equity: {message.get('e')}")
             self.ipc.set_state("account_stats", {
-                "equity": message.get("e", 0),
-                "drawdown": message.get("d", 0),
-                "spread": message.get("sp", 0),
-                "candle_timer": message.get("ct", "--:--")
+                "equity": message.get("e", 0.0),
+                "drawdown": message.get("d", 0.0),
+                "spread": message.get("sp", 0.0),
+                "candle_timer": message.get("ct", "--:--"),
+                "last_update": time.time()
             })
 
         target = f"stream:MarketData_{1 if time.time() % 2 < 1 else 2}"
         self.ipc.xadd(target, {"payload": json.dumps(message)}, maxlen=1000)
-        return {"t": "ACK", "s": "Forwarded to stream"}
+        return {"t": "ACK"}
 
     async def run(self):
         p = psutil.Process(os.getpid())
@@ -112,22 +118,25 @@ class HiveOrchestrator:
         last_stat_update = 0
         while True:
             try:
-                if time.time() - last_stat_update > 2:
+                now = time.time()
+                if now - last_stat_update > 2:
                     self.ipc.set_state("engine_stats", {
                         "status": "OPTIMAL",
                         "msgs_rx": self.server.stats["msgs_rx"],
                         "msgs_tx": self.server.stats["msgs_tx"],
                         "latency": self.server.stats["last_latency"],
                         "active_clients": len(self.server.clients),
-                        "uptime": time.time()
+                        "uptime": now
                     })
-                    last_stat_update = time.time()
+                    last_stat_update = now
 
-                messages = self.ipc.xread({"stream:orchestrator": '0'}, count=10, block=1)
+                messages = self.ipc.xread({"stream:orchestrator": '0'}, count=20, block=1)
                 if messages:
                     for stream, msgs in messages:
                         for msg_id, data in msgs:
-                            event = json.loads(data[b'payload']); e_type = event.get("type")
+                            event = json.loads(data[b'payload'])
+                            e_type = event.get("type")
+
                             if e_type == "MARKET_DATA":
                                 self.ipc.xadd("stream:Meta_1", {"payload": json.dumps({"type": "MARKET_DATA_REFRESH", "symbol": event["symbol"]})}, maxlen=100)
                                 for b in ["Indicator_1", "Indicator_2", "Indicator_3", "Trend_1", "Trend_2", "Liquidity_1", "Regime_1", "Anomaly_1"]:
@@ -155,11 +164,11 @@ class HiveOrchestrator:
                                     "st": event["st"],
                                     "scr": event["scr"],
                                     "htf": event["htf"],
-                                    "dd": event["dd"]
+                                    "dd": event.get("dd", 0.0)
                                 }
                                 asyncio.create_task(self.server.broadcast(telemetry_msg))
                             elif e_type == "EMERGENCY_KILL":
-                                logger.critical("EMERGENCY KILL RECEIVED FROM DASHBOARD")
+                                logger.critical("EMERGENCY KILL RECEIVED")
                                 self.stop()
                                 return
                             self.ipc.xdel("stream:orchestrator", msg_id)

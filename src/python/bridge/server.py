@@ -19,6 +19,11 @@ class BridgeServer:
 
     async def handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         try:
+            # 13009: Set Keep-Alive to prevent silent drops
+            sock = writer.get_extra_info('socket')
+            if sock:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+
             addr = writer.get_extra_info('peername')
             if not addr:
                 writer.close()
