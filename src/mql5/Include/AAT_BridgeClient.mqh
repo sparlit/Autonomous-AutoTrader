@@ -6,6 +6,12 @@
 #include "AAT_Protocol.mqh"
 #include "AAT_Dashboard.mqh"
 
+enum ENUM_AAT_ROLE {
+   AAT_ROLE_DATA_COLLECTOR,
+   AAT_ROLE_TRADE_EXECUTOR,
+   AAT_ROLE_MASTER
+};
+
 class CAATBridgeClient
 {
 private:
@@ -18,20 +24,20 @@ private:
    double m_l_pr, m_p_th;
    bool m_u_d;
    bool m_d_created;
+   ENUM_AAT_ROLE m_role;
 
 public:
-   CAATBridgeClient() : m_h("127.0.0.1"), m_p(5555), m_l_hb(0), m_l_dp(0), m_l_pr(0), m_p_th(0.0001), m_u_d(true), m_d_created(false) {
+   CAATBridgeClient() : m_h("127.0.0.1"), m_p(5555), m_l_hb(0), m_l_dp(0), m_l_pr(0), m_p_th(0.0001), m_u_d(true), m_d_created(false), m_role(AAT_ROLE_MASTER) {
       m_t.SetExpertMagicNumber(123456);
    }
 
-   bool Init(string h, int p, bool d=true) {
-      m_h=h; m_p=p; m_u_d=d;
+   bool Init(string h, int p, ENUM_AAT_ROLE role, bool d=true) {
+      m_h=h; m_p=p; m_role=role; m_u_d=d;
       if(m_u_d) {
          string d_name = "AAT_Dash_" + _Symbol;
          m_d_created = m_d.Create(d_name, 320, 500);
          if(!m_d_created) Print("AAT: Dashboard creation failed for ", _Symbol);
       }
-      // 10602: Always return true to keep EA active; connection retries happen in OnTick
       m_s.Connect(m_h, m_p);
       return true;
    }
@@ -44,6 +50,8 @@ public:
       }
 
       datetime n=TimeCurrent(); double cp=SymbolInfoDouble(_Symbol, SYMBOL_BID);
+
+      // Heartbeat is sent by all roles to maintain connection and update account info
       if(n-m_l_hb>10) {
          double eq=AccountInfoDouble(ACCOUNT_EQUITY), bal=AccountInfoDouble(ACCOUNT_BALANCE);
          double dd=(bal>0)?(1.0-eq/bal)*100.0:0;
@@ -51,9 +59,12 @@ public:
          if(m_s.Send(hb_msg)) m_l_hb=n;
       }
 
-      if(m_l_pr==0 || MathAbs(cp-m_l_pr)>=m_p_th || n-m_l_dp>10) {
-         string dp_msg = CAATProtocol::BuildDATA_PUSH(_Symbol, _Period, 100);
-         if(m_s.Send(dp_msg)) { m_l_dp=n; m_l_pr=cp; }
+      // Data Push is only done by DataCollector or Master
+      if(m_role != AAT_ROLE_TRADE_EXECUTOR) {
+         if(m_l_pr==0 || MathAbs(cp-m_l_pr)>=m_p_th || n-m_l_dp>10) {
+            string dp_msg = CAATProtocol::BuildDATA_PUSH(_Symbol, _Period, 100);
+            if(m_s.Send(dp_msg)) { m_l_dp=n; m_l_pr=cp; }
+         }
       }
 
       Proc();
@@ -64,7 +75,9 @@ public:
       while(limit < 20) {
          string m=m_s.Receive(); if(m=="") break;
          string t=CAATProtocol::GetMsgType(m);
-         if(t=="DECISION") {
+
+         // Trade Decisions are only processed by TradeExecutor or Master
+         if(t=="DECISION" && m_role != AAT_ROLE_DATA_COLLECTOR) {
             string ac=CAATProtocol::GetV(m, "act");
             if(ac!="" && ac!="WAIT") HandleTr(m);
          }

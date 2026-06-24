@@ -12,6 +12,7 @@ class HiveIPC:
         self._queues = self.manager.dict()
         self._shared_state = self.manager.dict()
         self._lock = self.manager.Lock()
+        self._local_cache = {}
 
     def __getstate__(self):
         """Prepare state for pickling (Windows compatibility)."""
@@ -20,6 +21,9 @@ class HiveIPC:
         # We exclude the manager and lock as they cannot be pickled directly.
         del state['manager']
         del state['_lock']
+        # Local cache is not picklable if it contains non-picklable proxies from different managers
+        # but here they are from the same manager. However, it's safer to clear it.
+        state['_local_cache'] = {}
         return state
 
     def __setstate__(self, state):
@@ -27,8 +31,13 @@ class HiveIPC:
         self.__dict__.update(state)
         self.manager = None
         self._lock = None
+        if not hasattr(self, '_local_cache'):
+            self._local_cache = {}
 
     def get_queue(self, name: str) -> multiprocessing.Queue:
+        if name in self._local_cache:
+            return self._local_cache[name]
+
         if name not in self._queues:
             if self._lock is None:
                 # In child process, we cannot create new queues if they don't exist
@@ -37,7 +46,10 @@ class HiveIPC:
             with self._lock:
                 if name not in self._queues:
                     self._queues[name] = self.manager.Queue(maxsize=1000)
-        return self._queues[name]
+
+        q = self._queues[name]
+        self._local_cache[name] = q
+        return q
 
     def xadd(self, stream: str, data: Dict[str, Any], maxlen: int = 1000):
         """Emulate Redis XADD."""
