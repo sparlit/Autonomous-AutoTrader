@@ -165,6 +165,9 @@ class NativeDashboard(Process):
 
             dpg.set_value(self.pnl_progress, 0.5 + (equity % 1000) / 2000)
 
+            # P&L Progress bar (mocked for now, center at 0.5)
+            dpg.set_value(self.pnl_progress, 0.5 + (equity % 1000) / 2000)
+
         engine = all_state.get("engine_stats", {})
         if engine:
             rx = engine.get('msgs_rx', 0)
