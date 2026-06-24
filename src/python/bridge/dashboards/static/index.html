@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>AAT Phoenix Dashboard</title>
+    <title>AAT Phoenix Master Pro Dashboard</title>
     <style>
         body { background: #0b0f1a; color: #00f2ff; font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; line-height: 1.5; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 15px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 15px; }
         .card { background: #161b22; padding: 18px; border-radius: 10px; border: 1px solid #30363d; box-shadow: 0 8px 24px rgba(0,0,0,0.2); transition: transform 0.2s; }
         .card:hover { transform: translateY(-2px); border-color: #58a6ff; }
         .value { font-size: 2.2em; font-weight: 800; margin: 8px 0; font-family: 'Courier New', Courier, monospace; }
@@ -21,11 +21,13 @@
         .mini-label { font-size: 0.65em; color: #8b949e; }
         .mini-value { font-size: 1.1em; font-weight: bold; }
         #conn-status { border-radius: 20px; padding: 4px 12px; border: 1px solid currentColor; }
+        .progress-container { width: 100%; background-color: #21262d; border-radius: 5px; margin-top: 10px; }
+        .progress-bar { height: 8px; background-color: #1f6feb; width: 0%; border-radius: 5px; transition: width 0.3s; }
     </style>
 </head>
 <body>
     <h1>
-        <span>🦅 PHOENIX GAUNTLET V2.3 <small style="font-size: 0.5em; vertical-align: middle; opacity: 0.7;">INSTITUTIONAL PRO</small></span>
+        <span>🦅 PHOENIX GAUNTLET V3.0 <small style="font-size: 0.5em; vertical-align: middle; opacity: 0.7;">MASTER PRO</small></span>
         <span id="conn-status" style="font-size: 0.35em; color: #f85149;">DISCONNECTED</span>
     </h1>
 
@@ -39,14 +41,15 @@
                     <div id="drawdown" class="mini-value status-active">0.00%</div>
                 </div>
                 <div class="metric-item">
-                    <div class="mini-label">AVG SPREAD</div>
-                    <div id="spread" class="mini-value">0.0</div>
+                    <div class="mini-label">POSITIONS</div>
+                    <div id="pos-count" class="mini-value">0</div>
                 </div>
                 <div class="metric-item">
                     <div class="mini-label">CANDLE</div>
                     <div id="timer" class="mini-value">--:--</div>
                 </div>
             </div>
+            <div class="progress-container"><div id="pnl-progress" class="progress-bar"></div></div>
         </div>
 
         <div class="card">
@@ -62,15 +65,16 @@
                     <div id="latency" class="mini-value">0.00ms</div>
                 </div>
                 <div class="metric-item">
-                    <div class="mini-label">CLIENTS</div>
-                    <div id="active-clients" class="mini-value">0</div>
+                    <div class="mini-label">MPS</div>
+                    <div id="mps" class="mini-value">0.0</div>
                 </div>
             </div>
+            <div class="progress-container"><div id="throughput-progress" class="progress-bar" style="background-color: #3fb950;"></div></div>
         </div>
 
         <div class="card" style="grid-column: 1 / -1; background: #0d1117;">
             <div class="label" style="display: flex; justify-content: space-between; align-items: center;">
-                <span>Brain Cluster Matrix Telemetry</span>
+                <span>Brain Cluster Matrix Telemetry (20 Processes)</span>
                 <span id="brain-count" style="background: #1f6feb; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.9em;">0 UNITS</span>
             </div>
             <table id="brain-table">
@@ -116,17 +120,21 @@
             const ddElem = document.getElementById('drawdown');
             ddElem.innerText = dd.toFixed(2) + '%';
             ddElem.className = 'mini-value ' + (dd > 2 ? 'status-alert' : 'status-active');
-            document.getElementById('spread').innerText = (acc.spread || 0).toFixed(1);
+            document.getElementById('pos-count').innerText = acc.pos_count || 0;
             document.getElementById('timer').innerText = acc.candle_timer || '--:--';
+            document.getElementById('pnl-progress').style.width = Math.min(100, Math.max(0, 50 + (acc.equity % 1000)/20)) + '%';
 
             // Update Engine
             const eng = state['engine_stats'] || {};
             const engStatus = document.getElementById('engine-status');
             engStatus.innerText = eng.status || 'OPTIMAL';
             engStatus.className = 'value ' + (eng.status === 'ERROR' ? 'status-alert' : 'status-active');
-            document.getElementById('msgs-rx').innerText = (eng.msgs_rx || 0).toLocaleString() + ' RX';
+            const rx = eng.msgs_rx || 0;
+            const mps = eng.mps || 0;
+            document.getElementById('msgs-rx').innerText = rx.toLocaleString() + ' RX';
             document.getElementById('latency').innerText = ((eng.latency || 0) * 1000).toFixed(2) + 'ms';
-            document.getElementById('active-clients').innerText = eng.active_clients || 0;
+            document.getElementById('mps').innerText = mps.toFixed(1);
+            document.getElementById('throughput-progress').style.width = Math.min(100, mps) + '%';
 
             // Update Brains
             const tbody = document.getElementById('brain-body');
@@ -134,7 +142,8 @@
             document.getElementById('brain-count').innerText = brains.length + ' UNITS';
 
             tbody.innerHTML = '';
-            brains.forEach(key => {
+            // Sort by name
+            brains.sort().forEach(key => {
                 const b = state[key];
                 const lastSeen = Date.now()/1000 - b.last_seen;
                 const row = document.createElement('tr');

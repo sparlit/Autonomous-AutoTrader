@@ -95,6 +95,21 @@ class MetaBrain(BaseBrain):
             if conf["structure"] == 1: agreement_count += 1 # Structure acts as confirmation
             if conf["volatility"] == 1: agreement_count += 1 # Volatility acts as confirmation
 
+            # Broadcast Telemetry
+            now = time.time()
+            if now - self._last_telemetry_broadcast > 1: # 1 second telemetry interval
+                acc_stats = self.ipc.get_state("account_stats", {}) if self.ipc else {}
+                telemetry = {
+                    "type": "TELEMETRY",
+                    "symbol": symbol,
+                    "st": "OPTIMAL",
+                    "scr": round(state["prior"], 4),
+                    "htf": state["htf_trend"],
+                    "dd": acc_stats.get("drawdown", 0.0)
+                }
+                self.publish(telemetry)
+                self._last_telemetry_broadcast = now
+
             # Enforce "3 of 4" rule
             if agreement_count >= 3 and state["prior"] >= self.threshold and not state["veto"]:
                 # Final Trigger Candle precision check

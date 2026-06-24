@@ -36,8 +36,8 @@ class HiveOrchestrator:
         self._initialize_ipc_queues()
         self._initialize_dashboards()
 
-        self.ipc.set_state("account_stats", {"equity": 0.0, "drawdown": 0.0, "spread": 0.0, "candle_timer": "--:--"})
-        self.ipc.set_state("engine_stats", {"status": "STARTING", "msgs_rx": 0, "msgs_tx": 0, "latency": 0.0, "active_clients": 0})
+        self.ipc.set_state("account_stats", {"equity": 0.0, "drawdown": 0.0, "spread": 0.0, "candle_timer": "--:--", "pos_count": 0})
+        self.ipc.set_state("engine_stats", {"status": "STARTING", "msgs_rx": 0, "msgs_tx": 0, "latency": 0.0, "active_clients": 0, "mps": 0.0})
 
     def _initialize_brains(self):
         # 20 Specialized Brains pinned to 20 Logical Processors (CPU 0-19)
@@ -113,6 +113,7 @@ class HiveOrchestrator:
             self.ipc.set_state("account_stats", {
                 "equity": message.get("e", 0.0), "drawdown": message.get("d", 0.0),
                 "spread": message.get("sp", 0.0), "candle_timer": message.get("ct", "--:--"),
+                "pos_count": message.get("pc", 0),
                 "last_update": time.time()
             })
         target = f"stream:MarketData_{1 if time.time() % 2 < 1 else 2}"
@@ -129,17 +130,19 @@ class HiveOrchestrator:
         await self._main_orchestration_loop()
 
     async def _main_orchestration_loop(self):
-        counter = 0; last_stat_update = 0
+        counter = 0; last_stat_update = 0; last_rx = 0
         while True:
             try:
                 now = time.time()
-                if now - last_stat_update > 2:
+                if now - last_stat_update >= 0.5:
+                    current_rx = self.server.stats["msgs_rx"]
+                    mps = (current_rx - last_rx) / (now - last_stat_update) if last_stat_update > 0 else 0
                     self.ipc.set_state("engine_stats", {
-                        "status": "OPTIMAL", "msgs_rx": self.server.stats["msgs_rx"],
+                        "status": "OPTIMAL", "msgs_rx": current_rx,
                         "msgs_tx": self.server.stats["msgs_tx"], "latency": self.server.stats["last_latency"],
-                        "active_clients": len(self.server.clients), "uptime": now
+                        "active_clients": len(self.server.clients), "uptime": now, "mps": mps
                     })
-                    last_stat_update = now
+                    last_stat_update = now; last_rx = current_rx
 
                 messages = self.ipc.xread({"stream:orchestrator": '0'}, count=20, block=1)
                 if messages:
@@ -169,7 +172,13 @@ class HiveOrchestrator:
                             elif e_type == "RELIABILITY_REPORT":
                                 self.ipc.xadd("stream:Meta_1", {"payload": json.dumps(event)}, maxlen=100)
                             elif e_type == "TELEMETRY":
-                                telemetry_msg = {"t": "TLM", "s": event["symbol"], "st": event["st"], "scr": event["scr"], "htf": event["htf"], "dd": event.get("dd", 0.0)}
+                                acc_stats = self.ipc.get_state("account_stats", {})
+                                telemetry_msg = {
+                                    "t": "TLM", "s": event["symbol"], "st": "OPTIMAL",
+                                    "scr": event["scr"], "htf": event["htf"],
+                                    "dd": event.get("dd", 0.0),
+                                    "pc": acc_stats.get("pos_count", 0)
+                                }
                                 asyncio.create_task(self.server.broadcast(telemetry_msg))
                             elif e_type == "EMERGENCY_KILL":
                                 self.stop(); return
