@@ -21,6 +21,8 @@ def to_dict(obj):
     else:
         return obj
 
+logger = logging.getLogger("AAT_WebDashboard")
+
 class WebDashboard(Process):
     """10400: FastAPI Web Terminal for remote telemetry."""
     def __init__(self, ipc: Any = None, port: int = 8009):
