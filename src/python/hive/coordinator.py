@@ -20,6 +20,7 @@ from src.python.brains.consensus import MetaBrain
 from src.python.bridge.server import BridgeServer
 from src.python.bridge.dashboards.native_gui import NativeDashboard
 from src.python.bridge.dashboards.web_server import WebDashboard
+from src.python.execution.risk_manager import RiskManager
 
 logger = logging.getLogger("AAT_Orchestrator")
 
@@ -33,12 +34,25 @@ class HiveOrchestrator:
         self.server = BridgeServer(
             self.config.bridge.host, self.config.bridge.port, self.handle_client_message
         )
+        self.risk_manager = RiskManager(self.config)
         self._initialize_brains()
         self._initialize_ipc_queues()
         self._initialize_dashboards()
 
         self.ipc.set_state("account_stats", {"equity": 0.0, "drawdown": 0.0, "pos_count": 0})
         self.ipc.set_state("engine_stats", {"status": "STARTING", "msgs_rx": 0, "msgs_tx": 0, "latency": 0.0, "active_clients": 0, "mps": 0.0, "server_time": time.time()})
+
+        # 10255: Expose constants and config values to IPC for dashboard monitoring
+        self.ipc.set_state("sys_params", {
+            "risk_per_trade_pct": self.config.risk.risk_per_trade_pct,
+            "max_drawdown_pct": self.config.risk.max_drawdown_pct,
+            "daily_loss_limit_pct": self.config.risk.daily_loss_limit_pct,
+            "consensus_threshold": self.config.brains.consensus_threshold,
+            "session_active": False,
+            "news_safe": True,
+            "daily_trades": 0,
+            "peak_equity": 0.0
+        })
 
     def _initialize_brains(self):
         # 23 Specialized Brains (some redundant instances for load balancing)
@@ -92,10 +106,16 @@ class HiveOrchestrator:
         m_type = message.get("t")
         if m_type == "HB":
             symbol = message.get("s", "GLOBAL")
+            equity = message.get("e", 0.0)
             self.ipc.set_state("account_stats", {
-                "equity": message.get("e", 0.0), "drawdown": message.get("d", 0.0),
+                "equity": equity, "drawdown": message.get("d", 0.0),
                 "pos_count": message.get("pc", 0), "last_update": time.time()
             })
+
+            # Update peak equity for drawdown monitoring
+            if equity > self.risk_manager.peak_equity:
+                self.risk_manager.peak_equity = equity
+
             # Merge with existing symbol stats to prevent overwritingscr/htf
             s_stats = self.ipc.get_state(f"symbol_stats:{symbol}", {"symbol": symbol, "scr": 0.5, "htf": "NEUTRAL"})
             s_stats.update({
@@ -136,6 +156,19 @@ class HiveOrchestrator:
                         "active_clients": len(self.server.clients), "uptime": now, "mps": mps,
                         "server_time": now
                     })
+
+                    # Update dynamic system parameters
+                    self.ipc.set_state("sys_params", {
+                        "risk_per_trade_pct": self.config.risk.risk_per_trade_pct,
+                        "max_drawdown_pct": self.config.risk.max_drawdown_pct,
+                        "daily_loss_limit_pct": self.config.risk.daily_loss_limit_pct,
+                        "consensus_threshold": self.config.brains.consensus_threshold,
+                        "session_active": self.risk_manager.is_session_active(),
+                        "news_safe": self.risk_manager.is_news_safe(),
+                        "daily_trades": self.risk_manager.daily_trades,
+                        "peak_equity": self.risk_manager.peak_equity
+                    })
+
                     last_stat_update = now; last_rx = current_rx
 
                 # Optimized: Read from stream once per loop
@@ -160,6 +193,7 @@ class HiveOrchestrator:
                                 counter += 1
                             elif e_type == "VALIDATED_TRADE":
                                 self.ipc.xadd(f"stream:Execution_{1 if counter % 2 == 0 else 2}", {"payload": json.dumps(event)}, maxlen=1000)
+                                self.risk_manager.daily_trades += 1 # Track trades for limits
                                 counter += 1
                             elif e_type == "EXECUTION_ORDER":
                                 self.ipc.xadd("stream:Memory_1", {"payload": json.dumps(event)}, maxlen=1000)

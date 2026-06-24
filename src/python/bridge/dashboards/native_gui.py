@@ -37,7 +37,7 @@ class NativeDashboard(Process):
             with dpg.theme_component(dpg.mvAll):
                 dpg.add_theme_color(dpg.mvThemeCol_Text, [200, 200, 200])
 
-        with dpg.window(label="🦅 AAT PHOENIX ASCENDANT V3.0 - MASTER PRO", width=1000, height=850):
+        with dpg.window(label="🦅 AAT PHOENIX ASCENDANT V3.0 - MASTER PRO", width=1200, height=900):
             with dpg.group(horizontal=True):
                 dpg.add_text("SYSTEM STATUS:")
                 self.status_tag = dpg.add_text("OPTIMAL", color=[0, 255, 0])
@@ -48,7 +48,7 @@ class NativeDashboard(Process):
             dpg.add_separator()
 
             with dpg.group(horizontal=True):
-                with dpg.child_window(width=320, height=220, label="Account Telemetry"):
+                with dpg.child_window(width=350, height=220, label="Account Telemetry"):
                     dpg.add_text("REAL-TIME CAPITAL", color=[150, 150, 150])
                     self.equity_tag = dpg.add_text("EQUITY: $0.00", color=[255, 255, 255])
                     with dpg.group(horizontal=True):
@@ -59,21 +59,42 @@ class NativeDashboard(Process):
                     self.timer_tag = dpg.add_text("CANDLE TIMER: --:--", color=[200, 200, 200])
                     dpg.add_spacer(height=5)
                     dpg.add_text("P&L PROGRESS")
-                    self.pnl_progress = dpg.add_progress_bar(default_value=0.5, width=280)
+                    self.pnl_progress = dpg.add_progress_bar(default_value=0.5, width=320)
 
-                with dpg.child_window(width=650, height=220, label="Engine Orchestrator"):
+                with dpg.child_window(width=400, height=220, label="System Control Parameters"):
+                    dpg.add_text("LIVE CONSTANTS & LIMITS", color=[0, 242, 255])
+                    with dpg.group(horizontal=True):
+                        self.param_risk = dpg.add_text("RISK/TRADE: 0.0%")
+                        dpg.add_spacer(width=20)
+                        self.param_dd_limit = dpg.add_text("MAX DD: 0.0%")
+                    with dpg.group(horizontal=True):
+                        self.param_daily_limit = dpg.add_text("DAILY LIMIT: 0.0%")
+                        dpg.add_spacer(width=20)
+                        self.param_consensus = dpg.add_text("CONSENSUS: 0.0%")
+
+                    dpg.add_separator()
+                    dpg.add_text("OPERATIONAL BOOLEANS")
+                    with dpg.group(horizontal=True):
+                        self.bool_session = dpg.add_text("SESSION: ACTIVE")
+                        dpg.add_spacer(width=20)
+                        self.bool_news = dpg.add_text("NEWS: SAFE")
+                    with dpg.group(horizontal=True):
+                        self.stat_trades = dpg.add_text("DAILY TRADES: 0")
+                        dpg.add_spacer(width=20)
+                        self.stat_peak = dpg.add_text("PEAK: $0.00")
+
+                with dpg.child_window(width=400, height=220, label="Engine Orchestrator"):
                     dpg.add_text("ULTRA-BRIDGE TELEMETRY", color=[150, 150, 150])
                     with dpg.group(horizontal=True):
                         self.msg_rx_tag = dpg.add_text("MSGS RX: 0")
                         dpg.add_spacer(width=50)
                         self.msg_tx_tag = dpg.add_text("MSGS TX: 0")
-                        dpg.add_spacer(width=50)
-                        self.mps_tag = dpg.add_text("MPS: 0.0")
+                    self.mps_tag = dpg.add_text("MPS: 0.0")
                     self.latency_tag = dpg.add_text("LATENCY: 0.00ms")
                     self.reconnect_tag = dpg.add_text("CONNECTIONS: 0", color=[100, 200, 255])
                     dpg.add_spacer(height=10)
                     dpg.add_text("THROUGHPUT INTENSITY")
-                    self.throughput_bar = dpg.add_progress_bar(default_value=0.0, width=600)
+                    self.throughput_bar = dpg.add_progress_bar(default_value=0.0, width=380)
 
             dpg.add_spacer(height=5)
             dpg.add_text("ACTIVE SYMBOL INTELLIGENCE", color=[0, 242, 255])
@@ -165,6 +186,24 @@ class NativeDashboard(Process):
             dpg.bind_item_theme(self.dd_tag, self.alert_theme if dd > 2 else self.active_theme)
             dpg.set_value(self.pos_tag, f"POS: {account.get('pos_count', 0)}")
             dpg.set_value(self.pnl_progress, 0.5 + (equity % 1000) / 2000)
+
+        sys_params = all_state.get("sys_params", {})
+        if sys_params:
+            dpg.set_value(self.param_risk, f"RISK/TRADE: {sys_params.get('risk_per_trade_pct', 0):.1f}%")
+            dpg.set_value(self.param_dd_limit, f"MAX DD: {sys_params.get('max_drawdown_pct', 0):.1f}%")
+            dpg.set_value(self.param_daily_limit, f"DAILY LIMIT: {sys_params.get('daily_loss_limit_pct', 0):.1f}%")
+            dpg.set_value(self.param_consensus, f"CONSENSUS: {sys_params.get('consensus_threshold', 0):.1f}%")
+
+            sess_active = sys_params.get('session_active', False)
+            dpg.set_value(self.bool_session, f"SESSION: {'ACTIVE' if sess_active else 'INACTIVE'}")
+            dpg.bind_item_theme(self.bool_session, self.active_theme if sess_active else self.alert_theme)
+
+            news_safe = sys_params.get('news_safe', True)
+            dpg.set_value(self.bool_news, f"NEWS: {'SAFE' if news_safe else 'DANGER'}")
+            dpg.bind_item_theme(self.bool_news, self.active_theme if news_safe else self.alert_theme)
+
+            dpg.set_value(self.stat_trades, f"DAILY TRADES: {sys_params.get('daily_trades', 0)}")
+            dpg.set_value(self.stat_peak, f"PEAK: ${sys_params.get('peak_equity', 0):,.2f}")
 
         if engine:
             rx = engine.get('msgs_rx', 0); tx = engine.get('msgs_tx', 0); mps = engine.get('mps', 0.0)
