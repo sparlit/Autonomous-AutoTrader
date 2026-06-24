@@ -14,6 +14,12 @@ public:
       if(remaining < 0) remaining = 0;
       string timer = StringFormat("%02d:%02d", (int)(remaining / 60), (int)(remaining % 60));
 
+      int pos_count = 0;
+      for(int i=0; i<PositionsTotal(); i++) {
+         ulong tk = PositionGetTicket(i);
+         if(PositionSelectByTicket(tk) && PositionGetString(POSITION_SYMBOL) == s) pos_count++;
+      }
+
       string res = "{\"t\":\"HB\",\"s\":\"";
       res += s;
       res += "\",\"e\":";
@@ -24,7 +30,9 @@ public:
       res += DoubleToString(spread_pts, 1);
       res += ",\"ct\":\"";
       res += timer;
-      res += "\"}";
+      res += "\",\"pc\":";
+      res += IntegerToString(pos_count);
+      res += "}";
       return res;
    }
 
