@@ -50,7 +50,7 @@ class NativeDashboard(Process):
             with dpg.group(horizontal=True):
                 with dpg.child_window(width=350, height=220, label="Account Telemetry"):
                     dpg.add_text("REAL-TIME CAPITAL", color=[150, 150, 150])
-                    self.equity_tag = dpg.add_text("EQUITY: $0.00", color=[255, 255, 255])
+                    self.equity_tag = dpg.add_text("EQUITY: -bash.00", color=[255, 255, 255])
                     with dpg.group(horizontal=True):
                         self.dd_tag = dpg.add_text("DD: 0.00%", color=[0, 255, 0])
                         dpg.add_spacer(width=20)
@@ -81,7 +81,7 @@ class NativeDashboard(Process):
                     with dpg.group(horizontal=True):
                         self.stat_trades = dpg.add_text("DAILY TRADES: 0")
                         dpg.add_spacer(width=20)
-                        self.stat_peak = dpg.add_text("PEAK: $0.00")
+                        self.stat_peak = dpg.add_text("PEAK: -bash.00")
 
                 with dpg.child_window(width=400, height=220, label="Engine Orchestrator"):
                     dpg.add_text("ULTRA-BRIDGE TELEMETRY", color=[150, 150, 150])
@@ -146,6 +146,7 @@ class NativeDashboard(Process):
             with dpg.group(horizontal=True):
                 dpg.add_button(label="EMERGENCY KILL", callback=self.kill_switch, width=150, height=40)
                 dpg.add_button(label="FORCE SYNC", callback=self.force_sync, width=150, height=40)
+                dpg.add_button(label="CLOSE ALL", callback=self.close_all_trades, width=150, height=40)
 
         with dpg.window(label="⚙️ System Diagnostics", width=400, height=200, pos=[1010, 0]):
             self.diag_text = dpg.add_text("IPC State: Waiting for data...")
@@ -252,3 +253,6 @@ class NativeDashboard(Process):
 
     def force_sync(self):
         if self.ipc: self.ipc.xadd("stream:orchestrator", {"payload": '{"type": "FORCE_SYNC"}'})
+
+    def close_all_trades(self):
+        if self.ipc: self.ipc.xadd("stream:orchestrator", {"payload": '{"type": "EXECUTION_ORDER", "t": "CLOSE_ALL"}'})
