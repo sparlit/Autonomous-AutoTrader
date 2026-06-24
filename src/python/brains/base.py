@@ -121,7 +121,6 @@ class BaseBrain(Process, BrainContract):
         self.ipc.xadd("stream:orchestrator", {"payload": json.dumps(result)}, maxlen=self.stream_max_len)
 
     def health(self) -> Dict[str, Any]:
-        """12011: Collect health metrics."""
         p = psutil.Process(os.getpid())
         avg_latency = self._latency_sum / self._processed_count if self._processed_count > 0 else 0
         return {
