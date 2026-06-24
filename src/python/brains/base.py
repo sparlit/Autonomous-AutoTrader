@@ -50,6 +50,7 @@ class BaseBrain(Process, BrainContract):
         self._last_activity = 0.0
         self.max_execution_time = 0.1 # 100ms hard deadline (12101)
         self.stream_max_len = 1000 # Bounded streams to prevent OOM (12102)
+        self._queue_ref = None
 
     async def initialize(self):
         """12005: Hardware and dependency setup."""
@@ -59,6 +60,9 @@ class BaseBrain(Process, BrainContract):
                 p.cpu_affinity(self.cpu_affinity)
             except: pass
         self._last_activity = time.time()
+        if self.ipc:
+            # Pre-cache the queue reference in the child process
+            self._queue_ref = self.ipc.get_queue(f"stream:{self.name}")
 
     def run(self):
         """12006: Process entry point."""

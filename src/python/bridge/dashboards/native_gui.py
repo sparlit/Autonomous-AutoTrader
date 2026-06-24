@@ -12,6 +12,7 @@ class NativeDashboard(Process):
         self.ipc = ipc
         self.stats = {"equity": 0.0, "drawdown": 0.0, "status": "INITIALIZING"}
         self.magic = 10501
+        self.last_ui_update = 0
 
     def run(self):
         """10502: GUI Main Loop."""
@@ -36,7 +37,7 @@ class NativeDashboard(Process):
             with dpg.theme_component(dpg.mvAll):
                 dpg.add_theme_color(dpg.mvThemeCol_Text, [200, 200, 200])
 
-        with dpg.window(label="🦅 AAT PHOENIX ASCENDANT V3.0 - MASTER PRO", width=1000, height=850):
+        with dpg.window(label="🦅 AAT PHOENIX ASCENDANT V3.0 - MASTER PRO", width=1200, height=950):
             with dpg.group(horizontal=True):
                 dpg.add_text("SYSTEM STATUS:")
                 self.status_tag = dpg.add_text("OPTIMAL", color=[0, 255, 0])
@@ -47,7 +48,7 @@ class NativeDashboard(Process):
             dpg.add_separator()
 
             with dpg.group(horizontal=True):
-                with dpg.child_window(width=320, height=220, label="Account Telemetry"):
+                with dpg.child_window(width=350, height=220, label="Account Telemetry"):
                     dpg.add_text("REAL-TIME CAPITAL", color=[150, 150, 150])
                     self.equity_tag = dpg.add_text("EQUITY: $0.00", color=[255, 255, 255])
                     with dpg.group(horizontal=True):
@@ -58,21 +59,55 @@ class NativeDashboard(Process):
                     self.timer_tag = dpg.add_text("CANDLE TIMER: --:--", color=[200, 200, 200])
                     dpg.add_spacer(height=5)
                     dpg.add_text("P&L PROGRESS")
-                    self.pnl_progress = dpg.add_progress_bar(default_value=0.5, width=280)
+                    self.pnl_progress = dpg.add_progress_bar(default_value=0.5, width=320)
 
-                with dpg.child_window(width=650, height=220, label="Engine Orchestrator"):
+                with dpg.child_window(width=400, height=220, label="System Control Parameters"):
+                    dpg.add_text("LIVE CONSTANTS & LIMITS", color=[0, 242, 255])
+                    with dpg.group(horizontal=True):
+                        self.param_risk = dpg.add_text("RISK/TRADE: 0.0%")
+                        dpg.add_spacer(width=20)
+                        self.param_dd_limit = dpg.add_text("MAX DD: 0.0%")
+                    with dpg.group(horizontal=True):
+                        self.param_daily_limit = dpg.add_text("DAILY LIMIT: 0.0%")
+                        dpg.add_spacer(width=20)
+                        self.param_consensus = dpg.add_text("CONSENSUS: 0.0%")
+
+                    dpg.add_separator()
+                    dpg.add_text("OPERATIONAL BOOLEANS")
+                    with dpg.group(horizontal=True):
+                        self.bool_session = dpg.add_text("SESSION: ACTIVE")
+                        dpg.add_spacer(width=20)
+                        self.bool_news = dpg.add_text("NEWS: SAFE")
+                    with dpg.group(horizontal=True):
+                        self.stat_trades = dpg.add_text("DAILY TRADES: 0")
+                        dpg.add_spacer(width=20)
+                        self.stat_peak = dpg.add_text("PEAK: $0.00")
+
+                with dpg.child_window(width=400, height=220, label="Engine Orchestrator"):
                     dpg.add_text("ULTRA-BRIDGE TELEMETRY", color=[150, 150, 150])
                     with dpg.group(horizontal=True):
                         self.msg_rx_tag = dpg.add_text("MSGS RX: 0")
                         dpg.add_spacer(width=50)
                         self.msg_tx_tag = dpg.add_text("MSGS TX: 0")
-                        dpg.add_spacer(width=50)
-                        self.mps_tag = dpg.add_text("MPS: 0.0")
+                    self.mps_tag = dpg.add_text("MPS: 0.0")
                     self.latency_tag = dpg.add_text("LATENCY: 0.00ms")
                     self.reconnect_tag = dpg.add_text("CONNECTIONS: 0", color=[100, 200, 255])
                     dpg.add_spacer(height=10)
                     dpg.add_text("THROUGHPUT INTENSITY")
-                    self.throughput_bar = dpg.add_progress_bar(default_value=0.0, width=600)
+                    self.throughput_bar = dpg.add_progress_bar(default_value=0.0, width=380)
+
+            dpg.add_spacer(height=5)
+            dpg.add_text("ACTIVE POSITIONS (SYNCED)", color=[255, 150, 0])
+            dpg.add_separator()
+            with dpg.table(header_row=True, borders_innerH=True, borders_outerH=True, borders_innerV=True, borders_outerV=True, resizable=True, height=150, tag="active_trades_table"):
+                dpg.add_table_column(label="TICKET")
+                dpg.add_table_column(label="SYMBOL")
+                dpg.add_table_column(label="ACTION")
+                dpg.add_table_column(label="LOTS")
+                dpg.add_table_column(label="ENTRY")
+                dpg.add_table_column(label="SL")
+                dpg.add_table_column(label="TP")
+                dpg.add_table_column(label="MANAGED")
 
             dpg.add_spacer(height=5)
             dpg.add_text("ACTIVE SYMBOL INTELLIGENCE", color=[0, 242, 255])
@@ -91,7 +126,7 @@ class NativeDashboard(Process):
             dpg.add_text("BRAIN CLUSTER MATRIX TELEMETRY (23 CORES)", color=[0, 242, 255])
             dpg.add_separator()
 
-            with dpg.table(header_row=True, borders_innerH=True, borders_outerH=True, borders_innerV=True, borders_outerV=True, resizable=True, sortable=True, height=280):
+            with dpg.table(header_row=True, borders_innerH=True, borders_outerH=True, borders_innerV=True, borders_outerV=True, resizable=True, sortable=True, height=200):
                 dpg.add_table_column(label="BRAIN UNIT")
                 dpg.add_table_column(label="PID")
                 dpg.add_table_column(label="CPU %")
@@ -124,17 +159,20 @@ class NativeDashboard(Process):
             with dpg.group(horizontal=True):
                 dpg.add_button(label="EMERGENCY KILL", callback=self.kill_switch, width=150, height=40)
                 dpg.add_button(label="FORCE SYNC", callback=self.force_sync, width=150, height=40)
+                dpg.add_button(label="CLOSE ALL", callback=self.close_all_trades, width=150, height=40)
 
         with dpg.window(label="⚙️ System Diagnostics", width=400, height=200, pos=[1010, 0]):
             self.diag_text = dpg.add_text("IPC State: Waiting for data...")
 
-        dpg.create_viewport(title='AAT Phoenix Master Pro Monitor', width=1450, height=900)
+        dpg.create_viewport(title='AAT Phoenix Master Pro Monitor', width=1450, height=950)
         dpg.setup_dearpygui()
         dpg.show_viewport()
 
         while dpg.is_dearpygui_running():
             try:
-                self._update_from_ipc()
+                if time.time() - self.last_ui_update > 0.1:
+                    self._update_from_ipc()
+                    self.last_ui_update = time.time()
             except Exception as e:
                 if "dearpygui" in str(e).lower() and not dpg.is_dearpygui_running(): break
                 logger.error(f"UI Update Error: {e}")
@@ -163,10 +201,40 @@ class NativeDashboard(Process):
             dpg.set_value(self.pos_tag, f"POS: {account.get('pos_count', 0)}")
             dpg.set_value(self.pnl_progress, 0.5 + (equity % 1000) / 2000)
 
+        sys_params = all_state.get("sys_params", {})
+        if sys_params:
+            dpg.set_value(self.param_risk, f"RISK/TRADE: {sys_params.get('risk_per_trade_pct', 0):.1f}%")
+            dpg.set_value(self.param_dd_limit, f"MAX DD: {sys_params.get('max_drawdown_pct', 0):.1f}%")
+            dpg.set_value(self.param_daily_limit, f"DAILY LIMIT: {sys_params.get('daily_loss_limit_pct', 0):.1f}%")
+            dpg.set_value(self.param_consensus, f"CONSENSUS: {sys_params.get('consensus_threshold', 0):.1f}%")
+            sess_active = sys_params.get('session_active', False)
+            dpg.set_value(self.bool_session, f"SESSION: {'ACTIVE' if sess_active else 'INACTIVE'}")
+            dpg.bind_item_theme(self.bool_session, self.active_theme if sess_active else self.alert_theme)
+            news_safe = sys_params.get('news_safe', True)
+            dpg.set_value(self.bool_news, f"NEWS: {'SAFE' if news_safe else 'DANGER'}")
+            dpg.bind_item_theme(self.bool_news, self.active_theme if news_safe else self.alert_theme)
+            dpg.set_value(self.stat_trades, f"DAILY TRADES: {sys_params.get('daily_trades', 0)}")
+            dpg.set_value(self.stat_peak, f"PEAK: ${sys_params.get('peak_equity', 0):,.2f}")
+
+        # 16025: Clear and rebuild active trades table for accuracy
+        active_trades = all_state.get("active_trades", [])
+        dpg.delete_item("active_trades_table", children_only=True)
+        for t in active_trades:
+            tk = t["ticket"]
+            if tk == 0: continue
+            with dpg.table_row(parent="active_trades_table"):
+                dpg.add_text(str(tk))
+                dpg.add_text(t["symbol"])
+                dpg.add_text(t["action"])
+                dpg.add_text(f"{t['lots']:.2f}")
+                dpg.add_text(f"{t.get('entry_price', 0):.5f}")
+                dpg.add_text(f"{t.get('sl_price', 0):.5f}")
+                dpg.add_text(f"{t.get('tp_price', 0):.5f}")
+                dpg.add_text("YES" if t.get("is_managed") else "NO")
+
         if engine:
             rx = engine.get('msgs_rx', 0); tx = engine.get('msgs_tx', 0); mps = engine.get('mps', 0.0)
-            dpg.set_value(self.msg_rx_tag, f"MSGS RX: {rx}")
-            dpg.set_value(self.msg_tx_tag, f"MSGS TX: {tx}")
+            dpg.set_value(self.msg_rx_tag, f"MSGS RX: {rx}"); dpg.set_value(self.msg_tx_tag, f"MSGS TX: {tx}")
             dpg.set_value(self.mps_tag, f"MPS: {mps:.1f}")
             dpg.set_value(self.latency_tag, f"LATENCY: {engine.get('latency', 0)*1000:.2f}ms")
             dpg.set_value(self.status_tag, engine.get('status', 'ACTIVE'))
@@ -180,10 +248,8 @@ class NativeDashboard(Process):
                     with dpg.table_row(parent=self.symbol_table_id):
                         dpg.add_text(symbol_name, color=[255, 255, 255])
                         self.symbol_rows[symbol_name] = {
-                            "spread": dpg.add_text("0.0"),
-                            "timer": dpg.add_text("--:--"),
-                            "trend": dpg.add_text("NEUTRAL"),
-                            "score": dpg.add_text("50.0%")
+                            "spread": dpg.add_text("0.0"), "timer": dpg.add_text("--:--"),
+                            "trend": dpg.add_text("NEUTRAL"), "score": dpg.add_text("50.0%")
                         }
                 row = self.symbol_rows[symbol_name]
                 dpg.set_value(row["spread"], f"{sym.get('spread', 0):.1f}")
@@ -207,6 +273,7 @@ class NativeDashboard(Process):
 
     def kill_switch(self):
         if self.ipc: self.ipc.xadd("stream:orchestrator", {"payload": '{"type": "EMERGENCY_KILL"}'})
-
     def force_sync(self):
         if self.ipc: self.ipc.xadd("stream:orchestrator", {"payload": '{"type": "FORCE_SYNC"}'})
+    def close_all_trades(self):
+        if self.ipc: self.ipc.xadd("stream:orchestrator", {"payload": '{"type": "EXECUTION_ORDER", "t": "CLOSE_ALL"}'})
