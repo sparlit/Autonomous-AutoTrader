@@ -13,7 +13,4 @@ jobs:
           fetch-depth: 0
 
       - name: Resolve specific file conflicts automatically
-        uses: VeyronSakai/conflict-resolver@v1
-        with:
-          paths: 'src/**/*.json' # Target specific file patterns
-          strategy: 'theirs'      # Choose 'ours' or 'theirs' to overwrite automatically
+        uses: VeyronSakai/conflict-resolver@v0.5.2

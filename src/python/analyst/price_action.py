@@ -7,19 +7,6 @@ class SMCAnalyst:
     def detect_market_structure(self, df: pd.DataFrame, atr: float = 0.0) -> Dict[str, Any]:
         """
         Analyze market structure by identifying pivot points, trend direction, and reversal signals.
-
-        Detects pivot highs and lows from price data, classifies the trend as bullish, bearish, or neutral based on whether recent pivots are making higher or lower extremes, identifies sweep conditions where price breaks a prior pivot while closing in the opposite direction, and detects change of character when price violates the current trend direction.
-
-        Parameters:
-		df (pd.DataFrame): DataFrame with 'h' (high), 'l' (low), and 'c' (close) columns.
-
-        Returns:
-		dict: Dictionary containing:
-			- 'trend' (str): 'BULLISH', 'BEARISH', or 'NEUTRAL'
-			- 'choch' (bool): True if a change of character is detected
-			- 'sweep' (bool or str): False, 'BULLISH_SWEEP', or 'BEARISH_SWEEP'
-			- 'swing_h' (float or None): Most recent pivot high, or None if unavailable
-			- 'swing_l' (float or None): Most recent pivot low, or None if unavailable
         """
         if len(df) < 15: return {"trend": "NEUTRAL", "choch": False, "sweep": False, "swing_h": None, "swing_l": None}
         h = df['h'].values; l = df['l'].values; c = df['c'].values
@@ -45,14 +32,6 @@ class SMCAnalyst:
     def detect_order_blocks(self, df: pd.DataFrame, atr: float = 0.0) -> List[Dict[str, Any]]:
         """
         Identify bullish and bearish order blocks based on impulsive candle reversals.
-
-        An order block is detected when a candle of one direction is followed by a candle of the opposite direction with a move larger than the ATR threshold.
-
-        Parameters:
-            atr (float): Average True Range value used to filter moves; moves must exceed 1.5x this value to qualify as impulsive. Defaults to 0, treating all moves as impulsive.
-
-        Returns:
-            List[Dict[str, Any]]: Up to 5 most recent order blocks. Each block contains "type" (BULLISH or BEARISH), "top" (high price), "bottom" (low price), and "index" (bar index in the input DataFrame).
         """
         if len(df) < 5: return []
         o = df['o'].values; h = df['h'].values; l = df['l'].values; c = df['c'].values
@@ -65,12 +44,40 @@ class SMCAnalyst:
         for idx in np.where(bearish_ob_mask)[0]: obs.append({"type": "BEARISH", "top": h[idx], "bottom": l[idx], "index": int(idx)})
         return obs[-5:]
 
+    def detect_fvg(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+        """
+        12015: Detect Fair Value Gaps (FVG).
+        A FVG occurs when there is a gap between the low of candle 1 and the high of candle 3 in an impulsive move.
+        """
+        if len(df) < 3: return []
+        h = df['h'].values; l = df['l'].values
+        fvgs = []
+        for i in range(2, len(df)):
+            if h[i-2] < l[i]: # Bullish FVG
+                fvgs.append({"type": "BULLISH", "top": l[i], "bottom": h[i-2], "index": i-1})
+            elif l[i-2] > h[i]: # Bearish FVG
+                fvgs.append({"type": "BEARISH", "top": l[i-2], "bottom": h[i], "index": i-1})
+        return fvgs[-5:]
+
+    def detect_inducement(self, df: pd.DataFrame) -> Optional[Dict[str, Any]]:
+        """
+        12016: Detect Inducement (IDM).
+        IDM is the first pullback in a new trend that retail traders often mistake for a reversal.
+        """
+        struct = self.detect_market_structure(df)
+        if struct["trend"] == "NEUTRAL": return None
+        l = df['l'].values; h = df['h'].values
+        if struct["trend"] == "BULLISH":
+            # Inducement is the last valid low before a new high
+            if len(l) > 5: return {"type": "IDM_BULLISH", "level": np.min(l[-5:-1])}
+        elif struct["trend"] == "BEARISH":
+            # Inducement is the last valid high before a new low
+            if len(h) > 5: return {"type": "IDM_BEARISH", "level": np.max(h[-5:-1])}
+        return None
+
     def detect_candlestick_trigger(self, df: pd.DataFrame) -> str:
         """
         Classifies the latest candlestick into a price-action trigger pattern.
-
-        Returns:
-            'BULLISH_PIN', 'BEARISH_PIN', 'BULLISH_ENGULFING', or 'BEARISH_ENGULFING' if a matching pattern is detected; None otherwise.
         """
         if len(df) < 2: return None
         last = df.iloc[-1]; prev = df.iloc[-2]
