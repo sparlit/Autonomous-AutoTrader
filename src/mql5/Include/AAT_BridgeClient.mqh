@@ -10,7 +10,6 @@ class CAATBridgeClient
 {
 private:
    CAATNativeSocket m_s;
-   CAATSocket m_s;
    CTrade m_t;
    CAATDashboard m_d;
    string m_h, m_u_s;
@@ -18,16 +17,23 @@ private:
    datetime m_l_hb, m_l_dp;
    double m_l_pr, m_p_th;
    bool m_u_d;
+   bool m_d_created;
 
 public:
-   CAATBridgeClient() : m_h("127.0.0.1"), m_p(5555), m_l_hb(0), m_l_dp(0), m_l_pr(0), m_p_th(0.0001), m_u_d(true) {
+   CAATBridgeClient() : m_h("127.0.0.1"), m_p(5555), m_l_hb(0), m_l_dp(0), m_l_pr(0), m_p_th(0.0001), m_u_d(true), m_d_created(false) {
       m_t.SetExpertMagicNumber(123456);
    }
 
    bool Init(string h, int p, bool d=true) {
       m_h=h; m_p=p; m_u_d=d;
-      if(m_u_d && !m_d.Create("AAT_Dash", 320, 500)) return false;
-      return m_s.Connect(m_h, m_p);
+      if(m_u_d) {
+         string d_name = "AAT_Dash_" + _Symbol;
+         m_d_created = m_d.Create(d_name, 320, 500);
+         if(!m_d_created) Print("AAT: Dashboard creation failed for ", _Symbol);
+      }
+      // 10602: Always return true to keep EA active; connection retries happen in OnTick
+      m_s.Connect(m_h, m_p);
+      return true;
    }
 
    void PerformUpdate() { OnTick(); }
@@ -63,7 +69,7 @@ public:
             if(ac!="" && ac!="WAIT") HandleTr(m);
          }
          else if(t=="TELEMETRY") {
-            if(m_u_d) {
+            if(m_u_d && m_d_created) {
                string sym=CAATProtocol::GetV(m, "s");
                if(sym == _Symbol || sym == "GLOBAL") {
                   m_d.Render(_Symbol, CAATProtocol::GetV(m, "st"), StringToDouble(CAATProtocol::GetV(m, "scr")), CAATProtocol::GetV(m, "htf"), StringToDouble(CAATProtocol::GetV(m, "dd")));
