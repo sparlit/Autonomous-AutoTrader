@@ -43,11 +43,17 @@ class HiveOrchestrator:
         # CPU pinning 2-19
         self.registry.register(MarketDataBrain("MarketData_1", cpu_affinity=[2], ipc=self.ipc))
         self.registry.register(MarketDataBrain("MarketData_2", cpu_affinity=[3], ipc=self.ipc))
-        self.registry.register(IndicatorBrain("Indicator_1", cpu_affinity=[4], ipc=self.ipc))
-        self.registry.register(IndicatorBrain("Indicator_2", cpu_affinity=[5], ipc=self.ipc))
-        self.registry.register(IndicatorBrain("Indicator_3", cpu_affinity=[6], ipc=self.ipc))
+
+        # CPU 4-6: Indicators (Fast, MTF)
+        self.registry.register(IndicatorBrain("Indicator_1", cpu_affinity=[4], ipc=self.ipc)) # M1
+        self.registry.register(IndicatorBrain("Indicator_2", cpu_affinity=[5], ipc=self.ipc)) # M5
+        self.registry.register(IndicatorBrain("Indicator_3", cpu_affinity=[6], ipc=self.ipc)) # H1
+
+        # CPU 7-8: Trend (MTF Alignment)
         self.registry.register(TrendBrain("Trend_1", cpu_affinity=[7], ipc=self.ipc))
         self.registry.register(TrendBrain("Trend_2", cpu_affinity=[8], ipc=self.ipc))
+
+        # CPU 9: Liquidity (SMC OB)
         self.registry.register(LiquidityBrain("Liquidity_1", cpu_affinity=[9], ipc=self.ipc))
         self.registry.register(MomentumBrain("Momentum_1", cpu_affinity=[10], ipc=self.ipc))
         self.registry.register(RegimeBrain("Regime_1", cpu_affinity=[11], ipc=self.ipc))
@@ -95,7 +101,6 @@ class HiveOrchestrator:
                 "symbol": symbol, "spread": message.get("sp", 0.0),
                 "candle_timer": message.get("ct", "--:--"), "last_update": time.time()
             })
-
         target = f"stream:MarketData_{1 if time.time() % 2 < 1 else 2}"
         self.ipc.xadd(target, {"payload": json.dumps(message)}, maxlen=1000)
         return {"t": "ACK"}
