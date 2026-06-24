@@ -18,7 +18,7 @@ class MetaBrain(BaseBrain):
         self.threshold = threshold
         self.symbol_state: Dict[str, Dict[str, Any]] = {}
         self.brain_reliability: Dict[str, float] = {}
-        self.required_sources = ["Trend_1", "Indicator_1", "Liquidity_1", "Regime_1"]
+        self.required_sources = ["Trend_1", "Indicator_1", "Liquidity_1", "Regime_1", "Momentum_1", "Structure_1"]
         self._last_telemetry_broadcast = 0
 
     async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -80,11 +80,21 @@ class MetaBrain(BaseBrain):
                 state["atr"] = event["data"].get("atr", state["atr"])
                 state["rsi"] = event["data"].get("rsi", state["rsi"])
 
-        # Final Decision Logic: Confluence + Threshold + Veto
+        # 10605: Broadcast Telemetry on every update for real-time dashboards
+        acc_stats = self.ipc.get_state("account_stats", {}) if self.ipc else {}
+        telemetry = {
+            "type": "TELEMETRY",
+            "symbol": symbol,
+            "st": "OPTIMAL",
+            "scr": round(state["prior"], 4),
+            "htf": state["htf_trend"],
+            "dd": acc_stats.get("drawdown", 0.0)
+        }
+        self.publish(telemetry)
+
+        # Final Decision Logic
         if all(src in state["received_sources"] for src in self.required_sources):
-            # Check confluence: At least 3 of 4 must agree on direction
             conf = state["confluence"]
-            # We simplify directionality check: count how many agree with the overall bias
             action = self._determine_direction(state)
             if action == "WAIT": return None
 
@@ -92,27 +102,10 @@ class MetaBrain(BaseBrain):
             agreement_count = 0
             if conf["trend"] == bias: agreement_count += 1
             if conf["momentum"] == bias: agreement_count += 1
-            if conf["structure"] == 1: agreement_count += 1 # Structure acts as confirmation
-            if conf["volatility"] == 1: agreement_count += 1 # Volatility acts as confirmation
+            if conf["structure"] == 1: agreement_count += 1
+            if conf["volatility"] == 1: agreement_count += 1
 
-            # Broadcast Telemetry
-            now = time.time()
-            if now - self._last_telemetry_broadcast > 1: # 1 second telemetry interval
-                acc_stats = self.ipc.get_state("account_stats", {}) if self.ipc else {}
-                telemetry = {
-                    "type": "TELEMETRY",
-                    "symbol": symbol,
-                    "st": "OPTIMAL",
-                    "scr": round(state["prior"], 4),
-                    "htf": state["htf_trend"],
-                    "dd": acc_stats.get("drawdown", 0.0)
-                }
-                self.publish(telemetry)
-                self._last_telemetry_broadcast = now
-
-            # Enforce "3 of 4" rule
             if agreement_count >= 3 and state["prior"] >= self.threshold and not state["veto"]:
-                # Final Trigger Candle precision check
                 if state.get("structure_trigger") != "NONE" and action in state.get("structure_trigger", ""):
                     res = {
                         "type": "PROBABILISTIC_SIGNAL", "symbol": symbol, "action": action,

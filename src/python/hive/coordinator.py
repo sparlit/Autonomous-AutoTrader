@@ -95,10 +95,15 @@ class HiveOrchestrator:
                 "equity": message.get("e", 0.0), "drawdown": message.get("d", 0.0),
                 "pos_count": message.get("pc", 0), "last_update": time.time()
             })
-            self.ipc.set_state(f"symbol_stats:{symbol}", {
-                "symbol": symbol, "spread": message.get("sp", 0.0),
-                "candle_timer": message.get("ct", "--:--"), "last_update": time.time()
+            # Merge with existing symbol stats to prevent overwritingscr/htf
+            s_stats = self.ipc.get_state(f"symbol_stats:{symbol}", {"symbol": symbol, "scr": 0.5, "htf": "NEUTRAL"})
+            s_stats.update({
+                "spread": message.get("sp", 0.0),
+                "candle_timer": message.get("ct", "--:--"),
+                "last_update": time.time()
             })
+            self.ipc.set_state(f"symbol_stats:{symbol}", s_stats)
+
         target = f"stream:MarketData_{1 if time.time() % 2 < 1 else 2}"
         self.ipc.xadd(target, {"payload": json.dumps(message)}, maxlen=1000)
         return {"t": "ACK"}
@@ -157,8 +162,8 @@ class HiveOrchestrator:
                                 self.ipc.xadd("stream:Meta_1", {"payload": json.dumps(event)}, maxlen=100)
                             elif e_type == "TELEMETRY":
                                 sym = event["symbol"]
-                                s_state = self.ipc.get_state(f"symbol_stats:{sym}", {})
-                                s_state.update({"scr": event["scr"], "htf": event["htf"]})
+                                s_state = self.ipc.get_state(f"symbol_stats:{sym}", {"symbol": sym, "spread": 0.0, "candle_timer": "--:--"})
+                                s_state.update({"scr": event["scr"], "htf": event["htf"], "last_update": time.time()})
                                 self.ipc.set_state(f"symbol_stats:{sym}", s_state)
 
                                 telemetry_msg = {"t": "TLM", "s": sym, "st": "OPTIMAL", "scr": event["scr"], "htf": event["htf"], "dd": event.get("dd", 0.0), "pc": self.ipc.get_state("account_stats", {}).get("pos_count", 0)}
