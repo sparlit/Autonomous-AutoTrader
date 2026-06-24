@@ -56,7 +56,6 @@ class TradeLedger:
     async def update_trade_from_sync(self, ticket: int, symbol: str, action: str, lots: float, sl: float, tp: float):
         """16008: Upsert trade from MT5 SYNC pulse."""
         async with aiosqlite.connect(self.db_path) as db:
-            # Check if ticket already exists
             async with db.execute("SELECT id FROM trades WHERE ticket = ?", (ticket,)) as cursor:
                 row = await cursor.fetchone()
                 if row:
@@ -88,6 +87,13 @@ class TradeLedger:
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             async with db.execute("SELECT * FROM trades WHERE symbol = ? AND status = 'OPEN'", (symbol,)) as cursor:
+                return [dict(row) for row in await cursor.fetchall()]
+
+    async def get_all_active_trades(self) -> List[Dict[str, Any]]:
+        """16016: Retrieve all open tickets across all symbols."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM trades WHERE status = 'OPEN'") as cursor:
                 return [dict(row) for row in await cursor.fetchall()]
 
     async def update_peak_equity(self, equity: float):

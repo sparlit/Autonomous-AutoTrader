@@ -109,12 +109,9 @@ class HiveOrchestrator:
             self.ipc.set_state(f"symbol_stats:{symbol}", s_stats)
 
         elif m_type == "T_ACK":
-            # 16011: Confirm trade in ledger
             internal_id = message.get("id")
             ticket = message.get("tk")
             if internal_id and ticket > 0:
-                # In real scenario, we'd need entry/sl/tp from MT5 or DP
-                # For now, mark as OPEN. SYNC will populate details.
                 logger.info(f"Trade Confirmed: ID {internal_id} -> Ticket {ticket}")
 
         elif m_type == "SYNC":
@@ -151,6 +148,11 @@ class HiveOrchestrator:
                     mps = (current_rx - last_rx) / (now - last_stat_update) if last_stat_update > 0 else 0
                     self.ipc.set_state("engine_stats", {"status": "OPTIMAL", "msgs_rx": current_rx, "msgs_tx": self.server.stats["msgs_tx"], "latency": self.server.stats["last_latency"], "active_clients": len(self.server.clients), "mps": mps, "server_time": now})
                     self.ipc.set_state("sys_params", {"risk_per_trade_pct": self.config.risk.risk_per_trade_pct, "max_drawdown_pct": self.config.risk.max_drawdown_pct, "daily_loss_limit_pct": self.config.risk.daily_loss_limit_pct, "consensus_threshold": self.config.brains.consensus_threshold, "session_active": self.risk_manager.is_session_active(), "news_safe": self.risk_manager.is_news_safe(), "daily_trades": self.risk_manager.daily_trades, "peak_equity": self.risk_manager.peak_equity})
+
+                    # 16017: Push all active trades to IPC for dashboard visibility
+                    all_active = await self.ledger.get_all_active_trades()
+                    self.ipc.set_state("active_trades", all_active)
+
                     last_stat_update = now; last_rx = current_rx
 
                 messages = self.ipc.xread({"stream:orchestrator": '0'}, count=50, block=1)
@@ -161,7 +163,6 @@ class HiveOrchestrator:
                             e_type = event.get("type")
 
                             if e_type == "MARKET_DATA":
-                                # 15005: Trigger Position Management on new market data
                                 orders = await self.pos_manager.monitor_and_manage(event["symbol"], event["bid"], event["ask"], event.get("atr", 0))
                                 for order in orders: self.ipc.xadd("stream:orchestrator", {"payload": json.dumps(order)})
 

@@ -99,6 +99,25 @@
         </div>
     </div>
 
+    <div class="card" style="margin-top: 20px; border-color: #ff9600;">
+        <div class="label" style="color: #ff9600;">Active Positions (Synced)</div>
+        <table id="trade-table">
+            <thead>
+                <tr>
+                    <th>TICKET</th>
+                    <th>SYMBOL</th>
+                    <th>ACTION</th>
+                    <th>LOTS</th>
+                    <th>ENTRY</th>
+                    <th>SL</th>
+                    <th>TP</th>
+                    <th>MANAGED</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
     <div class="card" style="margin-top: 20px;">
         <div class="label">Active Symbol Intelligence</div>
         <table id="symbol-table">
@@ -179,6 +198,25 @@
             document.getElementById('msg-rx').innerText = eng.msgs_rx || 0;
             document.getElementById('msg-tx').innerText = eng.msgs_tx || 0;
             document.getElementById('latency').innerText = `${((eng.latency || 0) * 1000).toFixed(2)}ms`;
+
+            // Active Trades
+            const tradeTable = document.querySelector('#trade-table tbody');
+            const activeTrades = state.active_trades || [];
+
+            // Rebuild trade table to handle closures easily
+            tradeTable.innerHTML = '';
+            activeTrades.forEach(t => {
+                if (t.ticket === 0) return;
+                const row = tradeTable.insertRow();
+                row.insertCell().innerText = t.ticket;
+                row.insertCell().innerText = t.symbol;
+                row.insertCell().innerText = t.action;
+                row.insertCell().innerText = t.lots.toFixed(2);
+                row.insertCell().innerText = (t.entry_price || 0).toFixed(5);
+                row.insertCell().innerText = (t.sl_price || 0).toFixed(5);
+                row.insertCell().innerText = (t.tp_price || 0).toFixed(5);
+                row.insertCell().innerText = t.is_managed ? 'YES' : 'NO';
+            });
 
             // Symbols
             const symTable = document.querySelector('#symbol-table tbody');
