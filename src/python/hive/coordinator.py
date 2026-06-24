@@ -37,10 +37,10 @@ class HiveOrchestrator:
         self._initialize_dashboards()
 
         self.ipc.set_state("account_stats", {"equity": 0.0, "drawdown": 0.0, "pos_count": 0})
-        self.ipc.set_state("engine_stats", {"status": "STARTING", "msgs_rx": 0, "msgs_tx": 0, "latency": 0.0, "active_clients": 0, "mps": 0.0})
+        self.ipc.set_state("engine_stats", {"status": "STARTING", "msgs_rx": 0, "msgs_tx": 0, "latency": 0.0, "active_clients": 0, "mps": 0.0, "server_time": time.time()})
 
     def _initialize_brains(self):
-        # CPU pinning 2-19
+        # 23 Specialized Brains (some redundant instances for load balancing)
         self.registry.register(MarketDataBrain("MarketData_1", cpu_affinity=[2], ipc=self.ipc))
         self.registry.register(MarketDataBrain("MarketData_2", cpu_affinity=[3], ipc=self.ipc))
 
@@ -91,12 +91,10 @@ class HiveOrchestrator:
         m_type = message.get("t")
         if m_type == "HB":
             symbol = message.get("s", "GLOBAL")
-            # Global Account Stats
             self.ipc.set_state("account_stats", {
                 "equity": message.get("e", 0.0), "drawdown": message.get("d", 0.0),
                 "pos_count": message.get("pc", 0), "last_update": time.time()
             })
-            # Per-Symbol Stats
             self.ipc.set_state(f"symbol_stats:{symbol}", {
                 "symbol": symbol, "spread": message.get("sp", 0.0),
                 "candle_timer": message.get("ct", "--:--"), "last_update": time.time()
@@ -125,7 +123,8 @@ class HiveOrchestrator:
                     self.ipc.set_state("engine_stats", {
                         "status": "OPTIMAL", "msgs_rx": current_rx,
                         "msgs_tx": self.server.stats["msgs_tx"], "latency": self.server.stats["last_latency"],
-                        "active_clients": len(self.server.clients), "uptime": now, "mps": mps
+                        "active_clients": len(self.server.clients), "uptime": now, "mps": mps,
+                        "server_time": now
                     })
                     last_stat_update = now; last_rx = current_rx
 
@@ -145,6 +144,7 @@ class HiveOrchestrator:
                                 self.ipc.xadd("stream:Meta_1", {"payload": json.dumps(event)}, maxlen=1000)
                             elif e_type == "PROBABILISTIC_SIGNAL":
                                 self.ipc.xadd("stream:Correlation_1", {"payload": json.dumps(event)}, maxlen=100)
+                                self.ipc.xadd("stream:Contrarian_1", {"payload": json.dumps(event)}, maxlen=1000)
                                 self.ipc.xadd(f"stream:Risk_{1 if counter % 2 == 0 else 2}", {"payload": json.dumps(event)}, maxlen=1000)
                                 counter += 1
                             elif e_type == "VALIDATED_TRADE":
@@ -156,7 +156,6 @@ class HiveOrchestrator:
                             elif e_type == "RELIABILITY_REPORT":
                                 self.ipc.xadd("stream:Meta_1", {"payload": json.dumps(event)}, maxlen=100)
                             elif e_type == "TELEMETRY":
-                                # Update symbol stats with Bayesian telemetry
                                 sym = event["symbol"]
                                 s_state = self.ipc.get_state(f"symbol_stats:{sym}", {})
                                 s_state.update({"scr": event["scr"], "htf": event["htf"]})

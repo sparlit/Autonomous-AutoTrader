@@ -89,7 +89,7 @@ class NativeDashboard(Process):
                 self.symbol_rows = {}
 
             dpg.add_spacer(height=5)
-            dpg.add_text("BRAIN CLUSTER HEALTH & BAYESIAN METRICS (20 CORES)", color=[0, 242, 255])
+            dpg.add_text("BRAIN CLUSTER MATRIX TELEMETRY (23 CORES)", color=[0, 242, 255])
             dpg.add_separator()
 
             with dpg.table(header_row=True, borders_innerH=True, borders_outerH=True, borders_innerV=True, borders_outerV=True, resizable=True, sortable=True, height=300):
@@ -99,7 +99,7 @@ class NativeDashboard(Process):
                 dpg.add_table_column(label="MEM (MB)")
                 dpg.add_table_column(label="MSGS")
                 dpg.add_table_column(label="LATENCY (ms)")
-                dpg.add_table_column(label="LAST SEEN")
+                dpg.add_table_column(label="STATUS")
 
                 self.brain_rows = {}
                 brain_list = [
@@ -118,7 +118,7 @@ class NativeDashboard(Process):
                             "mem": dpg.add_text("0.0"),
                             "count": dpg.add_text("0"),
                             "lat": dpg.add_text("0.0"),
-                            "seen": dpg.add_text("0s ago")
+                            "status": dpg.add_text("OFFLINE")
                         }
 
             dpg.add_spacer(height=10)
@@ -151,7 +151,9 @@ class NativeDashboard(Process):
         dpg.set_value(self.diag_text, f"IPC State: {len(all_state)} keys active.")
 
         # Update Clock
-        dpg.set_value(self.clock_tag, time.strftime("%H:%M:%S"))
+        engine = all_state.get("engine_stats", {})
+        server_time = engine.get("server_time", time.time())
+        dpg.set_value(self.clock_tag, time.strftime("%H:%M:%S", time.localtime(server_time)))
 
         # Update Global Stats
         account = all_state.get("account_stats", {})
@@ -165,7 +167,6 @@ class NativeDashboard(Process):
 
             dpg.set_value(self.pnl_progress, 0.5 + (equity % 1000) / 2000)
 
-        engine = all_state.get("engine_stats", {})
         if engine:
             rx = engine.get('msgs_rx', 0)
             mps = engine.get('mps', 0.0)
@@ -200,7 +201,6 @@ class NativeDashboard(Process):
                     dpg.set_value(row["score"], f"{sym.get('scr', 0.5)*100:.1f}%")
 
         # Update Brain Table
-        now = time.time()
         for key, health in all_state.items():
             if key.startswith("brain_health:"):
                 name = health.get("name")
@@ -211,9 +211,11 @@ class NativeDashboard(Process):
                     dpg.set_value(row["mem"], f"{health.get('mem', 0):.1f}")
                     dpg.set_value(row["count"], str(health.get("count", 0)))
                     dpg.set_value(row["lat"], f"{health.get('latency', 0):.2f}")
-                    last_seen = now - health.get("last_seen", now)
-                    dpg.set_value(row["seen"], f"{last_seen:.1f}s ago")
-                    dpg.bind_item_theme(row["seen"], self.alert_theme if last_seen > 10 else self.neutral_theme)
+
+                    last_hb = health.get("last_heartbeat", 0)
+                    is_live = (server_time - last_hb) < 5
+                    dpg.set_value(row["status"], "LIVE" if is_live else "OFFLINE")
+                    dpg.bind_item_theme(row["status"], self.active_theme if is_live else self.alert_theme)
 
     def kill_switch(self):
         if self.ipc: self.ipc.xadd("stream:orchestrator", {"payload": '{"type": "EMERGENCY_KILL"}'})

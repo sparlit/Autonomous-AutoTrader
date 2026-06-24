@@ -35,7 +35,7 @@
     <div class="grid">
         <div class="card">
             <div class="label">Global Account Telemetry</div>
-            <div id="equity" class="value">-bash.00</div>
+            <div id="equity" class="value">$0.00</div>
             <div class="metric-group">
                 <div class="metric-item">
                     <div class="mini-label">DRAWDOWN</div>
@@ -56,11 +56,10 @@
         <div class="card" id="symbols-container">
             <div class="label">Active Symbol Intelligence</div>
             <div id="no-symbols" class="value" style="font-size: 1em; color: #8b949e;">Waiting for MT5 Link...</div>
-            <!-- Dynamic Symbol Stats -->
         </div>
 
         <div class="card">
-            <div class="label">Engine Orchestrator Performance</div>
+            <div class="label">Engine Performance</div>
             <div id="engine-status" class="value status-active" style="font-size: 1.8em;">DISCONNECTED</div>
             <div class="metric-group">
                 <div class="metric-item">
@@ -68,12 +67,12 @@
                     <div id="msgs-rx" class="mini-value">0 RX</div>
                 </div>
                 <div class="metric-item">
-                    <div class="mini-label">LATENCY</div>
-                    <div id="latency" class="mini-value">0.00ms</div>
-                </div>
-                <div class="metric-item">
                     <div class="mini-label">MPS</div>
                     <div id="mps" class="mini-value">0.0</div>
+                </div>
+                <div class="metric-item">
+                    <div class="mini-label">LATENCY</div>
+                    <div id="latency" class="mini-value">0.00ms</div>
                 </div>
             </div>
             <div class="progress-container"><div id="throughput-progress" class="progress-bar" style="background-color: #3fb950;"></div></div>
@@ -81,7 +80,7 @@
 
         <div class="card" style="grid-column: 1 / -1; background: #0d1117;">
             <div class="label" style="display: flex; justify-content: space-between; align-items: center;">
-                <span>Brain Cluster Matrix Telemetry (20 Cores)</span>
+                <span>Brain Cluster Matrix Telemetry (23 Cores)</span>
                 <span id="brain-count" style="background: #1f6feb; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.9em;">0 UNITS</span>
             </div>
             <table id="brain-table">
@@ -97,7 +96,6 @@
                     </tr>
                 </thead>
                 <tbody id="brain-body">
-                    <!-- Dynamic Rows -->
                 </tbody>
             </table>
         </div>
@@ -119,17 +117,14 @@
                 connStatus.innerText = 'DISCONNECTED';
                 connStatus.style.color = '#f85149';
                 connStatus.style.borderColor = '#f85149';
-                setTimeout(connect, 2000); // Auto-reconnect
-            };
-
-            ws.onerror = (err) => {
-                console.error('Socket encountered error: ', err.message, 'Closing socket');
-                ws.close();
+                setTimeout(connect, 2000);
             };
 
             ws.onmessage = (event) => {
                 try {
                     const state = JSON.parse(event.data);
+                    const eng = state['engine_stats'] || {};
+                    const serverTime = eng.server_time || Date.now()/1000;
 
                     // Update Account
                     const acc = state['account_stats'] || {};
@@ -142,7 +137,6 @@
                     document.getElementById('pnl-progress').style.width = Math.min(100, Math.max(0, 50 + (acc.equity % 1000)/20)) + '%';
 
                     // Update Engine
-                    const eng = state['engine_stats'] || {};
                     const engStatus = document.getElementById('engine-status');
                     const statusText = eng.status || 'STARTING';
                     engStatus.innerText = statusText;
@@ -158,31 +152,28 @@
                     // Update Symbols
                     const symbolKeys = Object.keys(state).filter(k => k.startsWith('symbol_stats:'));
                     const symContainer = document.getElementById('symbols-container');
-                    if (symbolKeys.length > 0) {
-                        document.getElementById('no-symbols').style.display = 'none';
-                        symbolKeys.forEach(key => {
-                            const sym = state[key];
-                            const symId = 'sym-' + sym.symbol;
-                            let symElem = document.getElementById(symId);
-                            if (!symElem) {
-                                symElem = document.createElement('div');
-                                symElem.id = symId;
-                                symElem.className = 'symbol-card';
-                                symContainer.appendChild(symElem);
-                            }
-                            symElem.innerHTML = `
-                                <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <span style="font-weight: bold; font-size: 1.2em;">${sym.symbol}</span>
-                                    <span style="color: #00f2ff; font-family: monospace;">${sym.candle_timer}</span>
-                                </div>
-                                <div style="display: flex; gap: 15px; font-size: 0.8em; margin-top: 5px;">
-                                    <span>SPREAD: <span style="color: ${sym.spread > 20 ? '#f85149' : '#fff'}">${sym.spread.toFixed(1)}</span></span>
-                                    <span>TREND: <span style="color: ${sym.htf === 'BULLISH' ? '#3fb950' : (sym.htf === 'BEARISH' ? '#f85149' : '#8b949e')}">${sym.htf}</span></span>
-                                    <span>P: ${(sym.scr * 100).toFixed(1)}%</span>
-                                </div>
-                            `;
-                        });
-                    }
+                    symbolKeys.forEach(key => {
+                        const sym = state[key];
+                        const symId = 'sym-' + sym.symbol;
+                        let symElem = document.getElementById(symId);
+                        if (!symElem) {
+                            symElem = document.createElement('div');
+                            symElem.id = symId;
+                            symElem.className = 'symbol-card';
+                            symContainer.appendChild(symElem);
+                        }
+                        symElem.innerHTML = `
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-weight: bold; font-size: 1.2em;">${sym.symbol}</span>
+                                <span style="color: #00f2ff; font-family: monospace;">${sym.candle_timer}</span>
+                            </div>
+                            <div style="display: flex; gap: 15px; font-size: 0.8em; margin-top: 5px;">
+                                <span>SPREAD: <span style="color: ${sym.spread > 20 ? '#f85149' : '#fff'}">${sym.spread.toFixed(1)}</span></span>
+                                <span>TREND: <span style="color: ${sym.htf === 'BULLISH' ? '#3fb950' : (sym.htf === 'BEARISH' ? '#f85149' : '#8b949e')}">${sym.htf}</span></span>
+                                <span>P: ${(sym.scr * 100).toFixed(1)}%</span>
+                            </div>
+                        `;
+                    });
 
                     // Update Brains
                     const tbody = document.getElementById('brain-body');
@@ -192,7 +183,7 @@
                     tbody.innerHTML = '';
                     brains.sort().forEach(key => {
                         const b = state[key];
-                        const lastSeen = Date.now()/1000 - b.last_seen;
+                        const lastHb = serverTime - b.last_heartbeat;
                         const row = document.createElement('tr');
                         row.innerHTML = `
                             <td class="brain-name">${b.name}</td>
@@ -201,13 +192,11 @@
                             <td>${(b.mem || 0).toFixed(1)}</td>
                             <td>${(b.count || 0).toLocaleString()}</td>
                             <td style="color: ${b.latency > 50 ? '#f85149' : '#3fb950'}">${(b.latency || 0).toFixed(2)}</td>
-                            <td class="${lastSeen > 10 ? 'status-alert' : 'status-active'}">${lastSeen > 10 ? 'OFFLINE' : 'LIVE'}</td>
+                            <td class="${lastHb > 5 ? 'status-alert' : 'status-active'}">${lastHb > 5 ? 'OFFLINE' : 'LIVE'}</td>
                         `;
                         tbody.appendChild(row);
                     });
-                } catch (e) {
-                    console.error('Error processing message:', e);
-                }
+                } catch (e) { console.error(e); }
             };
         }
         connect();

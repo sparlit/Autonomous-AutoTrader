@@ -79,8 +79,9 @@ class BaseBrain(Process, BrainContract):
         last_health_report = 0
         while self.is_running:
             try:
+                # 12105: Periodic health reporting
                 now = time.time()
-                if now - last_health_report > 0.5: # Faster health report
+                if now - last_health_report > 0.5:
                     if self.ipc:
                         self.ipc.set_state(f"brain_health:{self.name}", self.health())
                     last_health_report = now
@@ -123,9 +124,14 @@ class BaseBrain(Process, BrainContract):
         p = psutil.Process(os.getpid())
         avg_latency = self._latency_sum / self._processed_count if self._processed_count > 0 else 0
         return {
-            "name": self.name, "pid": os.getpid(), "cpu": p.cpu_percent(),
-            "mem": p.memory_info().rss / 1024 / 1024, "count": self._processed_count,
-            "latency": avg_latency * 1000, "last_seen": self._last_activity
+            "name": self.name,
+            "pid": os.getpid(),
+            "cpu": p.cpu_percent(),
+            "mem": p.memory_info().rss / 1024 / 1024,
+            "count": self._processed_count,
+            "latency": avg_latency * 1000,
+            "last_seen": self._last_activity,
+            "last_heartbeat": time.time()
         }
 
     def _handle_exit(self, signum, frame):
