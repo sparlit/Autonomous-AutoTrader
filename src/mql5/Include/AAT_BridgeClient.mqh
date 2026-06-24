@@ -95,7 +95,7 @@ public:
       req.action=TRADE_ACTION_DEAL; req.symbol=s; req.volume=l; req.type=(a=="BUY")?ORDER_TYPE_BUY:ORDER_TYPE_SELL; req.price=pr;
       req.sl=NormalizeDouble(sl, (int)SymbolInfoInteger(s, SYMBOL_DIGITS)); req.tp=NormalizeDouble(tp, (int)SymbolInfoInteger(s, SYMBOL_DIGITS));
       req.magic=123456; req.comment=StringFormat("AAT:%d", id);
-      OrderSendAsync(req, res); m_s.Send(CAATProtocol::BuildTRADE_ACK(id, (int)res.order, IntegerToString(res.retcode)));
+      if(!OrderSendAsync(req, res)) { Print("AAT: OrderSendAsync failed"); } m_s.Send(CAATProtocol::BuildTRADE_ACK(id, (int)res.order, IntegerToString(res.retcode)));
    }
 
    void ActFS() {
