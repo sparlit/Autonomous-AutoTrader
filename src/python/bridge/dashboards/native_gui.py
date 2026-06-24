@@ -38,7 +38,7 @@ class NativeDashboard(Process):
             with dpg.theme_component(dpg.mvAll):
                 dpg.add_theme_color(dpg.mvThemeCol_Text, [200, 200, 200], category=dpg.mvThemeCat_Core)
 
-        with dpg.window(label="🦅 AAT PHOENIX ASCENDANT V3.0 - MASTER PRO", width=1000, height=750):
+        with dpg.window(label="🦅 AAT PHOENIX ASCENDANT V3.0 - MASTER PRO", width=1000, height=850):
             with dpg.group(horizontal=True):
                 dpg.add_text("SYSTEM STATUS:", color=[0, 242, 255])
                 self.status_tag = dpg.add_text("OPTIMAL", color=[0, 255, 0])
@@ -51,13 +51,11 @@ class NativeDashboard(Process):
             with dpg.group(horizontal=True):
                 with dpg.child_window(width=320, height=200, label="Account Telemetry"):
                     dpg.add_text("REAL-TIME CAPITAL", color=[150, 150, 150])
-                    self.equity_tag = dpg.add_text("EQUITY: $0.00", color=[255, 255, 255])
+                    self.equity_tag = dpg.add_text("EQUITY: -bash.00", color=[255, 255, 255])
                     with dpg.group(horizontal=True):
                         self.dd_tag = dpg.add_text("DD: 0.00%", color=[0, 255, 0])
                         dpg.add_spacer(width=20)
                         self.pos_tag = dpg.add_text("POS: 0", color=[0, 242, 255])
-                    self.spread_tag = dpg.add_text("AVG SPREAD: 0.0", color=[200, 200, 200])
-                    self.timer_tag = dpg.add_text("CANDLE TIMER: --:--", color=[200, 200, 200])
                     dpg.add_spacer(height=5)
                     dpg.add_text("P&L PROGRESS")
                     self.pnl_progress = dpg.add_progress_bar(label="P&L Progress", default_value=0.5, width=280)
@@ -77,10 +75,24 @@ class NativeDashboard(Process):
                     self.throughput_bar = dpg.add_progress_bar(default_value=0.0, width=600)
 
             dpg.add_spacer(height=5)
+            dpg.add_text("ACTIVE SYMBOL INTELLIGENCE", color=[0, 242, 255])
+            dpg.add_separator()
+
+            with dpg.table(header_row=True, borders_innerH=True, borders_outerH=True, borders_innerV=True, borders_outerV=True, resizable=True, sortable=True, height=150):
+                dpg.add_table_column(label="SYMBOL")
+                dpg.add_table_column(label="SPREAD")
+                dpg.add_table_column(label="CANDLE")
+                dpg.add_table_column(label="TREND")
+                dpg.add_table_column(label="SCORE")
+
+                self.symbol_table_id = dpg.last_item()
+                self.symbol_rows = {}
+
+            dpg.add_spacer(height=5)
             dpg.add_text("BRAIN CLUSTER HEALTH & BAYESIAN METRICS (20 CORES)", color=[0, 242, 255])
             dpg.add_separator()
 
-            with dpg.table(header_row=True, borders_innerH=True, borders_outerH=True, borders_innerV=True, borders_outerV=True, resizable=True, sortable=True, height=350):
+            with dpg.table(header_row=True, borders_innerH=True, borders_outerH=True, borders_innerV=True, borders_outerV=True, resizable=True, sortable=True, height=300):
                 dpg.add_table_column(label="BRAIN UNIT")
                 dpg.add_table_column(label="PID")
                 dpg.add_table_column(label="CPU %")
@@ -117,7 +129,7 @@ class NativeDashboard(Process):
         with dpg.window(label="⚙️ System Diagnostics", width=400, height=200, pos=[1010, 0]):
             self.diag_text = dpg.add_text("IPC State: Waiting for data...")
 
-        dpg.create_viewport(title='AAT Phoenix Master Pro Monitor', width=1450, height=800)
+        dpg.create_viewport(title='AAT Phoenix Master Pro Monitor', width=1450, height=900)
         dpg.setup_dearpygui()
         dpg.show_viewport()
 
@@ -150,8 +162,8 @@ class NativeDashboard(Process):
             dpg.set_value(self.dd_tag, f"DD: {dd:.2f}%")
             dpg.bind_item_theme(self.dd_tag, self.alert_theme if dd > 2 else self.active_theme)
             dpg.set_value(self.pos_tag, f"POS: {account.get('pos_count', 0)}")
-            dpg.set_value(self.spread_tag, f"AVG SPREAD: {account.get('spread', 0):.1f} pts")
-            dpg.set_value(self.timer_tag, f"CANDLE TIMER: {account.get('candle_timer', '--:--')}")
+
+            dpg.set_value(self.pnl_progress, 0.5 + (equity % 1000) / 2000)
 
             # P&L Progress bar (mocked for now, center at 0.5)
             dpg.set_value(self.pnl_progress, 0.5 + (equity % 1000) / 2000)
@@ -159,18 +171,36 @@ class NativeDashboard(Process):
         engine = all_state.get("engine_stats", {})
         if engine:
             rx = engine.get('msgs_rx', 0)
-            tx = engine.get('msgs_tx', 0)
             mps = engine.get('mps', 0.0)
             dpg.set_value(self.msg_rx_tag, f"MSGS RX: {rx}")
-            dpg.set_value(self.msg_tx_tag, f"MSGS TX: {tx}")
+            dpg.set_value(self.msg_tx_tag, f"MSGS TX: {engine.get('msgs_tx', 0)}")
             dpg.set_value(self.mps_tag, f"MPS: {mps:.1f}")
             dpg.set_value(self.latency_tag, f"LATENCY: {engine.get('latency', 0)*1000:.2f}ms")
             dpg.set_value(self.status_tag, engine.get('status', 'ACTIVE'))
             dpg.set_value(self.reconnect_tag, f"CONNECTIONS: {engine.get('active_clients', 0)}")
 
-            # Throughput intensity (based on MPS, maxed at 100)
             intensity = min(1.0, mps / 100.0)
             dpg.set_value(self.throughput_bar, intensity)
+
+        # Update Symbols
+        for key, sym in all_state.items():
+            if key.startswith("symbol_stats:"):
+                symbol_name = sym.get("symbol")
+                if symbol_name not in self.symbol_rows:
+                    with dpg.table_row(parent=self.symbol_table_id):
+                        dpg.add_text(symbol_name, color=[255, 255, 255])
+                        self.symbol_rows[symbol_name] = {
+                            "spread": dpg.add_text("0.0"),
+                            "timer": dpg.add_text("--:--"),
+                            "trend": dpg.add_text("NEUTRAL"),
+                            "score": dpg.add_text("50.0%")
+                        }
+                else:
+                    row = self.symbol_rows[symbol_name]
+                    dpg.set_value(row["spread"], f"{sym.get('spread', 0):.1f}")
+                    dpg.set_value(row["timer"], sym.get('candle_timer', '--:--'))
+                    dpg.set_value(row["trend"], sym.get('htf', 'NEUTRAL'))
+                    dpg.set_value(row["score"], f"{sym.get('scr', 0.5)*100:.1f}%")
 
         # Update Brain Table
         now = time.time()
@@ -189,11 +219,7 @@ class NativeDashboard(Process):
                     dpg.bind_item_theme(row["seen"], self.alert_theme if last_seen > 10 else self.neutral_theme)
 
     def kill_switch(self):
-        logging.critical("USER COMMAND: EMERGENCY KILL SWITCH ACTIVATED.")
-        if self.ipc:
-            self.ipc.xadd("stream:orchestrator", {"payload": '{"type": "EMERGENCY_KILL"}'})
+        if self.ipc: self.ipc.xadd("stream:orchestrator", {"payload": '{"type": "EMERGENCY_KILL"}'})
 
     def force_sync(self):
-        logging.info("USER COMMAND: FORCE SYNC REQUESTED.")
-        if self.ipc:
-            self.ipc.xadd("stream:orchestrator", {"payload": '{"type": "FORCE_SYNC"}'})
+        if self.ipc: self.ipc.xadd("stream:orchestrator", {"payload": '{"type": "FORCE_SYNC"}'})

@@ -42,7 +42,6 @@ public:
       if(rem < 0) rem = 0;
       DrawS(20, y, "CANDLE", StringFormat("%02d:%02d", (int)(rem/60), (int)(rem%60)), clrCyan); y += 30;
 
-      // Progress bar for candle
       int bar_w = (int)(m_width - 40);
       double progress = 1.0 - (double)rem / PeriodSeconds(_Period);
       m_canvas.FillRectangle(20, y, 20 + bar_w, y + 5, ColorToARGB(m_hdr));
@@ -71,7 +70,6 @@ public:
       DrawS(20, y, "FLOATING", (ppl >= 0 ? "+" : "") + DoubleToString(ppl, 2), (ppl >= 0 ? m_grn : m_red)); y += 25;
       DrawS(20, y, "DRAWDOWN", DoubleToString(dd, 2) + "%", (dd > 2 ? m_red : m_grn)); y += 25;
 
-      // Exposure
       int total_pos = PositionsTotal();
       DrawS(20, y, "POSITIONS", IntegerToString(total_pos), m_blu); y += 35;
 

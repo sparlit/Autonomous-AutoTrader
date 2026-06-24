@@ -20,9 +20,10 @@
         .metric-item { flex: 1; }
         .mini-label { font-size: 0.65em; color: #8b949e; }
         .mini-value { font-size: 1.1em; font-weight: bold; }
-        #conn-status { border-radius: 20px; padding: 4px 12px; border: 1px solid currentColor; }
+        #conn-status { border-radius: 20px; padding: 4px 12px; border: 1px solid currentColor; transition: all 0.3s; }
         .progress-container { width: 100%; background-color: #21262d; border-radius: 5px; margin-top: 10px; }
         .progress-bar { height: 8px; background-color: #1f6feb; width: 0%; border-radius: 5px; transition: width 0.3s; }
+        .symbol-card { margin-top: 10px; border-top: 1px solid #30363d; padding-top: 10px; }
     </style>
 </head>
 <body>
@@ -33,8 +34,8 @@
 
     <div class="grid">
         <div class="card">
-            <div class="label">Balance & Liquidity</div>
-            <div id="equity" class="value">$0.00</div>
+            <div class="label">Global Account Telemetry</div>
+            <div id="equity" class="value">-bash.00</div>
             <div class="metric-group">
                 <div class="metric-item">
                     <div class="mini-label">DRAWDOWN</div>
@@ -45,16 +46,22 @@
                     <div id="pos-count" class="mini-value">0</div>
                 </div>
                 <div class="metric-item">
-                    <div class="mini-label">CANDLE</div>
-                    <div id="timer" class="mini-value">--:--</div>
+                    <div class="mini-label">SYSTEM</div>
+                    <div id="engine-status-mini" class="mini-value">OFFLINE</div>
                 </div>
             </div>
             <div class="progress-container"><div id="pnl-progress" class="progress-bar"></div></div>
         </div>
 
+        <div class="card" id="symbols-container">
+            <div class="label">Active Symbol Intelligence</div>
+            <div id="no-symbols" class="value" style="font-size: 1em; color: #8b949e;">Waiting for MT5 Link...</div>
+            <!-- Dynamic Symbol Stats -->
+        </div>
+
         <div class="card">
-            <div class="label">Engine Orchestrator</div>
-            <div id="engine-status" class="value status-active" style="font-size: 1.8em;">CONNECTED</div>
+            <div class="label">Engine Orchestrator Performance</div>
+            <div id="engine-status" class="value status-active" style="font-size: 1.8em;">DISCONNECTED</div>
             <div class="metric-group">
                 <div class="metric-item">
                     <div class="mini-label">THROUGHPUT</div>
@@ -74,7 +81,7 @@
 
         <div class="card" style="grid-column: 1 / -1; background: #0d1117;">
             <div class="label" style="display: flex; justify-content: space-between; align-items: center;">
-                <span>Brain Cluster Matrix Telemetry (20 Processes)</span>
+                <span>Brain Cluster Matrix Telemetry (20 Cores)</span>
                 <span id="brain-count" style="background: #1f6feb; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.9em;">0 UNITS</span>
             </div>
             <table id="brain-table">
@@ -97,68 +104,113 @@
     </div>
 
     <script>
-        const ws = new WebSocket("ws://" + window.location.host + "/ws");
-        const connStatus = document.getElementById('conn-status');
+        function connect() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const ws = new WebSocket(protocol + "//" + window.location.host + "/ws");
+            const connStatus = document.getElementById('conn-status');
 
-        ws.onopen = () => {
-            connStatus.innerText = 'CONNECTED';
-            connStatus.style.color = '#3fb950';
-        };
+            ws.onopen = () => {
+                connStatus.innerText = 'CONNECTED';
+                connStatus.style.color = '#3fb950';
+                connStatus.style.borderColor = '#3fb950';
+            };
 
-        ws.onclose = () => {
-            connStatus.innerText = 'DISCONNECTED';
-            connStatus.style.color = '#f85149';
-        };
+            ws.onclose = (e) => {
+                connStatus.innerText = 'DISCONNECTED';
+                connStatus.style.color = '#f85149';
+                connStatus.style.borderColor = '#f85149';
+                setTimeout(connect, 2000); // Auto-reconnect
+            };
 
-        ws.onmessage = (event) => {
-            const state = JSON.parse(event.data);
+            ws.onerror = (err) => {
+                console.error('Socket encountered error: ', err.message, 'Closing socket');
+                ws.close();
+            };
 
-            // Update Account
-            const acc = state['account_stats'] || {};
-            document.getElementById('equity').innerText = '$' + (acc.equity || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
-            const dd = acc.drawdown || 0;
-            const ddElem = document.getElementById('drawdown');
-            ddElem.innerText = dd.toFixed(2) + '%';
-            ddElem.className = 'mini-value ' + (dd > 2 ? 'status-alert' : 'status-active');
-            document.getElementById('pos-count').innerText = acc.pos_count || 0;
-            document.getElementById('timer').innerText = acc.candle_timer || '--:--';
-            document.getElementById('pnl-progress').style.width = Math.min(100, Math.max(0, 50 + (acc.equity % 1000)/20)) + '%';
+            ws.onmessage = (event) => {
+                try {
+                    const state = JSON.parse(event.data);
 
-            // Update Engine
-            const eng = state['engine_stats'] || {};
-            const engStatus = document.getElementById('engine-status');
-            engStatus.innerText = eng.status || 'OPTIMAL';
-            engStatus.className = 'value ' + (eng.status === 'ERROR' ? 'status-alert' : 'status-active');
-            const rx = eng.msgs_rx || 0;
-            const mps = eng.mps || 0;
-            document.getElementById('msgs-rx').innerText = rx.toLocaleString() + ' RX';
-            document.getElementById('latency').innerText = ((eng.latency || 0) * 1000).toFixed(2) + 'ms';
-            document.getElementById('mps').innerText = mps.toFixed(1);
-            document.getElementById('throughput-progress').style.width = Math.min(100, mps) + '%';
+                    // Update Account
+                    const acc = state['account_stats'] || {};
+                    document.getElementById('equity').innerText = '$' + (acc.equity || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
+                    const dd = acc.drawdown || 0;
+                    const ddElem = document.getElementById('drawdown');
+                    ddElem.innerText = dd.toFixed(2) + '%';
+                    ddElem.className = 'mini-value ' + (dd > 2 ? 'status-alert' : 'status-active');
+                    document.getElementById('pos-count').innerText = acc.pos_count || 0;
+                    document.getElementById('pnl-progress').style.width = Math.min(100, Math.max(0, 50 + (acc.equity % 1000)/20)) + '%';
 
-            // Update Brains
-            const tbody = document.getElementById('brain-body');
-            const brains = Object.keys(state).filter(k => k.startsWith('brain_health:'));
-            document.getElementById('brain-count').innerText = brains.length + ' UNITS';
+                    // Update Engine
+                    const eng = state['engine_stats'] || {};
+                    const engStatus = document.getElementById('engine-status');
+                    const statusText = eng.status || 'STARTING';
+                    engStatus.innerText = statusText;
+                    document.getElementById('engine-status-mini').innerText = statusText;
+                    engStatus.className = 'value ' + (statusText === 'ERROR' || statusText === 'STARTING' ? 'status-alert' : 'status-active');
+                    const rx = eng.msgs_rx || 0;
+                    document.getElementById('msgs-rx').innerText = rx.toLocaleString() + ' RX';
+                    document.getElementById('latency').innerText = ((eng.latency || 0) * 1000).toFixed(2) + 'ms';
+                    const mps = eng.mps || 0;
+                    document.getElementById('mps').innerText = mps.toFixed(1);
+                    document.getElementById('throughput-progress').style.width = Math.min(100, mps) + '%';
 
-            tbody.innerHTML = '';
-            // Sort by name
-            brains.sort().forEach(key => {
-                const b = state[key];
-                const lastSeen = Date.now()/1000 - b.last_seen;
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td class="brain-name">${b.name}</td>
-                    <td style="color: #8b949e;">${b.pid}</td>
-                    <td style="font-weight: bold;">${(b.cpu || 0).toFixed(1)}%</td>
-                    <td>${(b.mem || 0).toFixed(1)}</td>
-                    <td>${(b.count || 0).toLocaleString()}</td>
-                    <td style="color: ${b.latency > 50 ? '#f85149' : '#3fb950'}">${(b.latency || 0).toFixed(2)}</td>
-                    <td class="${lastSeen > 10 ? 'status-alert' : 'status-active'}">${lastSeen > 10 ? 'OFFLINE' : 'LIVE'}</td>
-                `;
-                tbody.appendChild(row);
-            });
-        };
+                    // Update Symbols
+                    const symbolKeys = Object.keys(state).filter(k => k.startsWith('symbol_stats:'));
+                    const symContainer = document.getElementById('symbols-container');
+                    if (symbolKeys.length > 0) {
+                        document.getElementById('no-symbols').style.display = 'none';
+                        symbolKeys.forEach(key => {
+                            const sym = state[key];
+                            const symId = 'sym-' + sym.symbol;
+                            let symElem = document.getElementById(symId);
+                            if (!symElem) {
+                                symElem = document.createElement('div');
+                                symElem.id = symId;
+                                symElem.className = 'symbol-card';
+                                symContainer.appendChild(symElem);
+                            }
+                            symElem.innerHTML = `
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-weight: bold; font-size: 1.2em;">${sym.symbol}</span>
+                                    <span style="color: #00f2ff; font-family: monospace;">${sym.candle_timer}</span>
+                                </div>
+                                <div style="display: flex; gap: 15px; font-size: 0.8em; margin-top: 5px;">
+                                    <span>SPREAD: <span style="color: ${sym.spread > 20 ? '#f85149' : '#fff'}">${sym.spread.toFixed(1)}</span></span>
+                                    <span>TREND: <span style="color: ${sym.htf === 'BULLISH' ? '#3fb950' : (sym.htf === 'BEARISH' ? '#f85149' : '#8b949e')}">${sym.htf}</span></span>
+                                    <span>P: ${(sym.scr * 100).toFixed(1)}%</span>
+                                </div>
+                            `;
+                        });
+                    }
+
+                    // Update Brains
+                    const tbody = document.getElementById('brain-body');
+                    const brains = Object.keys(state).filter(k => k.startsWith('brain_health:'));
+                    document.getElementById('brain-count').innerText = brains.length + ' UNITS';
+
+                    tbody.innerHTML = '';
+                    brains.sort().forEach(key => {
+                        const b = state[key];
+                        const lastSeen = Date.now()/1000 - b.last_seen;
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td class="brain-name">${b.name}</td>
+                            <td style="color: #8b949e;">${b.pid}</td>
+                            <td style="font-weight: bold;">${(b.cpu || 0).toFixed(1)}%</td>
+                            <td>${(b.mem || 0).toFixed(1)}</td>
+                            <td>${(b.count || 0).toLocaleString()}</td>
+                            <td style="color: ${b.latency > 50 ? '#f85149' : '#3fb950'}">${(b.latency || 0).toFixed(2)}</td>
+                            <td class="${lastSeen > 10 ? 'status-alert' : 'status-active'}">${lastSeen > 10 ? 'OFFLINE' : 'LIVE'}</td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                } catch (e) {
+                    console.error('Error processing message:', e);
+                }
+            };
+        }
+        connect();
     </script>
 </body>
 </html>

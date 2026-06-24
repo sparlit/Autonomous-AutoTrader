@@ -36,14 +36,11 @@ class HiveOrchestrator:
         self._initialize_ipc_queues()
         self._initialize_dashboards()
 
-        self.ipc.set_state("account_stats", {"equity": 0.0, "drawdown": 0.0, "spread": 0.0, "candle_timer": "--:--", "pos_count": 0})
+        self.ipc.set_state("account_stats", {"equity": 0.0, "drawdown": 0.0, "pos_count": 0})
         self.ipc.set_state("engine_stats", {"status": "STARTING", "msgs_rx": 0, "msgs_tx": 0, "latency": 0.0, "active_clients": 0, "mps": 0.0})
 
     def _initialize_brains(self):
-        # 20 Specialized Brains pinned to 20 Logical Processors (CPU 0-19)
-        # 0: Supervisor, 1: Orchestrator, 2-19: Workers
-
-        # CPU 2-3: Market Data
+        # CPU pinning 2-19
         self.registry.register(MarketDataBrain("MarketData_1", cpu_affinity=[2], ipc=self.ipc))
         self.registry.register(MarketDataBrain("MarketData_2", cpu_affinity=[3], ipc=self.ipc))
 
@@ -58,32 +55,16 @@ class HiveOrchestrator:
 
         # CPU 9: Liquidity (SMC OB)
         self.registry.register(LiquidityBrain("Liquidity_1", cpu_affinity=[9], ipc=self.ipc))
-
-        # CPU 10: Momentum (MACD/ADX)
         self.registry.register(MomentumBrain("Momentum_1", cpu_affinity=[10], ipc=self.ipc))
-
-        # CPU 11: Regime (Volatility)
         self.registry.register(RegimeBrain("Regime_1", cpu_affinity=[11], ipc=self.ipc))
-
-        # CPU 12: Meta (Consensus Engine)
         self.registry.register(MetaBrain("Meta_1", cpu_affinity=[12], threshold=self.config.brains.consensus_threshold, ipc=self.ipc))
-
-        # CPU 13: News & Veto
         self.registry.register(NewsRiskBrain("NewsRisk_1", cpu_affinity=[13], ipc=self.ipc))
         self.registry.register(ContrarianBrain("Contrarian_1", cpu_affinity=[13], ipc=self.ipc))
-
-        # CPU 14: Correlation
         self.registry.register(CorrelationBrain("Correlation_1", cpu_affinity=[14], ipc=self.ipc))
-
-        # CPU 15-16: Risk (Position Sizing)
         self.registry.register(RiskBrain("Risk_1", cpu_affinity=[15], ipc=self.ipc))
         self.registry.register(RiskBrain("Risk_2", cpu_affinity=[16], ipc=self.ipc))
-
-        # CPU 17-18: Execution (Order Management)
         self.registry.register(ExecutionBrain("Execution_1", cpu_affinity=[17], ipc=self.ipc))
         self.registry.register(ExecutionBrain("Execution_2", cpu_affinity=[18], ipc=self.ipc))
-
-        # CPU 19: Monitoring, Anomaly, Memory, Portfolio
         self.registry.register(MemoryBrain("Memory_1", cpu_affinity=[19], ipc=self.ipc))
         self.registry.register(MonitoringBrain("Monitoring_1", cpu_affinity=[19], ipc=self.ipc))
         self.registry.register(AnomalyBrain("Anomaly_1", cpu_affinity=[19], ipc=self.ipc))
@@ -101,7 +82,6 @@ class HiveOrchestrator:
         ]
         for q in queues:
             self.ipc.get_queue(q)
-        logger.info(f"Initialized {len(queues)} IPC streams.")
 
     def _initialize_dashboards(self):
         self.native_dash = NativeDashboard(ipc=self.ipc)
@@ -110,11 +90,16 @@ class HiveOrchestrator:
     async def handle_client_message(self, client_id: str, message: Dict[str, Any]) -> Dict[str, Any]:
         m_type = message.get("t")
         if m_type == "HB":
+            symbol = message.get("s", "GLOBAL")
+            # Global Account Stats
             self.ipc.set_state("account_stats", {
                 "equity": message.get("e", 0.0), "drawdown": message.get("d", 0.0),
-                "spread": message.get("sp", 0.0), "candle_timer": message.get("ct", "--:--"),
-                "pos_count": message.get("pc", 0),
-                "last_update": time.time()
+                "pos_count": message.get("pc", 0), "last_update": time.time()
+            })
+            # Per-Symbol Stats
+            self.ipc.set_state(f"symbol_stats:{symbol}", {
+                "symbol": symbol, "spread": message.get("sp", 0.0),
+                "candle_timer": message.get("ct", "--:--"), "last_update": time.time()
             })
         target = f"stream:MarketData_{1 if time.time() % 2 < 1 else 2}"
         self.ipc.xadd(target, {"payload": json.dumps(message)}, maxlen=1000)
@@ -123,7 +108,7 @@ class HiveOrchestrator:
     async def run(self):
         p = psutil.Process(os.getpid())
         try: p.cpu_affinity([1])
-        except: logger.warning("CPU affinity failed for Orchestrator")
+        except: pass
         self.native_dash.start(); self.web_dash.start()
         self.registry.start_all()
         asyncio.create_task(self.server.start())
@@ -160,7 +145,6 @@ class HiveOrchestrator:
                                 self.ipc.xadd("stream:Meta_1", {"payload": json.dumps(event)}, maxlen=1000)
                             elif e_type == "PROBABILISTIC_SIGNAL":
                                 self.ipc.xadd("stream:Correlation_1", {"payload": json.dumps(event)}, maxlen=100)
-                                self.ipc.xadd("stream:Contrarian_1", {"payload": json.dumps(event)}, maxlen=1000)
                                 self.ipc.xadd(f"stream:Risk_{1 if counter % 2 == 0 else 2}", {"payload": json.dumps(event)}, maxlen=1000)
                                 counter += 1
                             elif e_type == "VALIDATED_TRADE":
@@ -172,13 +156,13 @@ class HiveOrchestrator:
                             elif e_type == "RELIABILITY_REPORT":
                                 self.ipc.xadd("stream:Meta_1", {"payload": json.dumps(event)}, maxlen=100)
                             elif e_type == "TELEMETRY":
-                                acc_stats = self.ipc.get_state("account_stats", {})
-                                telemetry_msg = {
-                                    "t": "TLM", "s": event["symbol"], "st": "OPTIMAL",
-                                    "scr": event["scr"], "htf": event["htf"],
-                                    "dd": event.get("dd", 0.0),
-                                    "pc": acc_stats.get("pos_count", 0)
-                                }
+                                # Update symbol stats with Bayesian telemetry
+                                sym = event["symbol"]
+                                s_state = self.ipc.get_state(f"symbol_stats:{sym}", {})
+                                s_state.update({"scr": event["scr"], "htf": event["htf"]})
+                                self.ipc.set_state(f"symbol_stats:{sym}", s_state)
+
+                                telemetry_msg = {"t": "TLM", "s": sym, "st": "OPTIMAL", "scr": event["scr"], "htf": event["htf"], "dd": event.get("dd", 0.0), "pc": self.ipc.get_state("account_stats", {}).get("pos_count", 0)}
                                 asyncio.create_task(self.server.broadcast(telemetry_msg))
                             elif e_type == "EMERGENCY_KILL":
                                 self.stop(); return
