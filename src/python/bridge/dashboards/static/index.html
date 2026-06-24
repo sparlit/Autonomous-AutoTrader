@@ -45,159 +45,184 @@
                     <div class="mini-label">POSITIONS</div>
                     <div id="pos-count" class="mini-value">0</div>
                 </div>
-                <div class="metric-item">
-                    <div class="mini-label">SYSTEM</div>
-                    <div id="engine-status-mini" class="mini-value">OFFLINE</div>
-                </div>
             </div>
-            <div class="progress-container"><div id="pnl-progress" class="progress-bar"></div></div>
-        </div>
-
-        <div class="card" id="symbols-container">
-            <div class="label">Active Symbol Intelligence</div>
-            <div id="no-symbols" class="value" style="font-size: 1em; color: #8b949e;">Waiting for MT5 Link...</div>
+            <div class="progress-container">
+                <div id="pnl-progress" class="progress-bar"></div>
+            </div>
         </div>
 
         <div class="card">
-            <div class="label">Engine Performance</div>
-            <div id="engine-status" class="value status-active" style="font-size: 1.8em;">DISCONNECTED</div>
+            <div class="label">System Control Parameters</div>
             <div class="metric-group">
                 <div class="metric-item">
-                    <div class="mini-label">THROUGHPUT</div>
-                    <div id="msgs-rx" class="mini-value">0 RX</div>
+                    <div class="mini-label">RISK/TRADE</div>
+                    <div id="param-risk" class="mini-value">0.0%</div>
                 </div>
                 <div class="metric-item">
-                    <div class="mini-label">MPS</div>
-                    <div id="mps" class="mini-value">0.0</div>
+                    <div class="mini-label">MAX DD</div>
+                    <div id="param-dd" class="mini-value">0.0%</div>
+                </div>
+                <div class="metric-item">
+                    <div class="mini-label">CONSENSUS</div>
+                    <div id="param-consensus" class="mini-value">0.0%</div>
+                </div>
+            </div>
+            <div class="metric-group">
+                <div class="metric-item">
+                    <div class="mini-label">SESSION</div>
+                    <div id="bool-session" class="mini-value">INACTIVE</div>
+                </div>
+                <div class="metric-item">
+                    <div class="mini-label">NEWS</div>
+                    <div id="bool-news" class="mini-value">SAFE</div>
+                </div>
+                <div class="metric-item">
+                    <div class="mini-label">TRADES</div>
+                    <div id="stat-trades" class="mini-value">0</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="label">Engine Orchestrator</div>
+            <div id="mps" class="value">0.0 <small style="font-size: 0.4em;">MPS</small></div>
+            <div class="metric-group">
+                <div class="metric-item">
+                    <div class="mini-label">RX/TX</div>
+                    <div class="mini-value"><span id="msg-rx">0</span> / <span id="msg-tx">0</span></div>
                 </div>
                 <div class="metric-item">
                     <div class="mini-label">LATENCY</div>
                     <div id="latency" class="mini-value">0.00ms</div>
                 </div>
             </div>
-            <div class="progress-container"><div id="throughput-progress" class="progress-bar" style="background-color: #3fb950;"></div></div>
-        </div>
-
-        <div class="card" style="grid-column: 1 / -1; background: #0d1117;">
-            <div class="label" style="display: flex; justify-content: space-between; align-items: center;">
-                <span>Brain Cluster Matrix Telemetry (23 Cores)</span>
-                <span id="brain-count" style="background: #1f6feb; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.9em;">0 UNITS</span>
-            </div>
-            <table id="brain-table">
-                <thead>
-                    <tr>
-                        <th>BRAIN UNIT</th>
-                        <th>PID</th>
-                        <th>CPU %</th>
-                        <th>MEM (MB)</th>
-                        <th>MESSAGES</th>
-                        <th>LATENCY (MS)</th>
-                        <th>STATUS</th>
-                    </tr>
-                </thead>
-                <tbody id="brain-body">
-                </tbody>
-            </table>
         </div>
     </div>
 
+    <div class="card" style="margin-top: 20px;">
+        <div class="label">Active Symbol Intelligence</div>
+        <table id="symbol-table">
+            <thead>
+                <tr>
+                    <th>SYMBOL</th>
+                    <th>SPREAD</th>
+                    <th>TIMER</th>
+                    <th>TREND</th>
+                    <th>SCORE</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <div class="card" style="margin-top: 20px;">
+        <div class="label">Brain Cluster Matrix</div>
+        <table id="brain-table">
+            <thead>
+                <tr>
+                    <th>UNIT</th>
+                    <th>PID</th>
+                    <th>CPU%</th>
+                    <th>MEM(MB)</th>
+                    <th>MSGS</th>
+                    <th>LATENCY</th>
+                    <th>STATUS</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
     <script>
-        function connect() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const ws = new WebSocket(protocol + "//" + window.location.host + "/ws");
-            const connStatus = document.getElementById('conn-status');
+        const ws = new WebSocket(`ws://${window.location.host}/ws`);
+        const connStatus = document.getElementById('conn-status');
 
-            ws.onopen = () => {
-                connStatus.innerText = 'CONNECTED';
-                connStatus.style.color = '#3fb950';
-                connStatus.style.borderColor = '#3fb950';
-            };
+        ws.onopen = () => {
+            connStatus.innerText = 'CONNECTED';
+            connStatus.style.color = '#3fb950';
+        };
 
-            ws.onclose = (e) => {
-                connStatus.innerText = 'DISCONNECTED';
-                connStatus.style.color = '#f85149';
-                connStatus.style.borderColor = '#f85149';
-                setTimeout(connect, 2000);
-            };
+        ws.onclose = () => {
+            connStatus.innerText = 'DISCONNECTED';
+            connStatus.style.color = '#f85149';
+        };
 
-            ws.onmessage = (event) => {
-                try {
-                    const state = JSON.parse(event.data);
-                    const eng = state['engine_stats'] || {};
-                    const serverTime = eng.server_time || Date.now()/1000;
+        ws.onmessage = (event) => {
+            const state = JSON.parse(event.data);
 
-                    const acc = state['account_stats'] || {};
-                    document.getElementById('equity').innerText = '$' + (acc.equity || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
-                    const dd = acc.drawdown || 0;
-                    const ddElem = document.getElementById('drawdown');
-                    ddElem.innerText = dd.toFixed(2) + '%';
-                    ddElem.className = 'mini-value ' + (dd > 2 ? 'status-alert' : 'status-active');
-                    document.getElementById('pos-count').innerText = acc.pos_count || 0;
-                    document.getElementById('pnl-progress').style.width = Math.min(100, Math.max(0, 50 + (acc.equity % 1000)/20)) + '%';
+            // Account
+            const acc = state.account_stats || {};
+            document.getElementById('equity').innerText = `$${(acc.equity || 0).toLocaleString(undefined, {minimumFractionDigits:2})}`;
+            document.getElementById('drawdown').innerText = `${(acc.drawdown || 0).toFixed(2)}%`;
+            document.getElementById('pos-count').innerText = acc.pos_count || 0;
+            document.getElementById('pnl-progress').style.width = `${Math.min(100, (acc.equity % 1000) / 10)}%`;
 
-                    const engStatus = document.getElementById('engine-status');
-                    const statusText = eng.status || 'STARTING';
-                    engStatus.innerText = statusText;
-                    document.getElementById('engine-status-mini').innerText = statusText;
-                    engStatus.className = 'value ' + (statusText === 'ERROR' || statusText === 'STARTING' ? 'status-alert' : 'status-active');
-                    const rx = eng.msgs_rx || 0;
-                    document.getElementById('msgs-rx').innerText = rx.toLocaleString() + ' RX';
-                    document.getElementById('latency').innerText = ((eng.latency || 0) * 1000).toFixed(2) + 'ms';
-                    const mps = eng.mps || 0;
-                    document.getElementById('mps').innerText = mps.toFixed(1);
-                    document.getElementById('throughput-progress').style.width = Math.min(100, mps) + '%';
+            // Params
+            const params = state.sys_params || {};
+            document.getElementById('param-risk').innerText = `${(params.risk_per_trade_pct || 0).toFixed(1)}%`;
+            document.getElementById('param-dd').innerText = `${(params.max_drawdown_pct || 0).toFixed(1)}%`;
+            document.getElementById('param-consensus').innerText = `${(params.consensus_threshold || 0).toFixed(1)}%`;
 
-                    const symbolKeys = Object.keys(state).filter(k => k.startsWith('symbol_stats:'));
-                    const symContainer = document.getElementById('symbols-container');
-                    symbolKeys.forEach(key => {
-                        const sym = state[key];
-                        const symId = 'sym-' + sym.symbol;
-                        let symElem = document.getElementById(symId);
-                        if (!symElem) {
-                            symElem = document.createElement('div');
-                            symElem.id = symId;
-                            symElem.className = 'symbol-card';
-                            symContainer.appendChild(symElem);
-                            const noSym = document.getElementById('no-symbols');
-                            if(noSym) noSym.style.display = 'none';
-                        }
-                        symElem.innerHTML = `
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-weight: bold; font-size: 1.2em;">${sym.symbol}</span>
-                                <span style="color: #00f2ff; font-family: monospace;">${sym.candle_timer}</span>
-                            </div>
-                            <div style="display: flex; gap: 15px; font-size: 0.8em; margin-top: 5px;">
-                                <span>SPREAD: <span style="color: ${sym.spread > 20 ? '#f85149' : '#fff'}">${sym.spread.toFixed(1)}</span></span>
-                                <span>TREND: <span style="color: ${sym.htf === 'BULLISH' ? '#3fb950' : (sym.htf === 'BEARISH' ? '#f85149' : '#8b949e')}">${sym.htf}</span></span>
-                                <span>P: ${(sym.scr * 100).toFixed(1)}%</span>
-                            </div>
-                        `;
-                    });
+            const sess = document.getElementById('bool-session');
+            sess.innerText = params.session_active ? 'ACTIVE' : 'INACTIVE';
+            sess.className = params.session_active ? 'mini-value status-active' : 'mini-value status-alert';
 
-                    const tbody = document.getElementById('brain-body');
-                    const brains = Object.keys(state).filter(k => k.startsWith('brain_health:'));
-                    document.getElementById('brain-count').innerText = brains.length + ' UNITS';
+            const news = document.getElementById('bool-news');
+            news.innerText = params.news_safe ? 'SAFE' : 'DANGER';
+            news.className = params.news_safe ? 'mini-value status-active' : 'mini-value status-alert';
 
-                    tbody.innerHTML = '';
-                    brains.sort().forEach(key => {
-                        const b = state[key];
-                        const lastHb = serverTime - b.last_heartbeat;
-                        const row = document.createElement('tr');
-                        row.innerHTML = `
-                            <td class="brain-name">${b.name}</td>
-                            <td style="color: #8b949e;">${b.pid}</td>
-                            <td style="font-weight: bold;">${(b.cpu || 0).toFixed(1)}%</td>
-                            <td>${(b.mem || 0).toFixed(1)}</td>
-                            <td>${(b.count || 0).toLocaleString()}</td>
-                            <td style="color: ${b.latency > 50 ? '#f85149' : '#3fb950'}">${(b.latency || 0).toFixed(2)}</td>
-                            <td class="${lastHb > 5 ? 'status-alert' : 'status-active'}">${lastHb > 5 ? 'OFFLINE' : 'LIVE'}</td>
-                        `;
-                        tbody.appendChild(row);
-                    });
-                } catch (e) { console.error(e); }
-            };
-        }
-        connect();
+            document.getElementById('stat-trades').innerText = params.daily_trades || 0;
+
+            // Engine
+            const eng = state.engine_stats || {};
+            document.getElementById('mps').innerHTML = `${(eng.mps || 0).toFixed(1)} <small style="font-size: 0.4em;">MPS</small>`;
+            document.getElementById('msg-rx').innerText = eng.msgs_rx || 0;
+            document.getElementById('msg-tx').innerText = eng.msgs_tx || 0;
+            document.getElementById('latency').innerText = `${((eng.latency || 0) * 1000).toFixed(2)}ms`;
+
+            // Symbols
+            const symTable = document.querySelector('#symbol-table tbody');
+            const symKeys = Object.keys(state).filter(k => k.startsWith('symbol_stats:'));
+
+            symKeys.forEach(k => {
+                const s = state[k];
+                let row = document.getElementById(`row-${s.symbol}`);
+                if (!row) {
+                    row = symTable.insertRow();
+                    row.id = `row-${s.symbol}`;
+                    for(let i=0; i<5; i++) row.insertCell();
+                }
+                row.cells[0].innerText = s.symbol;
+                row.cells[1].innerText = (s.spread || 0).toFixed(1);
+                row.cells[2].innerText = s.candle_timer || '--:--';
+                row.cells[3].innerText = s.htf || 'NEUTRAL';
+                row.cells[4].innerText = `${((s.scr || 0.5) * 100).toFixed(1)}%`;
+            });
+
+            // Brains
+            const brainTable = document.querySelector('#brain-table tbody');
+            const brainKeys = Object.keys(state).filter(k => k.startsWith('brain_health:'));
+
+            brainKeys.forEach(k => {
+                const b = state[k];
+                let row = document.getElementById(`brain-${b.name}`);
+                if (!row) {
+                    row = brainTable.insertRow();
+                    row.id = `brain-${b.name}`;
+                    for(let i=0; i<7; i++) row.insertCell();
+                }
+                row.cells[0].innerHTML = `<span class="brain-name">${b.name}</span>`;
+                row.cells[1].innerText = b.pid || 0;
+                row.cells[2].innerText = (b.cpu || 0).toFixed(1);
+                row.cells[3].innerText = (b.mem || 0).toFixed(1);
+                row.cells[4].innerText = b.count || 0;
+                row.cells[5].innerText = `${(b.latency || 0).toFixed(2)}ms`;
+
+                const isLive = (Date.now() / 1000 - b.last_heartbeat) < 5;
+                row.cells[6].innerText = isLive ? 'LIVE' : 'OFFLINE';
+                row.cells[6].className = isLive ? 'status-active' : 'status-alert';
+            });
+        };
     </script>
 </body>
 </html>

@@ -1,24 +1,26 @@
 import asyncio
+import ujson as json
 import logging
+import time
 import os
 import psutil
-import time
-import ujson as json
 from typing import Dict, Any, List, Optional
-from src.python.bridge.server import BridgeServer
-from src.python.brains.registry import BrainRegistry
-from src.python.brains.specialized import (
-    MarketDataBrain, IndicatorBrain, TrendBrain,
-    LiquidityBrain, RiskBrain, ExecutionBrain,
-    RegimeBrain, ContrarianBrain, MemoryBrain,
-    NewsRiskBrain, MonitoringBrain, AnomalyBrain, PortfolioBrain,
-    MomentumBrain, StructureBrain, CorrelationBrain
-)
-from src.python.brains.consensus import MetaBrain
+
 from src.python.hive.config import load_config
 from src.python.hive.ipc import get_ipc
+from src.python.brains.registry import BrainRegistry
+from src.python.brains.base import BaseBrain
+from src.python.brains.specialized import (
+    MarketDataBrain, IndicatorBrain, TrendBrain, LiquidityBrain,
+    MomentumBrain, RegimeBrain, NewsRiskBrain,
+    ContrarianBrain, CorrelationBrain, RiskBrain, ExecutionBrain,
+    MemoryBrain, MonitoringBrain, AnomalyBrain, PortfolioBrain, StructureBrain
+)
+from src.python.brains.consensus import MetaBrain
+from src.python.bridge.server import BridgeServer
 from src.python.bridge.dashboards.native_gui import NativeDashboard
 from src.python.bridge.dashboards.web_server import WebDashboard
+from src.python.execution.risk_manager import RiskManager
 
 logger = logging.getLogger("AAT_Orchestrator")
 
@@ -32,12 +34,25 @@ class HiveOrchestrator:
         self.server = BridgeServer(
             self.config.bridge.host, self.config.bridge.port, self.handle_client_message
         )
+        self.risk_manager = RiskManager(self.config)
         self._initialize_brains()
         self._initialize_ipc_queues()
         self._initialize_dashboards()
 
         self.ipc.set_state("account_stats", {"equity": 0.0, "drawdown": 0.0, "pos_count": 0})
         self.ipc.set_state("engine_stats", {"status": "STARTING", "msgs_rx": 0, "msgs_tx": 0, "latency": 0.0, "active_clients": 0, "mps": 0.0, "server_time": time.time()})
+
+        # 10255: Expose constants and config values to IPC for dashboard monitoring
+        self.ipc.set_state("sys_params", {
+            "risk_per_trade_pct": self.config.risk.risk_per_trade_pct,
+            "max_drawdown_pct": self.config.risk.max_drawdown_pct,
+            "daily_loss_limit_pct": self.config.risk.daily_loss_limit_pct,
+            "consensus_threshold": self.config.brains.consensus_threshold,
+            "session_active": False,
+            "news_safe": True,
+            "daily_trades": 0,
+            "peak_equity": 0.0
+        })
 
     def _initialize_brains(self):
         # 23 Specialized Brains (some redundant instances for load balancing)
@@ -91,10 +106,16 @@ class HiveOrchestrator:
         m_type = message.get("t")
         if m_type == "HB":
             symbol = message.get("s", "GLOBAL")
+            equity = message.get("e", 0.0)
             self.ipc.set_state("account_stats", {
-                "equity": message.get("e", 0.0), "drawdown": message.get("d", 0.0),
+                "equity": equity, "drawdown": message.get("d", 0.0),
                 "pos_count": message.get("pc", 0), "last_update": time.time()
             })
+
+            # Update peak equity for drawdown monitoring
+            if equity > self.risk_manager.peak_equity:
+                self.risk_manager.peak_equity = equity
+
             # Merge with existing symbol stats to prevent overwritingscr/htf
             s_stats = self.ipc.get_state(f"symbol_stats:{symbol}", {"symbol": symbol, "scr": 0.5, "htf": "NEUTRAL"})
             s_stats.update({
@@ -112,13 +133,17 @@ class HiveOrchestrator:
         p = psutil.Process(os.getpid())
         try: p.cpu_affinity([1])
         except: pass
+        logger.info("Starting Dashboards...")
         self.native_dash.start(); self.web_dash.start()
+        logger.info("Launching Brain Cluster...")
         self.registry.start_all()
+        logger.info("Starting Bridge Server...")
         asyncio.create_task(self.server.start())
         await self._main_orchestration_loop()
 
     async def _main_orchestration_loop(self):
         counter = 0; last_stat_update = 0; last_rx = 0
+        logger.info("Orchestration Loop Active.")
         while True:
             try:
                 now = time.time()
@@ -131,9 +156,23 @@ class HiveOrchestrator:
                         "active_clients": len(self.server.clients), "uptime": now, "mps": mps,
                         "server_time": now
                     })
+
+                    # Update dynamic system parameters
+                    self.ipc.set_state("sys_params", {
+                        "risk_per_trade_pct": self.config.risk.risk_per_trade_pct,
+                        "max_drawdown_pct": self.config.risk.max_drawdown_pct,
+                        "daily_loss_limit_pct": self.config.risk.daily_loss_limit_pct,
+                        "consensus_threshold": self.config.brains.consensus_threshold,
+                        "session_active": self.risk_manager.is_session_active(),
+                        "news_safe": self.risk_manager.is_news_safe(),
+                        "daily_trades": self.risk_manager.daily_trades,
+                        "peak_equity": self.risk_manager.peak_equity
+                    })
+
                     last_stat_update = now; last_rx = current_rx
 
-                messages = self.ipc.xread({"stream:orchestrator": '0'}, count=20, block=1)
+                # Optimized: Read from stream once per loop
+                messages = self.ipc.xread({"stream:orchestrator": '0'}, count=50, block=1)
                 if messages:
                     for stream, msgs in messages:
                         for msg_id, data in msgs:
@@ -154,6 +193,7 @@ class HiveOrchestrator:
                                 counter += 1
                             elif e_type == "VALIDATED_TRADE":
                                 self.ipc.xadd(f"stream:Execution_{1 if counter % 2 == 0 else 2}", {"payload": json.dumps(event)}, maxlen=1000)
+                                self.risk_manager.daily_trades += 1 # Track trades for limits
                                 counter += 1
                             elif e_type == "EXECUTION_ORDER":
                                 self.ipc.xadd("stream:Memory_1", {"payload": json.dumps(event)}, maxlen=1000)
@@ -169,13 +209,17 @@ class HiveOrchestrator:
                                 telemetry_msg = {"t": "TLM", "s": sym, "st": "OPTIMAL", "scr": event["scr"], "htf": event["htf"], "dd": event.get("dd", 0.0), "pc": self.ipc.get_state("account_stats", {}).get("pos_count", 0)}
                                 asyncio.create_task(self.server.broadcast(telemetry_msg))
                             elif e_type == "EMERGENCY_KILL":
+                                logger.warning("EMERGENCY KILL RECEIVED")
                                 self.stop(); return
                             self.ipc.xdel("stream:orchestrator", msg_id)
-                else: await asyncio.sleep(0.001)
+                else:
+                    # Use a slightly longer sleep if no messages to yield CPU
+                    await asyncio.sleep(0.01)
             except Exception as e:
                 logger.error(f"Orchestrator Loop Error: {e}"); await asyncio.sleep(0.1)
 
     def stop(self):
+        logger.info("Stopping Orchestrator...")
         self.registry.stop_all()
-        if self.native_dash.is_alive(): self.native_dash.terminate()
-        if self.web_dash.is_alive(): self.web_dash.terminate()
+        if hasattr(self, 'native_dash') and self.native_dash.is_alive(): self.native_dash.terminate()
+        if hasattr(self, 'web_dash') and self.web_dash.is_alive(): self.web_dash.terminate()

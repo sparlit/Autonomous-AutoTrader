@@ -13,7 +13,6 @@ public:
       long remaining = (long)candle_end - (long)TimeCurrent();
       if(remaining < 0) remaining = 0;
       string timer = StringFormat("%02d:%02d", (int)(remaining / 60), (int)(remaining % 60));
-      int pos_count = PositionsTotal();
 
       int pos_count = 0;
       for(int i=0; i<PositionsTotal(); i++) {
