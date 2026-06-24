@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from typing import List, Any
@@ -21,19 +21,16 @@ class WebDashboard(Process):
     def run(self):
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - WebDash - %(levelname)s - %(message)s')
         app = FastAPI()
-        active_connections: List[WebSocket] = []
 
         @app.websocket("/ws")
         async def websocket_endpoint(websocket: WebSocket):
             await websocket.accept()
-            active_connections.append(websocket)
             logger.info("WebSocket connection established.")
             try:
                 while True:
                     # 10401: Robust serialization for IPC state
                     try:
                         all_state = self.ipc.get_all_state()
-                        # Convert any non-serializable objects to strings/lists
                         safe_state = {}
                         for k, v in all_state.items():
                             if isinstance(v, (dict, list, str, int, float, bool)) or v is None:
@@ -42,14 +39,21 @@ class WebDashboard(Process):
                                 safe_state[k] = str(v)
 
                         await websocket.send_text(json.dumps(safe_state))
+                    except (WebSocketDisconnect, RuntimeError):
+                        # 10405: Immediate exit on disconnect or runtime close
+                        logger.info("WebSocket disconnected or closed.")
+                        break
                     except Exception as e:
-                        logger.error(f"WebSocket Loop Serialization Error: {e}")
+                        logger.error(f"WebSocket Serialization Error: {e}")
+                        # If it's a "Cannot call send" error, break
+                        if "send" in str(e).lower():
+                            break
 
                     await asyncio.sleep(1)
+            except WebSocketDisconnect:
+                logger.info("WebSocket client disconnected.")
             except Exception as e:
-                logger.warning(f"WebSocket connection closed: {e}")
-                if websocket in active_connections:
-                    active_connections.remove(websocket)
+                logger.warning(f"WebSocket Loop Error: {e}")
 
         @app.get("/")
         async def get_index():

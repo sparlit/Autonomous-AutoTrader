@@ -40,7 +40,7 @@ class NativeDashboard(Process):
 
         with dpg.window(label="🦅 AAT PHOENIX ASCENDANT V3.0 - MASTER PRO", width=1000, height=850):
             with dpg.group(horizontal=True):
-                dpg.add_text("SYSTEM STATUS:", color=[0, 242, 255])
+                dpg.add_text("SYSTEM STATUS:")
                 self.status_tag = dpg.add_text("OPTIMAL", color=[0, 255, 0])
                 dpg.add_spacer(width=200)
                 dpg.add_text("SERVER CLOCK:")
@@ -137,6 +137,9 @@ class NativeDashboard(Process):
             try:
                 self._update_from_ipc()
             except Exception as e:
+                # 10505: Silent handle for shutdown races
+                if "dearpygui" in str(e).lower() and not dpg.is_dearpygui_running():
+                    break
                 logger.error(f"UI Update Error: {e}")
             dpg.render_dearpygui_frame()
 
@@ -144,18 +147,18 @@ class NativeDashboard(Process):
 
     def _update_from_ipc(self):
         if not self.ipc: return
+        # 10506: Check if context still exists before update
+        if not dpg.is_dearpygui_running(): return
 
         all_state = self.ipc.get_all_state()
         if not all_state: return
 
         dpg.set_value(self.diag_text, f"IPC State: {len(all_state)} keys active.")
 
-        # Update Clock
         engine = all_state.get("engine_stats", {})
         server_time = engine.get("server_time", time.time())
         dpg.set_value(self.clock_tag, time.strftime("%H:%M:%S", time.localtime(server_time)))
 
-        # Update Global Stats
         account = all_state.get("account_stats", {})
         if account:
             equity = account.get('equity', 0)
@@ -164,7 +167,6 @@ class NativeDashboard(Process):
             dpg.set_value(self.dd_tag, f"DD: {dd:.2f}%")
             dpg.bind_item_theme(self.dd_tag, self.alert_theme if dd > 2 else self.active_theme)
             dpg.set_value(self.pos_tag, f"POS: {account.get('pos_count', 0)}")
-
             dpg.set_value(self.pnl_progress, 0.5 + (equity % 1000) / 2000)
 
         if engine:
@@ -176,11 +178,9 @@ class NativeDashboard(Process):
             dpg.set_value(self.latency_tag, f"LATENCY: {engine.get('latency', 0)*1000:.2f}ms")
             dpg.set_value(self.status_tag, engine.get('status', 'ACTIVE'))
             dpg.set_value(self.reconnect_tag, f"CONNECTIONS: {engine.get('active_clients', 0)}")
-
             intensity = min(1.0, mps / 100.0)
             dpg.set_value(self.throughput_bar, intensity)
 
-        # Update Symbols
         for key, sym in all_state.items():
             if key.startswith("symbol_stats:"):
                 symbol_name = sym.get("symbol")
@@ -200,7 +200,6 @@ class NativeDashboard(Process):
                     dpg.set_value(row["trend"], sym.get('htf', 'NEUTRAL'))
                     dpg.set_value(row["score"], f"{sym.get('scr', 0.5)*100:.1f}%")
 
-        # Update Brain Table
         for key, health in all_state.items():
             if key.startswith("brain_health:"):
                 name = health.get("name")
@@ -211,7 +210,6 @@ class NativeDashboard(Process):
                     dpg.set_value(row["mem"], f"{health.get('mem', 0):.1f}")
                     dpg.set_value(row["count"], str(health.get("count", 0)))
                     dpg.set_value(row["lat"], f"{health.get('latency', 0):.2f}")
-
                     last_hb = health.get("last_heartbeat", 0)
                     is_live = (server_time - last_hb) < 5
                     dpg.set_value(row["status"], "LIVE" if is_live else "OFFLINE")
