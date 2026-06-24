@@ -1,0 +1,4 @@
+# Git Conflict Resolver Configuration
+rules:
+  - paths: 'src/**/*.json'
+    strategy: 'theirs'

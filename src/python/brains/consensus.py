@@ -3,8 +3,6 @@ import logging
 import time
 import pandas as pd
 import numpy as np
-import os
-import ujson as json
 from typing import Dict, Any, List, Optional
 from src.python.brains.base import BaseBrain
 
@@ -13,8 +11,7 @@ logger = logging.getLogger("AAT_MetaBrain")
 class MetaBrain(BaseBrain):
     """
     Brain 11 - 10601: The Bayesian Probability Engine.
-    Self-Learning: Adjusts evidence weights based on brain reliability reports.
-    Explainability: Returns detailed impact of each brain on final posterior.
+    Implements the "3 of 4" confluence rule: Trend, Momentum, Structure, Volatility.
     """
     def __init__(self, name: str, cpu_affinity: Optional[List[int]] = None, threshold: float = 0.70, ipc: Any = None):
         super().__init__(name, cpu_affinity, ipc=ipc)
@@ -24,9 +21,6 @@ class MetaBrain(BaseBrain):
         self.required_sources = ["Trend_1", "Indicator_1", "Liquidity_1", "Regime_1"]
         self._last_telemetry_broadcast = 0
 
-    async def initialize(self):
-        await super().initialize()
-
     async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         symbol = event.get("symbol")
         if not symbol: return None
@@ -35,6 +29,7 @@ class MetaBrain(BaseBrain):
 
         if e_type == "MARKET_DATA_REFRESH":
             state["received_sources"] = set()
+            state["confluence"] = {"trend": 0, "momentum": 0, "structure": 0, "volatility": 0}
             return None
 
         if e_type == "RELIABILITY_REPORT":
@@ -43,6 +38,16 @@ class MetaBrain(BaseBrain):
 
         if e_type == "REGIME_STATUS":
             state["regime"] = event["regime"]
+            state["received_sources"].add(event["source"])
+            state["confluence"]["volatility"] = 1 if "TRENDING" in event["regime"] else 0
+
+        elif e_type == "MOMENTUM_STATUS":
+            state["confluence"]["momentum"] = event.get("direction", 0)
+            state["received_sources"].add(event["source"])
+
+        elif e_type == "STRUCTURE_STATUS":
+            state["structure_trigger"] = event.get("trigger")
+            state["confluence"]["structure"] = 1 if event.get("fvgs", 0) > 0 or event.get("idm") != "NONE" else 0
             state["received_sources"].add(event["source"])
 
         elif e_type in ["VETO", "NEWS_VETO"]:
@@ -53,7 +58,8 @@ class MetaBrain(BaseBrain):
             p_e_h = event.get("p_e_h", 0.50); p_e = event.get("p_e", 0.50)
             rel = self.brain_reliability.get(event["source"], 1.0)
 
-            if event["source"] == "Trend_1":
+            if "Trend" in event["source"]:
+                state["confluence"]["trend"] = event.get("direction", 0)
                 state["htf_trend"] = "BULLISH" if event.get("direction", 0) > 0 else "BEARISH" if event.get("direction", 0) < 0 else "NEUTRAL"
 
             weighted_p_e_h = 0.50 + (p_e_h - 0.50) * rel
@@ -74,30 +80,30 @@ class MetaBrain(BaseBrain):
                 state["atr"] = event["data"].get("atr", state["atr"])
                 state["rsi"] = event["data"].get("rsi", state["rsi"])
 
-        # Broadcast Telemetry periodically or on every evidence update
-        now = time.time()
-        if e_type in ["EVIDENCE", "REGIME_STATUS"] or now - self._last_telemetry_broadcast > 5:
-            acc_stats = self.ipc.get_state("account_stats", {}) if self.ipc else {}
-            telemetry = {
-                "type": "TELEMETRY",
-                "symbol": symbol,
-                "st": "ACTIVE",
-                "scr": round(state["prior"], 4),
-                "htf": state["htf_trend"],
-                "dd": acc_stats.get("drawdown", 0.0)
-            }
-            self.publish(telemetry)
-            self._last_telemetry_broadcast = now
-
+        # Final Decision Logic: Confluence + Threshold + Veto
         if all(src in state["received_sources"] for src in self.required_sources):
-            if state["prior"] >= self.threshold and not state["veto"]:
-                action = self._determine_direction(state)
-                if action != "WAIT":
+            # Check confluence: At least 3 of 4 must agree on direction
+            conf = state["confluence"]
+            # We simplify directionality check: count how many agree with the overall bias
+            action = self._determine_direction(state)
+            if action == "WAIT": return None
+
+            bias = 1 if action == "BUY" else -1
+            agreement_count = 0
+            if conf["trend"] == bias: agreement_count += 1
+            if conf["momentum"] == bias: agreement_count += 1
+            if conf["structure"] == 1: agreement_count += 1 # Structure acts as confirmation
+            if conf["volatility"] == 1: agreement_count += 1 # Volatility acts as confirmation
+
+            # Enforce "3 of 4" rule
+            if agreement_count >= 3 and state["prior"] >= self.threshold and not state["veto"]:
+                # Final Trigger Candle precision check
+                if state.get("structure_trigger") != "NONE" and action in state.get("structure_trigger", ""):
                     res = {
                         "type": "PROBABILISTIC_SIGNAL", "symbol": symbol, "action": action,
                         "probability": state["prior"], "regime": state["regime"], "atr": state["atr"], "rsi": state["rsi"],
                         "evidence_trail": list(state["evidence_trail"]),
-                        "explainability": [f"{e['source']} ({e['reliability']:.2f}): {'+' if e['impact'] >= 0 else ''}{e['impact']:.2f} -> P={e['posterior']:.2f}" for e in state['evidence_trail']]
+                        "explainability": [f"{e['source']} ({e['reliability']:.2f}): impact {e['impact']:.2f}" for e in state['evidence_trail']]
                     }
                     self.symbol_state[symbol] = self._new_state()
                     return res
@@ -112,7 +118,9 @@ class MetaBrain(BaseBrain):
             "received_sources": set(),
             "atr": 0.0,
             "rsi": 50,
-            "htf_trend": "NEUTRAL"
+            "htf_trend": "NEUTRAL",
+            "confluence": {"trend": 0, "momentum": 0, "structure": 0, "volatility": 0},
+            "structure_trigger": "NONE"
         }
 
     def _determine_direction(self, state):
