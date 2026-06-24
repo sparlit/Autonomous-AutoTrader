@@ -10,6 +10,7 @@ class CAATBridgeClient
 {
 private:
    CAATNativeSocket m_s;
+   CAATSocket m_s;
    CTrade m_t;
    CAATDashboard m_d;
    string m_h, m_u_s;
