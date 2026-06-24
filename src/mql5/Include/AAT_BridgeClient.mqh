@@ -9,6 +9,7 @@
 class CAATBridgeClient
 {
 private:
+   CAATNativeSocket m_s;
    CAATSocket m_s;
    CTrade m_t;
    CAATDashboard m_d;
@@ -28,6 +29,8 @@ public:
       if(m_u_d && !m_d.Create("AAT_Dash", 320, 500)) return false;
       return m_s.Connect(m_h, m_p);
    }
+
+   void PerformUpdate() { OnTick(); }
 
    void OnTick() {
       if(!m_s.IsConnected()) {
