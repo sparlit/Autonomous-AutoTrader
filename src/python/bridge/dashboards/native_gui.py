@@ -12,6 +12,7 @@ class NativeDashboard(Process):
         self.ipc = ipc
         self.stats = {"equity": 0.0, "drawdown": 0.0, "status": "INITIALIZING"}
         self.magic = 10501
+        self.last_ui_update = 0
 
     def run(self):
         """10502: GUI Main Loop."""
@@ -134,7 +135,9 @@ class NativeDashboard(Process):
 
         while dpg.is_dearpygui_running():
             try:
-                self._update_from_ipc()
+                if time.time() - self.last_ui_update > 0.1:
+                    self._update_from_ipc()
+                    self.last_ui_update = time.time()
             except Exception as e:
                 if "dearpygui" in str(e).lower() and not dpg.is_dearpygui_running(): break
                 logger.error(f"UI Update Error: {e}")

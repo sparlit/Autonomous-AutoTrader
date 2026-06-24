@@ -104,7 +104,11 @@ class BridgeServer:
             logger.info(f"Pruned dead client: {cid}")
 
     async def start(self):
-        server = await asyncio.start_server(self.handle_client, self.host, self.port)
-        async with server:
-            logger.info(f"Ultra-Parallel Bridge active at {self.host}:{self.port}")
-            await server.serve_forever()
+        try:
+            server = await asyncio.start_server(self.handle_client, self.host, self.port)
+            async with server:
+                logger.info(f"Ultra-Parallel Bridge active at {self.host}:{self.port}")
+                logger.info("Awaiting institutional data streams...")
+                await server.serve_forever()
+        except Exception as e:
+            logger.error(f"Bridge Server Failed to Start: {e}")

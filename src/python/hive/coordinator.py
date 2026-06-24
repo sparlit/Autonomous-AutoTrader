@@ -1,22 +1,23 @@
 import asyncio
+import ujson as json
 import logging
+import time
 import os
 import psutil
-import time
-import ujson as json
 from typing import Dict, Any, List, Optional
-from src.python.bridge.server import BridgeServer
-from src.python.brains.registry import BrainRegistry
-from src.python.brains.specialized import (
-    MarketDataBrain, IndicatorBrain, TrendBrain,
-    LiquidityBrain, RiskBrain, ExecutionBrain,
-    RegimeBrain, ContrarianBrain, MemoryBrain,
-    NewsRiskBrain, MonitoringBrain, AnomalyBrain, PortfolioBrain,
-    MomentumBrain, StructureBrain, CorrelationBrain
-)
-from src.python.brains.consensus import MetaBrain
+
 from src.python.hive.config import load_config
 from src.python.hive.ipc import get_ipc
+from src.python.brains.registry import BrainRegistry
+from src.python.brains.base import BaseBrain
+from src.python.brains.specialized import (
+    MarketDataBrain, IndicatorBrain, TrendBrain, LiquidityBrain,
+    MomentumBrain, RegimeBrain, NewsRiskBrain,
+    ContrarianBrain, CorrelationBrain, RiskBrain, ExecutionBrain,
+    MemoryBrain, MonitoringBrain, AnomalyBrain, PortfolioBrain, StructureBrain
+)
+from src.python.brains.consensus import MetaBrain
+from src.python.bridge.server import BridgeServer
 from src.python.bridge.dashboards.native_gui import NativeDashboard
 from src.python.bridge.dashboards.web_server import WebDashboard
 
@@ -112,13 +113,17 @@ class HiveOrchestrator:
         p = psutil.Process(os.getpid())
         try: p.cpu_affinity([1])
         except: pass
+        logger.info("Starting Dashboards...")
         self.native_dash.start(); self.web_dash.start()
+        logger.info("Launching Brain Cluster...")
         self.registry.start_all()
+        logger.info("Starting Bridge Server...")
         asyncio.create_task(self.server.start())
         await self._main_orchestration_loop()
 
     async def _main_orchestration_loop(self):
         counter = 0; last_stat_update = 0; last_rx = 0
+        logger.info("Orchestration Loop Active.")
         while True:
             try:
                 now = time.time()
@@ -133,7 +138,8 @@ class HiveOrchestrator:
                     })
                     last_stat_update = now; last_rx = current_rx
 
-                messages = self.ipc.xread({"stream:orchestrator": '0'}, count=20, block=1)
+                # Optimized: Read from stream once per loop
+                messages = self.ipc.xread({"stream:orchestrator": '0'}, count=50, block=1)
                 if messages:
                     for stream, msgs in messages:
                         for msg_id, data in msgs:
@@ -169,13 +175,17 @@ class HiveOrchestrator:
                                 telemetry_msg = {"t": "TLM", "s": sym, "st": "OPTIMAL", "scr": event["scr"], "htf": event["htf"], "dd": event.get("dd", 0.0), "pc": self.ipc.get_state("account_stats", {}).get("pos_count", 0)}
                                 asyncio.create_task(self.server.broadcast(telemetry_msg))
                             elif e_type == "EMERGENCY_KILL":
+                                logger.warning("EMERGENCY KILL RECEIVED")
                                 self.stop(); return
                             self.ipc.xdel("stream:orchestrator", msg_id)
-                else: await asyncio.sleep(0.001)
+                else:
+                    # Use a slightly longer sleep if no messages to yield CPU
+                    await asyncio.sleep(0.01)
             except Exception as e:
                 logger.error(f"Orchestrator Loop Error: {e}"); await asyncio.sleep(0.1)
 
     def stop(self):
+        logger.info("Stopping Orchestrator...")
         self.registry.stop_all()
-        if self.native_dash.is_alive(): self.native_dash.terminate()
-        if self.web_dash.is_alive(): self.web_dash.terminate()
+        if hasattr(self, 'native_dash') and self.native_dash.is_alive(): self.native_dash.terminate()
+        if hasattr(self, 'web_dash') and self.web_dash.is_alive(): self.web_dash.terminate()
