@@ -13,6 +13,7 @@ public:
       long remaining = (long)candle_end - (long)TimeCurrent();
       if(remaining < 0) remaining = 0;
       string timer = StringFormat("%02d:%02d", (int)(remaining / 60), (int)(remaining % 60));
+      int pos_count = PositionsTotal();
 
       string res = "{\"t\":\"HB\",\"s\":\"";
       res += s;
@@ -24,7 +25,9 @@ public:
       res += DoubleToString(spread_pts, 1);
       res += ",\"ct\":\"";
       res += timer;
-      res += "\"}";
+      res += "\",\"pc\":";
+      res += IntegerToString(pos_count);
+      res += "}";
       return res;
    }
 
