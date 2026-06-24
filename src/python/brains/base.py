@@ -25,15 +25,12 @@ class BrainContract(ABC):
     """The strict contract every Brain must follow."""
     @abstractmethod
     async def initialize(self):
-        """12001: Hardware and dependency setup."""
         raise NotImplementedError()
     @abstractmethod
     def run(self):
-        """12002: Process main event loop."""
         raise NotImplementedError()
     @abstractmethod
     def health(self) -> Dict[str, Any]:
-        """12003: Collect process health metrics."""
         raise NotImplementedError()
 
 class BaseBrain(Process, BrainContract):
@@ -50,6 +47,7 @@ class BaseBrain(Process, BrainContract):
         self.is_running = True
         self._processed_count = 0
         self._latency_sum = 0.0
+        self._last_activity = 0.0
         self.max_execution_time = 0.1 # 100ms hard deadline (12101)
         self.stream_max_len = 1000 # Bounded streams to prevent OOM (12102)
 
@@ -59,12 +57,8 @@ class BaseBrain(Process, BrainContract):
         if self.cpu_affinity:
             try:
                 p.cpu_affinity(self.cpu_affinity)
-                logger.info(f"Brain {self.name} pinned to cores: {self.cpu_affinity}")
-            except Exception as e:
-                logger.warning(f"Affinity fail for {self.name}: {e}")
-
-        logging.basicConfig(level=logging.INFO, format=f"%(asctime)s - {self.name} - %(levelname)s - %(message)s")
-        logger.info(f"Brain {self.name} online (PID {os.getpid()})")
+            except: pass
+        self._last_activity = time.time()
 
     def run(self):
         """12006: Process entry point."""
@@ -76,7 +70,6 @@ class BaseBrain(Process, BrainContract):
             logger.error(f"Brain {self.name} crashed: {e}")
 
     async def _async_run(self):
-        """Internal async entry point to ensure loop is running for initialization."""
         await self.initialize()
         await self._main_loop()
 
@@ -86,9 +79,9 @@ class BaseBrain(Process, BrainContract):
         last_health_report = 0
         while self.is_running:
             try:
-                # 12105: Periodic health reporting (High Frequency)
+                # 12105: Periodic health reporting
                 now = time.time()
-                if now - last_health_report > 2:
+                if now - last_health_report > 0.5:
                     if self.ipc:
                         self.ipc.set_state(f"brain_health:{self.name}", self.health())
                     last_health_report = now
@@ -97,19 +90,16 @@ class BaseBrain(Process, BrainContract):
                     messages = self.ipc.xread({stream_name: '0'}, count=10, block=1)
                     if messages:
                         for stream, msgs in messages:
-                            # 12103: Coalesce (take latest if backlog exists)
                             latest_msg = msgs[-1]
                             msg_id, data = latest_msg
-
                             event = json.loads(data[b'payload'])
                             start_time = time.perf_counter()
-
                             try:
                                 result = await asyncio.wait_for(self.process(event), timeout=self.max_execution_time)
                                 if result: self.publish(result)
+                                self._last_activity = time.time()
                             except asyncio.TimeoutError:
-                                logger.error(f"Brain {self.name} TIMEOUT on msg {msg_id}.")
-
+                                logger.error(f"Brain {self.name} TIMEOUT.")
                             self._latency_sum += (time.perf_counter() - start_time)
                             self._processed_count += 1
                     else:
@@ -122,16 +112,13 @@ class BaseBrain(Process, BrainContract):
 
     @abstractmethod
     async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """12009: Domain-specific logic."""
         raise NotImplementedError()
 
     def publish(self, result: Dict[str, Any]):
-        """12010: Publish to the Orchestrator stream."""
         if not self.ipc: return
         result['source'] = self.name
         result['timestamp'] = time.time()
-        payload = json.dumps(result)
-        self.ipc.xadd("stream:orchestrator", {"payload": payload}, maxlen=self.stream_max_len)
+        self.ipc.xadd("stream:orchestrator", {"payload": json.dumps(result)}, maxlen=self.stream_max_len)
 
     def health(self) -> Dict[str, Any]:
         """12011: Collect health metrics."""
@@ -144,7 +131,8 @@ class BaseBrain(Process, BrainContract):
             "mem": p.memory_info().rss / 1024 / 1024,
             "count": self._processed_count,
             "latency": avg_latency * 1000,
-            "last_seen": time.time()
+            "last_seen": self._last_activity,
+            "last_heartbeat": time.time()
         }
 
     def _handle_exit(self, signum, frame):
