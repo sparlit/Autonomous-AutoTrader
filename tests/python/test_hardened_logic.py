@@ -8,10 +8,12 @@ def test_news_safety_window():
     rm = RiskManager(config)
     now = datetime.datetime.now(datetime.UTC)
     event_time = (now + datetime.timedelta(minutes=15)).isoformat()
-    rm.news_events = [{"time": event_time, "event": "NFP"}]
+    # Updated to match the new 'name' and 'impact' requirements
+    rm.news_events = [{"time": event_time, "name": "NFP", "impact": "High"}]
     assert rm.is_news_safe() == False
+
     event_time_far = (now + datetime.timedelta(minutes=45)).isoformat()
-    rm.news_events = [{"time": event_time_far, "event": "FOMC"}]
+    rm.news_events = [{"time": event_time_far, "name": "FOMC", "impact": "High"}]
     assert rm.is_news_safe() == True
 
 def test_atr_lot_sizing():

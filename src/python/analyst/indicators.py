@@ -7,31 +7,26 @@ class IndicatorAnalyst:
     def calculate_all(self, df: pd.DataFrame) -> Dict[str, Any]:
         """
         Compute technical indicators from OHLC market data.
-
-        Parameters:
-		df (pd.DataFrame): A DataFrame containing 'c' (close), 'h' (high), and 'l' (low) price columns.
-
-        Returns:
-		dict: A dictionary with keys 'rsi', 'atr', 'ema_fast', and 'ema_slow', each containing the latest computed indicator value.
         """
+        c = df['c']
+        ema100 = c.ewm(span=100, adjust=False).mean().iloc[-1]
+        ema200 = c.ewm(span=200, adjust=False).mean().iloc[-1]
+        macd_line, signal_line, hist = self.macd(c)
+        adx = self.adx(df)
+
         return {
-            "rsi": self.rsi(df['c']),
+            "rsi": self.rsi(c),
             "atr": self.atr(df),
-            "ema_fast": df['c'].ewm(span=50, adjust=False).mean().iloc[-1],
-            "ema_slow": df['c'].ewm(span=200, adjust=False).mean().iloc[-1]
+            "ema_fast": c.ewm(span=50, adjust=False).mean().iloc[-1],
+            "ema_slow": ema200,
+            "ema_100": ema100,
+            "macd": macd_line,
+            "macd_signal": signal_line,
+            "macd_hist": hist,
+            "adx": adx
         }
 
     def rsi(self, series: pd.Series, period: int = 14) -> float:
-        """
-        Compute the Relative Strength Index (RSI) of a price series.
-
-        Parameters:
-            series (pd.Series): A price series, typically closing prices.
-            period (int): The number of periods for the rolling average calculation. Defaults to 14.
-
-        Returns:
-            float: The RSI value for the final period.
-        """
         delta = series.diff()
         up = delta.clip(lower=0)
         down = -1 * delta.clip(upper=0)
@@ -41,15 +36,28 @@ class IndicatorAnalyst:
         return (100 - (100 / (1 + rs))).iloc[-1]
 
     def atr(self, df: pd.DataFrame, period: int = 14) -> float:
-        """
-        Compute the Average True Range (ATR) indicator from OHLC data.
-
-        Parameters:
-            df (pd.DataFrame): DataFrame containing 'h' (high), 'l' (low), and 'c' (close) price series.
-
-        Returns:
-            float: The most recent ATR value.
-        """
         high = df['h']; low = df['l']; cp = df['c'].shift(1)
         tr = pd.concat([high-low, (high-cp).abs(), (low-cp).abs()], axis=1).max(axis=1)
         return tr.rolling(period).mean().iloc[-1]
+
+    def macd(self, series: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9):
+        ema_fast = series.ewm(span=fast, adjust=False).mean()
+        ema_slow = series.ewm(span=slow, adjust=False).mean()
+        macd_line = ema_fast - ema_slow
+        signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+        return macd_line.iloc[-1], signal_line.iloc[-1], (macd_line - signal_line).iloc[-1]
+
+    def adx(self, df: pd.DataFrame, period: int = 14) -> float:
+        """12017: Average Directional Index (ADX)."""
+        h = df['h']; l = df['l']; c = df['c']
+        upmove = h.diff(); downmove = l.diff()
+        plus_dm = np.where((upmove > downmove) & (upmove > 0), upmove, 0)
+        minus_dm = np.where((downmove > upmove) & (downmove > 0), downmove, 0)
+
+        tr = pd.concat([h-l, (h-c.shift(1)).abs(), (l-c.shift(1)).abs()], axis=1).max(axis=1)
+        atr = tr.rolling(period).mean()
+
+        plus_di = 100 * (pd.Series(plus_dm).rolling(period).mean() / atr)
+        minus_di = 100 * (pd.Series(minus_dm).rolling(period).mean() / atr)
+        dx = 100 * (abs(plus_di - minus_di) / (plus_di + minus_di))
+        return dx.rolling(period).mean().iloc[-1]
