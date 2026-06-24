@@ -8,6 +8,18 @@ import os
 import logging
 import uvicorn
 from multiprocessing import Process
+from multiprocessing.managers import DictProxy, ListProxy
+
+logger = logging.getLogger("AAT_WebDashboard")
+
+def to_dict(obj):
+    """Recursively convert multiprocessing proxies to real dicts."""
+    if isinstance(obj, (DictProxy, dict)):
+        return {k: to_dict(v) for k, v in obj.items()}
+    elif isinstance(obj, (ListProxy, list)):
+        return [to_dict(v) for v in obj]
+    else:
+        return obj
 
 logger = logging.getLogger("AAT_WebDashboard")
 
@@ -28,26 +40,16 @@ class WebDashboard(Process):
             logger.info("WebSocket connection established.")
             try:
                 while True:
-                    # 10401: Robust serialization for IPC state
                     try:
                         all_state = self.ipc.get_all_state()
-                        safe_state = {}
-                        for k, v in all_state.items():
-                            if isinstance(v, (dict, list, str, int, float, bool)) or v is None:
-                                safe_state[k] = v
-                            else:
-                                safe_state[k] = str(v)
-
+                        # 10408: Ensure all state is converted to real dicts before JSON serialization
+                        safe_state = to_dict(all_state)
                         await websocket.send_text(json.dumps(safe_state))
                     except (WebSocketDisconnect, RuntimeError):
-                        # 10405: Immediate exit on disconnect or runtime close
-                        logger.info("WebSocket disconnected or closed.")
                         break
                     except Exception as e:
                         logger.error(f"WebSocket Serialization Error: {e}")
-                        # If it's a "Cannot call send" error, break
-                        if "send" in str(e).lower():
-                            break
+                        if "send" in str(e).lower(): break
 
                     await asyncio.sleep(1)
             except WebSocketDisconnect:

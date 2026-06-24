@@ -126,7 +126,6 @@
                     const eng = state['engine_stats'] || {};
                     const serverTime = eng.server_time || Date.now()/1000;
 
-                    // Update Account
                     const acc = state['account_stats'] || {};
                     document.getElementById('equity').innerText = '$' + (acc.equity || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
                     const dd = acc.drawdown || 0;
@@ -136,7 +135,6 @@
                     document.getElementById('pos-count').innerText = acc.pos_count || 0;
                     document.getElementById('pnl-progress').style.width = Math.min(100, Math.max(0, 50 + (acc.equity % 1000)/20)) + '%';
 
-                    // Update Engine
                     const engStatus = document.getElementById('engine-status');
                     const statusText = eng.status || 'STARTING';
                     engStatus.innerText = statusText;
@@ -149,7 +147,6 @@
                     document.getElementById('mps').innerText = mps.toFixed(1);
                     document.getElementById('throughput-progress').style.width = Math.min(100, mps) + '%';
 
-                    // Update Symbols
                     const symbolKeys = Object.keys(state).filter(k => k.startsWith('symbol_stats:'));
                     const symContainer = document.getElementById('symbols-container');
                     symbolKeys.forEach(key => {
@@ -161,6 +158,8 @@
                             symElem.id = symId;
                             symElem.className = 'symbol-card';
                             symContainer.appendChild(symElem);
+                            const noSym = document.getElementById('no-symbols');
+                            if(noSym) noSym.style.display = 'none';
                         }
                         symElem.innerHTML = `
                             <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -175,7 +174,6 @@
                         `;
                     });
 
-                    // Update Brains
                     const tbody = document.getElementById('brain-body');
                     const brains = Object.keys(state).filter(k => k.startsWith('brain_health:'));
                     document.getElementById('brain-count').innerText = brains.length + ' UNITS';

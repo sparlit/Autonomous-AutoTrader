@@ -18,8 +18,6 @@ class NativeDashboard(Process):
         logging.basicConfig(level=logging.INFO, format="%(asctime)s - NativeGUI - %(levelname)s - %(message)s")
         logger = logging.getLogger("AAT_NativeGUI")
 
-        logger.info("Initializing Native Dashboard GUI...")
-
         try:
             dpg.create_context()
         except Exception as e:
@@ -28,15 +26,15 @@ class NativeDashboard(Process):
 
         with dpg.theme() as self.alert_theme:
             with dpg.theme_component(dpg.mvAll):
-                dpg.add_theme_color(dpg.mvThemeCol_Text, [255, 81, 73], category=dpg.mvThemeCat_Core)
+                dpg.add_theme_color(dpg.mvThemeCol_Text, [255, 81, 73])
 
         with dpg.theme() as self.active_theme:
             with dpg.theme_component(dpg.mvAll):
-                dpg.add_theme_color(dpg.mvThemeCol_Text, [63, 185, 80], category=dpg.mvThemeCat_Core)
+                dpg.add_theme_color(dpg.mvThemeCol_Text, [63, 185, 80])
 
         with dpg.theme() as self.neutral_theme:
             with dpg.theme_component(dpg.mvAll):
-                dpg.add_theme_color(dpg.mvThemeCol_Text, [200, 200, 200], category=dpg.mvThemeCat_Core)
+                dpg.add_theme_color(dpg.mvThemeCol_Text, [200, 200, 200])
 
         with dpg.window(label="🦅 AAT PHOENIX ASCENDANT V3.0 - MASTER PRO", width=1000, height=850):
             with dpg.group(horizontal=True):
@@ -49,18 +47,20 @@ class NativeDashboard(Process):
             dpg.add_separator()
 
             with dpg.group(horizontal=True):
-                with dpg.child_window(width=320, height=200, label="Account Telemetry"):
+                with dpg.child_window(width=320, height=220, label="Account Telemetry"):
                     dpg.add_text("REAL-TIME CAPITAL", color=[150, 150, 150])
-                    self.equity_tag = dpg.add_text("EQUITY: -bash.00", color=[255, 255, 255])
+                    self.equity_tag = dpg.add_text("EQUITY: $0.00", color=[255, 255, 255])
                     with dpg.group(horizontal=True):
                         self.dd_tag = dpg.add_text("DD: 0.00%", color=[0, 255, 0])
                         dpg.add_spacer(width=20)
                         self.pos_tag = dpg.add_text("POS: 0", color=[0, 242, 255])
+                    self.spread_tag = dpg.add_text("AVG SPREAD: 0.0", color=[200, 200, 200])
+                    self.timer_tag = dpg.add_text("CANDLE TIMER: --:--", color=[200, 200, 200])
                     dpg.add_spacer(height=5)
                     dpg.add_text("P&L PROGRESS")
-                    self.pnl_progress = dpg.add_progress_bar(label="P&L Progress", default_value=0.5, width=280)
+                    self.pnl_progress = dpg.add_progress_bar(default_value=0.5, width=280)
 
-                with dpg.child_window(width=650, height=200, label="Engine Orchestrator"):
+                with dpg.child_window(width=650, height=220, label="Engine Orchestrator"):
                     dpg.add_text("ULTRA-BRIDGE TELEMETRY", color=[150, 150, 150])
                     with dpg.group(horizontal=True):
                         self.msg_rx_tag = dpg.add_text("MSGS RX: 0")
@@ -78,13 +78,12 @@ class NativeDashboard(Process):
             dpg.add_text("ACTIVE SYMBOL INTELLIGENCE", color=[0, 242, 255])
             dpg.add_separator()
 
-            with dpg.table(header_row=True, borders_innerH=True, borders_outerH=True, borders_innerV=True, borders_outerV=True, resizable=True, sortable=True, height=150):
+            with dpg.table(header_row=True, borders_innerH=True, borders_outerH=True, borders_innerV=True, borders_outerV=True, resizable=True, sortable=True, height=180):
                 dpg.add_table_column(label="SYMBOL")
                 dpg.add_table_column(label="SPREAD")
                 dpg.add_table_column(label="CANDLE")
                 dpg.add_table_column(label="TREND")
                 dpg.add_table_column(label="SCORE")
-
                 self.symbol_table_id = dpg.last_item()
                 self.symbol_rows = {}
 
@@ -92,7 +91,7 @@ class NativeDashboard(Process):
             dpg.add_text("BRAIN CLUSTER MATRIX TELEMETRY (23 CORES)", color=[0, 242, 255])
             dpg.add_separator()
 
-            with dpg.table(header_row=True, borders_innerH=True, borders_outerH=True, borders_innerV=True, borders_outerV=True, resizable=True, sortable=True, height=300):
+            with dpg.table(header_row=True, borders_innerH=True, borders_outerH=True, borders_innerV=True, borders_outerV=True, resizable=True, sortable=True, height=280):
                 dpg.add_table_column(label="BRAIN UNIT")
                 dpg.add_table_column(label="PID")
                 dpg.add_table_column(label="CPU %")
@@ -137,19 +136,14 @@ class NativeDashboard(Process):
             try:
                 self._update_from_ipc()
             except Exception as e:
-                # 10505: Silent handle for shutdown races
-                if "dearpygui" in str(e).lower() and not dpg.is_dearpygui_running():
-                    break
+                if "dearpygui" in str(e).lower() and not dpg.is_dearpygui_running(): break
                 logger.error(f"UI Update Error: {e}")
             dpg.render_dearpygui_frame()
 
         dpg.destroy_context()
 
     def _update_from_ipc(self):
-        if not self.ipc: return
-        # 10506: Check if context still exists before update
-        if not dpg.is_dearpygui_running(): return
-
+        if not self.ipc or not dpg.is_dearpygui_running(): return
         all_state = self.ipc.get_all_state()
         if not all_state: return
 
@@ -170,16 +164,14 @@ class NativeDashboard(Process):
             dpg.set_value(self.pnl_progress, 0.5 + (equity % 1000) / 2000)
 
         if engine:
-            rx = engine.get('msgs_rx', 0)
-            mps = engine.get('mps', 0.0)
+            rx = engine.get('msgs_rx', 0); tx = engine.get('msgs_tx', 0); mps = engine.get('mps', 0.0)
             dpg.set_value(self.msg_rx_tag, f"MSGS RX: {rx}")
-            dpg.set_value(self.msg_tx_tag, f"MSGS TX: {engine.get('msgs_tx', 0)}")
+            dpg.set_value(self.msg_tx_tag, f"MSGS TX: {tx}")
             dpg.set_value(self.mps_tag, f"MPS: {mps:.1f}")
             dpg.set_value(self.latency_tag, f"LATENCY: {engine.get('latency', 0)*1000:.2f}ms")
             dpg.set_value(self.status_tag, engine.get('status', 'ACTIVE'))
             dpg.set_value(self.reconnect_tag, f"CONNECTIONS: {engine.get('active_clients', 0)}")
-            intensity = min(1.0, mps / 100.0)
-            dpg.set_value(self.throughput_bar, intensity)
+            dpg.set_value(self.throughput_bar, min(1.0, mps / 100.0))
 
         for key, sym in all_state.items():
             if key.startswith("symbol_stats:"):
@@ -193,12 +185,11 @@ class NativeDashboard(Process):
                             "trend": dpg.add_text("NEUTRAL"),
                             "score": dpg.add_text("50.0%")
                         }
-                else:
-                    row = self.symbol_rows[symbol_name]
-                    dpg.set_value(row["spread"], f"{sym.get('spread', 0):.1f}")
-                    dpg.set_value(row["timer"], sym.get('candle_timer', '--:--'))
-                    dpg.set_value(row["trend"], sym.get('htf', 'NEUTRAL'))
-                    dpg.set_value(row["score"], f"{sym.get('scr', 0.5)*100:.1f}%")
+                row = self.symbol_rows[symbol_name]
+                dpg.set_value(row["spread"], f"{sym.get('spread', 0):.1f}")
+                dpg.set_value(row["timer"], sym.get('candle_timer', '--:--'))
+                dpg.set_value(row["trend"], sym.get('htf', 'NEUTRAL'))
+                dpg.set_value(row["score"], f"{sym.get('scr', 0.5)*100:.1f}%")
 
         for key, health in all_state.items():
             if key.startswith("brain_health:"):
@@ -210,8 +201,7 @@ class NativeDashboard(Process):
                     dpg.set_value(row["mem"], f"{health.get('mem', 0):.1f}")
                     dpg.set_value(row["count"], str(health.get("count", 0)))
                     dpg.set_value(row["lat"], f"{health.get('latency', 0):.2f}")
-                    last_hb = health.get("last_heartbeat", 0)
-                    is_live = (server_time - last_hb) < 5
+                    is_live = (server_time - health.get("last_heartbeat", 0)) < 5
                     dpg.set_value(row["status"], "LIVE" if is_live else "OFFLINE")
                     dpg.bind_item_theme(row["status"], self.active_theme if is_live else self.alert_theme)
 

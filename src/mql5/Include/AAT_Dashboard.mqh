@@ -12,7 +12,7 @@ private:
    color m_bg, m_hdr, m_grn, m_red, m_txt, m_dim, m_blu;
 
 public:
-   CAATDashboard() : m_name("AAT_Dash"), m_width(320), m_height(500) {
+   CAATDashboard() : m_name("AAT_Dash"), m_width(320), m_height(520) {
       m_bg = C'15,20,30'; m_hdr = C'30,40,60'; m_grn = C'57,255,20'; m_red = C'FF,49,18'; m_txt = clrWhite; m_dim = clrGray; m_blu = C'0,242,255';
    }
    ~CAATDashboard() { m_canvas.Destroy(); }
@@ -70,7 +70,8 @@ public:
       DrawS(20, y, "FLOATING", (ppl >= 0 ? "+" : "") + DoubleToString(ppl, 2), (ppl >= 0 ? m_grn : m_red)); y += 25;
       DrawS(20, y, "DRAWDOWN", DoubleToString(dd, 2) + "%", (dd > 2 ? m_red : m_grn)); y += 25;
 
-      int total_pos = PositionsTotal();
+      int total_pos = 0;
+      for(int i=0; i<PositionsTotal(); i++) if(PositionGetSymbol(i)==symbol) total_pos++;
       DrawS(20, y, "POSITIONS", IntegerToString(total_pos), m_blu); y += 35;
 
       m_canvas.FontSet("Lucida Console", -10, FW_NORMAL);

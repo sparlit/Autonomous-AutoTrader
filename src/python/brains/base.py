@@ -79,7 +79,6 @@ class BaseBrain(Process, BrainContract):
         last_health_report = 0
         while self.is_running:
             try:
-                # 12105: Periodic health reporting
                 now = time.time()
                 if now - last_health_report > 0.5:
                     if self.ipc:
@@ -87,21 +86,21 @@ class BaseBrain(Process, BrainContract):
                     last_health_report = now
 
                 if self.ipc:
-                    messages = self.ipc.xread({stream_name: '0'}, count=10, block=1)
+                    # 10245: Process ALL pending messages, don't drop updates.
+                    messages = self.ipc.xread({stream_name: '0'}, count=50, block=1)
                     if messages:
                         for stream, msgs in messages:
-                            latest_msg = msgs[-1]
-                            msg_id, data = latest_msg
-                            event = json.loads(data[b'payload'])
-                            start_time = time.perf_counter()
-                            try:
-                                result = await asyncio.wait_for(self.process(event), timeout=self.max_execution_time)
-                                if result: self.publish(result)
-                                self._last_activity = time.time()
-                            except asyncio.TimeoutError:
-                                logger.error(f"Brain {self.name} TIMEOUT.")
-                            self._latency_sum += (time.perf_counter() - start_time)
-                            self._processed_count += 1
+                            for msg_id, data in msgs:
+                                event = json.loads(data[b'payload'])
+                                start_time = time.perf_counter()
+                                try:
+                                    result = await asyncio.wait_for(self.process(event), timeout=self.max_execution_time)
+                                    if result: self.publish(result)
+                                    self._last_activity = time.time()
+                                except asyncio.TimeoutError:
+                                    logger.error(f"Brain {self.name} TIMEOUT on processing.")
+                                self._latency_sum += (time.perf_counter() - start_time)
+                                self._processed_count += 1
                     else:
                         await asyncio.sleep(0.001)
                 else:
@@ -124,13 +123,9 @@ class BaseBrain(Process, BrainContract):
         p = psutil.Process(os.getpid())
         avg_latency = self._latency_sum / self._processed_count if self._processed_count > 0 else 0
         return {
-            "name": self.name,
-            "pid": os.getpid(),
-            "cpu": p.cpu_percent(),
-            "mem": p.memory_info().rss / 1024 / 1024,
-            "count": self._processed_count,
-            "latency": avg_latency * 1000,
-            "last_seen": self._last_activity,
+            "name": self.name, "pid": os.getpid(), "cpu": p.cpu_percent(),
+            "mem": p.memory_info().rss / 1024 / 1024, "count": self._processed_count,
+            "latency": avg_latency * 1000, "last_seen": self._last_activity,
             "last_heartbeat": time.time()
         }
 
