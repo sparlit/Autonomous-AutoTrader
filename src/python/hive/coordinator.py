@@ -129,13 +129,17 @@ class HiveOrchestrator:
         p = psutil.Process(os.getpid())
         try: p.cpu_affinity([1])
         except: pass
+        logger.info("Starting Dashboards...")
         self.native_dash.start(); self.web_dash.start()
+        logger.info("Launching Brain Cluster...")
         self.registry.start_all()
+        logger.info("Starting Bridge Server...")
         asyncio.create_task(self.server.start())
         await self._main_orchestration_loop()
 
     async def _main_orchestration_loop(self):
         counter = 0; last_stat_update = 0; last_rx = 0
+        logger.info("Orchestration Loop Active.")
         while True:
             try:
                 now = time.time()
@@ -185,6 +189,7 @@ class HiveOrchestrator:
                 logger.error(f"Orchestrator Loop Error: {e}"); await asyncio.sleep(0.1)
 
     def stop(self):
+        logger.info("Stopping Orchestrator...")
         self.registry.stop_all()
         if hasattr(self, 'native_dash') and self.native_dash.is_alive(): self.native_dash.terminate()
         if hasattr(self, 'web_dash') and self.web_dash.is_alive(): self.web_dash.terminate()
