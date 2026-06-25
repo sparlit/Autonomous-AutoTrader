@@ -3,6 +3,7 @@ import os
 import asyncio
 import logging
 import psutil
+from pre_compile import pre_compile
 
 # Ensure root is in path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -24,10 +25,12 @@ if __name__ == "__main__":
         format="%(asctime)s - AAT_Supervisor - %(levelname)s - %(message)s"
     )
 
+    print("🌌 Launching Autonomous AutoTrader: Phoenix Ascendant")
+    pre_compile()
     setup_os_optimization()
 
     logger = logging.getLogger("AAT_Main")
-    logger.info("🌌 Launching Autonomous AutoTrader: Phoenix Ascendant")
+    logger.info("Starting Hive Orchestrator...")
 
     orchestrator = HiveOrchestrator()
 

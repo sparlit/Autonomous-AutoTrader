@@ -44,7 +44,7 @@ For a detailed Windows 11 PRO step-by-step guide, please refer to [INSTALL_WINDO
 
 ### A. System Configuration (`config/main_config.json`)
 Adjust the core system parameters before launching:
-- **`bridge`**: Set the `host` (default `127.0.0.1`) and `port` (default `5555`).
+- **`bridge`**: Set the `host` (default `127.0.0.1`) and `port` (default `8008`).
 - **`risk`**:
   - `daily_loss_limit_pct`: Max % loss before shutdown (default 2.0).
   - `max_drawdown_pct`: Absolute drawdown limit (default 5.0).

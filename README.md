@@ -59,7 +59,7 @@ AAT utilizes a hybrid architecture designed for maximum reliability and zero-lat
    ```bash
    .\venv\Scripts\python main_engine.py
    ```
-   *Expected: `Ultra-Parallel Bridge active at 127.0.0.1:5555`.*
+   *Expected: `Ultra-Parallel Bridge active at 127.0.0.1:8008`.*
 
 ### Phase 2: MetaTrader 5 Integration
 1. **Deploy MQL5 Components**:
