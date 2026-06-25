@@ -4,14 +4,7 @@
 #property strict
 #include <AAT_BridgeClient.mqh>
 CAATBridgeClient bridge;
-
-int OnInit()
-{
-   if(!bridge.Init("127.0.0.1", 5555)) return INIT_FAILED;
-   return INIT_SUCCEEDED;
-}
-
-void OnTick()
-{
-   bridge.OnTick();
-}
+int OnInit() { if(!bridge.Init("127.0.0.1", 5555, AAT_ROLE_TRADE_EXECUTOR)) return INIT_FAILED; EventSetTimer(1); return INIT_SUCCEEDED; }
+void OnDeinit(const int reason) { EventKillTimer(); }
+void OnTick() { bridge.PerformUpdate(); }
+void OnTimer() { bridge.PerformUpdate(); }

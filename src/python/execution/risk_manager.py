@@ -30,8 +30,8 @@ class RiskManager:
 
     def is_session_active(self, symbol: str = "GLOBAL") -> bool:
         """
-        11003: Active trading windows: London (08-16) and NY (13-21) UTC.
-        Novice traders are advised to stay within these high-liquidity zones.
+        11003: Multi-Asset Session Vetting (24/7 Crypto, 24/5 FX/Commodities).
+        Magic: 11003
         """
         now_utc = datetime.datetime.now(datetime.UTC)
         weekday = now_utc.weekday() # 0=Mon, 6=Sun
