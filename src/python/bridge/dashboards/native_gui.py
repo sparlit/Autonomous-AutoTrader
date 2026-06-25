@@ -16,13 +16,9 @@ class NativeDashboard(Process):
 
     def run(self):
         """10502: GUI Main Loop."""
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s - NativeGUI - %(levelname)s - %(message)s")
         logger = logging.getLogger("AAT_NativeGUI")
 
-        # Check for DISPLAY environment variable
-        if 'DISPLAY' not in os.environ:
-            logger.warning("DISPLAY environment variable not found. Skipping Native GUI launch.")
-            return
+        # 10502: Windows-compatible GUI initialization
 
         try:
             dpg.create_context()
@@ -86,7 +82,7 @@ class NativeDashboard(Process):
                     self.latency_tag = dpg.add_text("LATENCY: 0.00ms")
                     self.reconnect_tag = dpg.add_text("CONNECTIONS: 0", color=[100, 200, 255])
 
-            dpg.add_spacing(count=5)
+            dpg.add_spacer(height=5)
             dpg.add_text("BRAIN CLUSTER HEALTH & BAYESIAN METRICS", color=[0, 242, 255])
             dpg.add_separator()
 
@@ -164,6 +160,9 @@ class NativeDashboard(Process):
             dpg.set_value(self.mps_tag, f"MPS: {mps:.1f}")
             dpg.set_value(self.latency_tag, f"LATENCY: {engine.get('latency', 0)*1000:.2f}ms")
             dpg.set_value(self.status_tag, engine.get('status', 'ACTIVE'))
+            status = engine.get('status', 'ACTIVE')
+            status_color = [0, 255, 0] if status == 'OPTIMAL' else ([255, 165, 0] if status == 'WAITING' else [255, 0, 0])
+            dpg.set_item_color(self.status_tag, dpg.mvPlotCol_Text, status_color)
             dpg.set_value(self.reconnect_tag, f"CONNECTIONS: {engine.get('active_clients', 0)}")
 
         # Update Brain Table

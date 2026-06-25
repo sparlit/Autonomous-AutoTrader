@@ -5,7 +5,6 @@ import time
 import socket
 from typing import Callable, Dict, Any
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("AAT_Bridge")
 
 class BridgeServer:

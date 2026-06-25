@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>AAT Phoenix Master Pro Dashboard</title>
+    <title>AAT Phoenix Ascendant - Institutional Dashboard</title>
     <style>
         body { background: #0b0f1a; color: #00f2ff; font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; line-height: 1.5; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 15px; }
@@ -28,8 +28,11 @@
 </head>
 <body>
     <h1>
-        <span>🦅 PHOENIX GAUNTLET V3.0 <small style="font-size: 0.5em; vertical-align: middle; opacity: 0.7;">MASTER PRO</small></span>
-        <span id="conn-status" style="font-size: 0.35em; color: #f85149;">DISCONNECTED</span>
+        <span>🦅 PHOENIX ASCENDANT <small style="font-size: 0.4em; vertical-align: middle; opacity: 0.7;">V3.0-AUTONOMOUS</small></span>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <span id="bridge-status" style="font-size: 0.35em; color: #ff9600; border-radius: 20px; padding: 4px 12px; border: 1px solid currentColor;">WAITING</span>
+            <span id="conn-status" style="font-size: 0.35em; color: #f85149; border-radius: 20px; padding: 4px 12px; border: 1px solid currentColor;">BROWSER: OFFLINE</span>
+        </div>
     </h1>
 
     <div class="grid">
@@ -157,13 +160,15 @@
         const connStatus = document.getElementById('conn-status');
 
         ws.onopen = () => {
-            connStatus.innerText = 'CONNECTED';
+            connStatus.innerText = 'BROWSER: ONLINE';
             connStatus.style.color = '#3fb950';
         };
 
         ws.onclose = () => {
-            connStatus.innerText = 'DISCONNECTED';
+            connStatus.innerText = 'BROWSER: OFFLINE';
             connStatus.style.color = '#f85149';
+            document.getElementById('bridge-status').innerText = 'UNKNOWN';
+            document.getElementById('bridge-status').style.color = '#8b949e';
         };
 
         ws.onmessage = (event) => {
@@ -198,6 +203,13 @@
             document.getElementById('msg-rx').innerText = eng.msgs_rx || 0;
             document.getElementById('msg-tx').innerText = eng.msgs_tx || 0;
             document.getElementById('latency').innerText = `${((eng.latency || 0) * 1000).toFixed(2)}ms`;
+
+            const bStatus = document.getElementById('bridge-status');
+            const status = eng.status || 'WAITING';
+            bStatus.innerText = `BRIDGE: ${status}`;
+            if (status === 'OPTIMAL') bStatus.style.color = '#3fb950';
+            else if (status === 'WAITING') bStatus.style.color = '#ff9600';
+            else bStatus.style.color = '#f85149';
 
             // Active Trades
             const tradeTable = document.querySelector('#trade-table tbody');

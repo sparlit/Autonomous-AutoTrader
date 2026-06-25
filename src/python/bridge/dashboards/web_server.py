@@ -31,7 +31,6 @@ class WebDashboard(Process):
         self.port = port
 
     def run(self):
-        logging.basicConfig(level=logging.INFO, format='%(asctime)s - WebDash - %(levelname)s - %(message)s')
         app = FastAPI()
 
         @app.websocket("/ws")
