@@ -44,10 +44,19 @@ class HiveIPC:
         if not hasattr(self, '_local_cache'):
             self._local_cache = {}
 
-    def get_queue(self, name: str) -> multiprocessing.Queue:
-        if name in self._local_cache:
-            return self._local_cache[name]
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['manager']
+        del state['_lock']
+        return state
 
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self.manager = None
+        self._lock = None
+
+    def get_queue(self, name: str) -> multiprocessing.Queue:
+        # Avoid creating excessive queues if not needed
         if name not in self._queues:
             if self._lock is None:
                 raise RuntimeError(f"Queue '{name}' not found in child process. Parent must pre-initialize.")
@@ -62,17 +71,17 @@ class HiveIPC:
 
     def xadd(self, stream: str, data: Dict[str, Any], maxlen: int = 1000):
         """Emulate Redis XADD."""
+        q = self.get_queue(stream)
         try:
             q = self.get_queue(stream)
             if q.full():
                 try: q.get_nowait()
-                except Exception: logger.debug("IPC cleanup")
+                except: pass
             q.put_nowait(data)
         except Exception as e:
             logger.error(f"IPC XADD Fail on {stream}: {e}")
 
     def xread(self, streams: Dict[str, str], count: int = 1, block: int = 0) -> List[Any]:
-        """Emulate Redis XREAD."""
         results = []
         for stream_name in streams.keys():
             try:
@@ -84,25 +93,18 @@ class HiveIPC:
                     msgs.append(("msg_id", {b'payload': q.get_nowait().get("payload")}))
                 if msgs:
                     results.append((stream_name, msgs))
-            except Exception: logger.debug("IPC cleanup")
+            except Exception as e:
+                pass
         return results
 
     def xdel(self, stream: str, msg_id: str):
         return True
 
     def set_state(self, key: str, value: Any):
-        """Thread-safe state update."""
-        try:
-            self._shared_state[key] = value
-        except Exception as e:
-            logger.error(f"IPC State Set Fail: {e}")
+        self._shared_state[key] = value
 
     def get_state(self, key: str, default: Any = None) -> Any:
-        """Thread-safe state retrieval."""
-        try:
-            return self._shared_state.get(key, default)
-        except Exception:
-            return default
+        return self._shared_state.get(key, default)
 
     def get_all_state(self) -> Dict[str, Any]:
         try:

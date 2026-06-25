@@ -84,8 +84,8 @@ class BaseBrain(Process, BrainContract):
         last_health_report = 0
         while self.is_running:
             try:
-                now = time.time()
-                if now - last_health_report > 0.5:
+                # Periodic health reporting to shared state
+                if time.time() - last_health_report > 5:
                     if self.ipc:
                         self.ipc.set_state(f"brain_health:{self.name}", self.health())
                     last_health_report = now
@@ -95,17 +95,21 @@ class BaseBrain(Process, BrainContract):
                     messages = self.ipc.xread({stream_name: '0'}, count=50, block=1)
                     if messages:
                         for stream, msgs in messages:
-                            for msg_id, data in msgs:
-                                event = json.loads(data[b'payload'])
-                                start_time = time.perf_counter()
-                                try:
-                                    result = await asyncio.wait_for(self.process(event), timeout=self.max_execution_time)
-                                    if result: self.publish(result)
-                                    self._last_activity = time.time()
-                                except asyncio.TimeoutError:
-                                    logger.error(f"Brain {self.name} TIMEOUT on processing.")
-                                self._latency_sum += (time.perf_counter() - start_time)
-                                self._processed_count += 1
+                            latest_msg = msgs[-1]
+                            msg_id, data = latest_msg
+
+                            event = json.loads(data[b'payload'])
+                            start_time = time.perf_counter()
+
+                            try:
+                                result = await asyncio.wait_for(self.process(event), timeout=self.max_execution_time)
+                                if result: self.publish(result)
+                            except asyncio.TimeoutError:
+                                logger.error(f"Brain {self.name} TIMEOUT on msg {msg_id}. Dropping result.")
+
+                            self.ipc.xdel(stream_name, msg_id)
+                            self._latency_sum += (time.perf_counter() - start_time)
+                            self._processed_count += 1
                     else:
                         await asyncio.sleep(0.001)
                 else:
@@ -119,14 +123,15 @@ class BaseBrain(Process, BrainContract):
         raise NotImplementedError()
 
     def publish(self, result: Dict[str, Any]):
+        """12010: Publish to the Orchestrator stream with bounded length."""
         if not self.ipc: return
-        result['source'] = self.name
-        result['timestamp'] = time.time()
-        self.ipc.xadd("stream:orchestrator", {"payload": json.dumps(result)}, maxlen=self.stream_max_len)
+        result['source'] = self.name; result['timestamp'] = time.time()
+        payload = json.dumps(result)
+        self.ipc.xadd("stream:orchestrator", {"payload": payload}, maxlen=self.stream_max_len)
 
     def health(self) -> Dict[str, Any]:
-        p = psutil.Process(os.getpid())
-        avg_latency = self._latency_sum / self._processed_count if self._processed_count > 0 else 0
+        """12011: Collect health metrics."""
+        p = psutil.Process(os.getpid()); avg_latency = self._latency_sum / self._processed_count if self._processed_count > 0 else 0
         return {
             "name": self.name, "pid": os.getpid(), "cpu": p.cpu_percent(),
             "mem": p.memory_info().rss / 1024 / 1024, "count": self._processed_count,
