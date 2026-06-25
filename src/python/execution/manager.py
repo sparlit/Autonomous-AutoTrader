@@ -1,13 +1,20 @@
 import logging
 from typing import Dict, Any, List, Optional
 from src.python.execution.ledger import TradeLedger
+from src.python.execution.risk_manager import RiskManager
 
 logger = logging.getLogger("AAT_PositionManager")
 
 class PositionManager:
     """10500: Institutional Position Lifecycle Management."""
-    def __init__(self, ledger: TradeLedger):
+    def __init__(self, ledger: TradeLedger, risk_manager: RiskManager):
         self.ledger = ledger
+        self.risk_manager = risk_manager
+
+    async def monitor_and_manage(self, symbol: str, bid: float, ask: float, atr: float) -> List[Dict[str, Any]]:
+        """10505: Master management entry point."""
+        current_price = (bid + ask) / 2
+        return await self.manage_open_positions(symbol, current_price, atr)
 
     async def manage_open_positions(self, symbol: str, current_price: float, atr: float) -> List[Dict[str, Any]]:
         """
@@ -57,27 +64,28 @@ class PositionManager:
 
             # 10504: Trailing Stop (ATR-based)
             # Magic: 10504
-            if action == "BUY":
-                potential_sl = current_price - 2 * atr
-                if potential_sl > sl and potential_sl < current_price:
-                    management_orders.append({
-                        "type": "EXECUTION_ORDER",
-                        "t": "MODIFY_SL",
-                        "tk": ticket,
-                        "s": symbol,
-                        "sl": potential_sl,
-                        "reason": "TRAILING_ATR"
-                    })
-            else:
-                potential_sl = current_price + 2 * atr
-                if potential_sl < sl and potential_sl > current_price:
-                    management_orders.append({
-                        "type": "EXECUTION_ORDER",
-                        "t": "MODIFY_SL",
-                        "tk": ticket,
-                        "s": symbol,
-                        "sl": potential_sl,
-                        "reason": "TRAILING_ATR"
-                    })
+            if atr > 0:
+                if action == "BUY":
+                    potential_sl = current_price - 2 * atr
+                    if potential_sl > sl and potential_sl < current_price:
+                        management_orders.append({
+                            "type": "EXECUTION_ORDER",
+                            "t": "MODIFY_SL",
+                            "tk": ticket,
+                            "s": symbol,
+                            "sl": potential_sl,
+                            "reason": "TRAILING_ATR"
+                        })
+                else:
+                    potential_sl = current_price + 2 * atr
+                    if potential_sl < sl and potential_sl > current_price:
+                        management_orders.append({
+                            "type": "EXECUTION_ORDER",
+                            "t": "MODIFY_SL",
+                            "tk": ticket,
+                            "s": symbol,
+                            "sl": potential_sl,
+                            "reason": "TRAILING_ATR"
+                        })
 
         return management_orders

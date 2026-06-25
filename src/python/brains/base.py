@@ -59,7 +59,7 @@ class BaseBrain(Process, BrainContract):
             try:
                 p.cpu_affinity(self.cpu_affinity)
             except Exception as e:
-                logger.warning(f"Affinity fail for {self.name}: {e}")
+                logger.debug(f"Affinity fail for {self.name}: {e}")
         self._last_activity = time.time()
         if self.ipc:
             # Pre-cache the queue reference in the child process
@@ -84,8 +84,9 @@ class BaseBrain(Process, BrainContract):
         last_health_report = 0
         while self.is_running:
             try:
+                now = time.time()
                 # Periodic health reporting to shared state
-                if time.time() - last_health_report > 5:
+                if now - last_health_report > 5:
                     if self.ipc:
                         self.ipc.set_state(f"brain_health:{self.name}", self.health())
                     last_health_report = now

@@ -24,15 +24,17 @@ class HiveIPC:
             for name in self._queues.keys():
                 q = self._queues[name]
                 while not q.empty():
-                    try: q.get_nowait()
-                    except: break
+                    try:
+                        q.get_nowait()
+                    except Exception:
+                        break
         logger.info("✅ IPC memory cleared.")
 
     def __getstate__(self):
         """Prepare state for pickling (Windows compatibility)."""
         state = self.__dict__.copy()
-        del state['manager']
-        del state['_lock']
+        if 'manager' in state: del state['manager']
+        if '_lock' in state: del state['_lock']
         state['_local_cache'] = {}
         return state
 
@@ -43,17 +45,6 @@ class HiveIPC:
         self._lock = None
         if not hasattr(self, '_local_cache'):
             self._local_cache = {}
-
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        del state['manager']
-        del state['_lock']
-        return state
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-        self.manager = None
-        self._lock = None
 
     def get_queue(self, name: str) -> multiprocessing.Queue:
         # Avoid creating excessive queues if not needed
@@ -71,12 +62,13 @@ class HiveIPC:
 
     def xadd(self, stream: str, data: Dict[str, Any], maxlen: int = 1000):
         """Emulate Redis XADD."""
-        q = self.get_queue(stream)
         try:
             q = self.get_queue(stream)
             if q.full():
-                try: q.get_nowait()
-                except: pass
+                try:
+                    q.get_nowait()
+                except Exception:
+                    logger.debug("Queue was full but empty on get_nowait")
             q.put_nowait(data)
         except Exception as e:
             logger.error(f"IPC XADD Fail on {stream}: {e}")
@@ -90,11 +82,12 @@ class HiveIPC:
                 for _ in range(count):
                     if q.empty():
                         break
-                    msgs.append(("msg_id", {b'payload': q.get_nowait().get("payload")}))
+                    val = q.get_nowait()
+                    msgs.append(("msg_id", {b'payload': val.get("payload")}))
                 if msgs:
                     results.append((stream_name, msgs))
             except Exception as e:
-                pass
+                logger.debug(f"XREAD skipped for {stream_name}: {e}")
         return results
 
     def xdel(self, stream: str, msg_id: str):
@@ -109,7 +102,8 @@ class HiveIPC:
     def get_all_state(self) -> Dict[str, Any]:
         try:
             return dict(self._shared_state)
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Failed to get all state: {e}")
             return {}
 
 _ipc_instance = None
