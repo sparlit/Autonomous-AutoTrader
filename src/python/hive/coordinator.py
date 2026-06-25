@@ -54,6 +54,7 @@ class HiveOrchestrator:
             "consensus_threshold": self.config.brains.consensus_threshold,
             "session_active": False, "news_safe": True, "daily_trades": 0, "peak_equity": 0.0
         })
+        self._last_sys_update = 0
 
     def _initialize_brains(self):
         self.registry.register(MarketDataBrain("MarketData_1", cpu_affinity=[2], ipc=self.ipc))
@@ -132,21 +133,52 @@ class HiveOrchestrator:
 
         # Main monitoring loop
         while True:
-            await self._orchestrate()
-            await asyncio.sleep(0.01)
+            try:
+                now = time.time()
+                if now - last_stat_update >= 0.5:
+                    current_rx = self.server.stats["msgs_rx"]
+                    mps = (current_rx - last_rx) / (now - last_stat_update) if last_stat_update > 0 else 0
+                    self.ipc.set_state("engine_stats", {"status": "OPTIMAL", "msgs_rx": current_rx, "msgs_tx": self.server.stats["msgs_tx"], "latency": self.server.stats["last_latency"], "active_clients": len(self.server.clients), "mps": mps, "server_time": now})
+                    self.ipc.set_state("sys_params", {"risk_per_trade_pct": self.config.risk.risk_per_trade_pct, "max_drawdown_pct": self.config.risk.max_drawdown_pct, "daily_loss_limit_pct": self.config.risk.daily_loss_limit_pct, "consensus_threshold": self.config.brains.consensus_threshold, "session_active": self.risk_manager.is_session_active(), "news_safe": self.risk_manager.is_news_safe(), "daily_trades": self.risk_manager.daily_trades, "peak_equity": self.risk_manager.peak_equity})
 
-    async def _orchestrate(self):
-        """Process messages from the orchestrator stream and route to brains."""
-        messages = self.ipc.xread({"stream:orchestrator": "0"}, count=50)
-        if messages:
-            for stream, msgs in messages:
-                for msg_id, data in msgs:
-                    event = json.loads(data[b'payload'])
-                    # Routing logic...
-                    if event.get("type") == "SIGNAL":
-                        # Route to risk, execution, etc.
-                        logger.info(f"Routing signal for {event.get('symbol')}")
-        return None
+                    # 16017: Push all active trades to IPC for dashboard visibility
+                    all_active = await self.ledger.get_all_active_trades()
+                    self.ipc.set_state("active_trades", all_active)
+
+                    last_stat_update = now; last_rx = current_rx
+
+                messages = self.ipc.xread({"stream:orchestrator": '0'}, count=50, block=1)
+                if messages:
+                    for stream, msgs in messages:
+                        for msg_id, data in msgs:
+                            event = json.loads(data[b'payload'])
+                            e_type = event.get("type")
+
+                            if e_type == "MARKET_DATA":
+                                orders = await self.pos_manager.monitor_and_manage(event["symbol"], event["bid"], event["ask"], event.get("atr", 0))
+                                for order in orders: self.ipc.xadd("stream:orchestrator", {"payload": json.dumps(order)})
+
+                                self.ipc.xadd("stream:Meta_1", {"payload": json.dumps({"type": "MARKET_DATA_REFRESH", "symbol": event["symbol"]})}, maxlen=100)
+                                for b in ["Indicator_1", "Indicator_2", "Indicator_3", "Trend_1", "Trend_2", "Liquidity_1", "Regime_1", "Anomaly_1", "Momentum_1", "Structure_1"]:
+                                    self.ipc.xadd(f"stream:{b}", {"payload": json.dumps(event)}, maxlen=100)
+                                self.ipc.xadd("stream:NewsRisk_1", {"payload": json.dumps(event)}, maxlen=100)
+                            elif e_type == "EXECUTION_ORDER":
+                                if event.get("t") == "DEC":
+                                    internal_id = await self.ledger.record_intent(event["s"], event["act"], event["lts"], event["sl_p"], event["tp_p"])
+                                    event["id"] = internal_id
+                                asyncio.create_task(self.server.broadcast(event))
+                            elif e_type == "TELEMETRY":
+                                sym = event["symbol"]
+                                s_state = self.ipc.get_state(f"symbol_stats:{sym}", {"symbol": sym, "spread": 0.0, "candle_timer": "--:--"})
+                                s_state.update({"scr": event["scr"], "htf": event["htf"], "last_update": time.time()})
+                                self.ipc.set_state(f"symbol_stats:{sym}", s_state)
+                                telemetry_msg = {"t": "TLM", "s": sym, "st": "OPTIMAL", "scr": event["scr"], "htf": event["htf"], "dd": event.get("dd", 0.0), "pc": self.ipc.get_state("account_stats", {}).get("pos_count", 0)}
+                                asyncio.create_task(self.server.broadcast(telemetry_msg))
+                            elif e_type == "EMERGENCY_KILL": self.stop(); return
+                            self.ipc.xdel("stream:orchestrator", msg_id)
+                else: await asyncio.sleep(0.01)
+            except Exception as e:
+                logger.error(f"Orchestrator Loop Error: {e}"); await asyncio.sleep(0.1)
 
     def stop(self):
         self.registry.stop_all()

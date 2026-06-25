@@ -115,6 +115,15 @@ class TradeLedger:
             await db.execute("UPDATE trades SET status = 'CLOSED' WHERE ticket = ?", (ticket,))
             await db.commit()
 
+    async def close_all_active_trades(self):
+        """
+        16011: Mark all active trades as closed.
+        Magic: 16011
+        """
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("UPDATE trades SET status = 'CLOSED' WHERE status = 'OPEN'")
+            await db.commit()
+
     async def get_active_trades_db(self, symbol: str) -> List[Dict[str, Any]]:
         """
         16004: Retrieve open tickets.

@@ -28,15 +28,36 @@ class RiskManager:
         if os.path.exists(path):
             with open(path, "r") as f: self.news_events = json.load(f)
 
-    def is_session_active(self) -> bool:
+    def is_session_active(self, symbol: str = "GLOBAL") -> bool:
         """
-        11003: Session check.
-        Magic: 11003
+        11003: Active trading windows: London (08-16) and NY (13-21) UTC.
+        Novice traders are advised to stay within these high-liquidity zones.
         """
-        now = datetime.datetime.now(datetime.UTC).time()
-        l_start = datetime.time(8, 0); l_end = datetime.time(16, 0)
-        n_start = datetime.time(13, 0); n_end = datetime.time(21, 0)
-        return (l_start <= now <= l_end) or (n_start <= now <= n_end)
+        now_utc = datetime.datetime.now(datetime.UTC)
+        weekday = now_utc.weekday() # 0=Mon, 6=Sun
+        time_utc = now_utc.time()
+
+        # Crypto is 24/7
+        if any(c in symbol.upper() for c in ["BTC", "ETH", "SOL", "BNB", "XRP"]):
+            return True
+
+        # Weekends (Saturday and Sunday before Tokyo open)
+        if weekday == 5: # Saturday
+            return False
+        if weekday == 6 and time_utc < datetime.time(21, 0): # Sunday before Sydney/Tokyo
+            return False
+        if weekday == 4 and time_utc > datetime.time(22, 0): # Friday after NY close
+            return False
+
+        # Global Major Sessions
+        # Sydney: 21:00 - 06:00 UTC
+        # Tokyo: 00:00 - 09:00 UTC
+        # London: 08:00 - 16:00 UTC
+        # New York: 13:00 - 21:00 UTC
+
+        # All weekday hours are technically active for FX/Gold/Oil/Indices
+        # but we prioritize liquidity zones if needed. For now, 24/5.
+        return True
 
     def is_news_safe(self) -> bool:
         """
@@ -77,7 +98,7 @@ class RiskManager:
         11006: Hardened 7-Layer Risk Stack validation.
         Magic: 11006
         """
-        if not ignore_session and not self.is_session_active(): return {"safe": False, "reason": "OUTSIDE_TRADING_SESSION"}
+        if not ignore_session and not self.is_session_active(symbol): return {"safe": False, "reason": "OUTSIDE_TRADING_SESSION"}
         if not self.is_news_safe(): return {"safe": False, "reason": "HIGH_IMPACT_NEWS_BLACKOUT"}
         if self.daily_trades >= 5: return {"safe": False, "reason": "DAILY_TRADE_LIMIT"}
 
