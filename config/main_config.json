@@ -1,7 +1,8 @@
 {
   "bridge": {
     "host": "127.0.0.1",
-    "port": 5555,
+    "port": 8008,
+    "dashboard_port": 8009,
     "heartbeat_interval": 10.0,
     "timeout": 30.0
   },

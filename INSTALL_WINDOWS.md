@@ -58,7 +58,7 @@ Run these commands one-by-one in your terminal:
 1. **Core Settings**: Open `config/main_config.json` and verify:
    ```json
    {
-     "bridge": { "host": "127.0.0.1", "port": 5555 },
+     "bridge": { "host": "127.0.0.1", "port": 8008 },
      "risk": { "daily_loss_limit_pct": 2.0, "max_drawdown_pct": 5.0 },
      "brains": { "consensus_threshold": 75.0 }
    }

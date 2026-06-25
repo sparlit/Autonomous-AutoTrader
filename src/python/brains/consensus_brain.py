@@ -57,7 +57,7 @@ class ConsensusBrain:
                 direction=direction,
                 confidence=abs(avg_score),
                 strategy_name="ConsensusEngine",
-                magic=30001
+                magic=10602
             )
 
         return None

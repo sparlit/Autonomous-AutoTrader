@@ -58,7 +58,8 @@ class BaseBrain(Process, BrainContract):
         if self.cpu_affinity:
             try:
                 p.cpu_affinity(self.cpu_affinity)
-            except: pass
+            except Exception as e:
+                logger.warning(f"Affinity fail for {self.name}: {e}")
         self._last_activity = time.time()
         if self.ipc:
             # Pre-cache the queue reference in the child process
