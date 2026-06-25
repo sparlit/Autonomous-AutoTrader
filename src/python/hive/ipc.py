@@ -14,15 +14,25 @@ class HiveIPC:
         self._lock = self.manager.Lock()
         self._local_cache = {}
 
+    def clear_memory(self):
+        """10251: Wipe all shared state and queues for a fresh startup."""
+        logger.info("🧹 Clearing IPC memory state...")
+        with self._lock:
+            self._shared_state.clear()
+            # Note: We don't necessarily want to delete the queues themselves as they might be mapped,
+            # but we should clear their contents.
+            for name in self._queues.keys():
+                q = self._queues[name]
+                while not q.empty():
+                    try: q.get_nowait()
+                    except: break
+        logger.info("✅ IPC memory cleared.")
+
     def __getstate__(self):
         """Prepare state for pickling (Windows compatibility)."""
         state = self.__dict__.copy()
-        # The proxy objects (_queues, _shared_state) are picklable.
-        # We exclude the manager and lock as they cannot be pickled directly.
         del state['manager']
         del state['_lock']
-        # Local cache is not picklable if it contains non-picklable proxies from different managers
-        # but here they are from the same manager. However, it's safer to clear it.
         state['_local_cache'] = {}
         return state
 
@@ -40,7 +50,6 @@ class HiveIPC:
 
         if name not in self._queues:
             if self._lock is None:
-                # In child process, we cannot create new queues if they don't exist
                 raise RuntimeError(f"Queue '{name}' not found in child process. Parent must pre-initialize.")
 
             with self._lock:

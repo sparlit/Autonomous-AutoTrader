@@ -9,7 +9,7 @@ void RunConnectivityTest()
    CAATBridgeClient client;
    Print("AAT: Starting Connectivity Test...");
 
-   if(client.Init("127.0.0.1", 5555))
+   if(client.Init("127.0.0.1", 8008))
    {
       Print("AAT: Initialized. Waiting for heartbeat handshake...");
       for(int i=0; i<5; i++)

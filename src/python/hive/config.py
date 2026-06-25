@@ -6,7 +6,8 @@ import os
 class BridgeConfig(BaseModel):
     """13001: Bridge connection settings."""
     host: str = "127.0.0.1"
-    port: int = 5555
+    port: int = 8008
+    dashboard_port: int = 8009
     heartbeat_interval: float = 10.0
     timeout: float = 30.0
 
