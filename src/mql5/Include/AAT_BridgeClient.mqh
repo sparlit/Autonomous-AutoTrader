@@ -17,9 +17,10 @@ class CAATBridgeClient
 private:
    CAATNativeSocket m_s; CTrade m_t; CAATDashboard m_d;
    string m_h; int m_p; uint m_l_hb, m_l_dp, m_hb_i;
-   double m_l_pr, m_p_th; bool m_syn, m_fs, m_u_d;
+   double m_l_pr, m_p_th; bool m_syn, m_fs, m_u_d, m_d_created;
+   ENUM_AAT_ROLE m_role;
 public:
-   CAATBridgeClient() : m_h("127.0.0.1"), m_p(5555), m_l_hb(0), m_l_dp(0), m_l_pr(0), m_p_th(0.0001), m_u_d(true), m_d_created(false), m_role(AAT_ROLE_MASTER) {
+   CAATBridgeClient() : m_h("127.0.0.1"), m_p(8008), m_l_hb(0), m_l_dp(0), m_l_pr(0), m_p_th(0.0001), m_u_d(true), m_d_created(false), m_role(AAT_ROLE_MASTER) {
       m_t.SetExpertMagicNumber(123456);
    }
 
