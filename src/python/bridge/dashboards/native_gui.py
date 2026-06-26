@@ -19,13 +19,33 @@ class NativeDashboard(Process):
         logging.basicConfig(level=logging.INFO, format="%(asctime)s - NativeGUI - %(levelname)s - %(message)s")
         logger = logging.getLogger("AAT_NativeGUI")
 
-        # Check for DISPLAY environment variable
-        if 'DISPLAY' not in os.environ:
-            logger.warning("DISPLAY environment variable not found. Skipping Native GUI launch.")
-            return
+        # Native execution enabled for Windows/Linux
+        logger.info("Initializing Native GUI context...")
+
 
         try:
             dpg.create_context()
+            # Register Vibrant Themes
+            with dpg.theme() as theme_green:
+                with dpg.theme_component(dpg.mvAll):
+                    dpg.add_theme_color(dpg.mvThemeCol_Text, [0, 255, 0], category=dpg.mvThemeCat_Core)
+            with dpg.theme() as theme_red:
+                with dpg.theme_component(dpg.mvAll):
+                    dpg.add_theme_color(dpg.mvThemeCol_Text, [255, 0, 0], category=dpg.mvThemeCat_Core)
+            with dpg.theme() as theme_orange:
+                with dpg.theme_component(dpg.mvAll):
+                    dpg.add_theme_color(dpg.mvThemeCol_Text, [255, 165, 0], category=dpg.mvThemeCat_Core)
+            with dpg.theme() as theme_blue:
+                with dpg.theme_component(dpg.mvAll):
+                    dpg.add_theme_color(dpg.mvThemeCol_Text, [0, 191, 255], category=dpg.mvThemeCat_Core)
+            with dpg.theme() as theme_gray:
+                with dpg.theme_component(dpg.mvAll):
+                    dpg.add_theme_color(dpg.mvThemeCol_Text, [150, 150, 150], category=dpg.mvThemeCat_Core)
+
+            self.themes = {
+                'green': theme_green, 'red': theme_red, 'orange': theme_orange,
+                'blue': theme_blue, 'gray': theme_gray
+            }
         except Exception as e:
             logger.error(f"Failed to create DPG context: {e}")
             return
@@ -99,6 +119,7 @@ class NativeDashboard(Process):
                 dpg.add_table_column(label="MSGS")
                 dpg.add_table_column(label="LATENCY (ms)")
                 dpg.add_table_column(label="STATUS")
+                dpg.add_table_column(label="LAST SEEN")
 
                 self.brain_rows = {}
                 brain_list = [
@@ -117,7 +138,8 @@ class NativeDashboard(Process):
                             "mem": dpg.add_text("0.0"),
                             "count": dpg.add_text("0"),
                             "lat": dpg.add_text("0.0"),
-                            "status": dpg.add_text("OFFLINE")
+                            "status": dpg.add_text("OFFLINE"),
+                            "seen": dpg.add_text("Never")
                         }
 
             dpg.add_spacer(height=10)
@@ -149,7 +171,7 @@ class NativeDashboard(Process):
             dpg.set_value(self.equity_tag, f"EQUITY: ${account.get('equity', 0):,.2f}")
             dd = account.get('drawdown', 0)
             dpg.set_value(self.dd_tag, f"DRAWDOWN: {dd:.2f}%")
-            dpg.set_item_color(self.dd_tag, dpg.mvPlotCol_Text, [255, 0, 0] if dd > 2 else [0, 255, 0])
+            dpg.bind_item_theme(self.dd_tag, self.themes['red'] if dd > 2 else self.themes['green'])
 
             spread = account.get('spread', 0)
             dpg.set_value(self.spread_tag, f"AVG SPREAD: {spread:.1f} pts")
@@ -165,8 +187,8 @@ class NativeDashboard(Process):
             dpg.set_value(self.latency_tag, f"LATENCY: {engine.get('latency', 0)*1000:.2f}ms")
             dpg.set_value(self.status_tag, engine.get('status', 'ACTIVE'))
             status = engine.get('status', 'ACTIVE')
-            status_color = [0, 255, 0] if status == 'OPTIMAL' else ([255, 165, 0] if status == 'WAITING' else [255, 0, 0])
-            dpg.set_item_color(self.status_tag, dpg.mvPlotCol_Text, status_color)
+            status_theme = self.themes['green'] if status == 'OPTIMAL' else (self.themes['orange'] if status == 'WAITING' else self.themes['red'])
+            dpg.bind_item_theme(self.status_tag, status_theme)
             dpg.set_value(self.reconnect_tag, f"CONNECTIONS: {engine.get('active_clients', 0)}")
 
         # Update Brain Table
@@ -184,7 +206,7 @@ class NativeDashboard(Process):
                     dpg.set_value(row["lat"], f"{health.get('latency', 0):.2f}")
                     last_seen = now - health.get("last_seen", now)
                     dpg.set_value(row["seen"], f"{last_seen:.1f}s ago")
-                    dpg.set_item_color(row["seen"], dpg.mvPlotCol_Text, [255, 0, 0] if last_seen > 10 else [200, 200, 200])
+                    dpg.bind_item_theme(row["seen"], self.themes['red'] if last_seen > 10 else self.themes['gray'])
 
     def kill_switch(self):
         if self.ipc: self.ipc.xadd("stream:orchestrator", {"payload": '{"type": "EMERGENCY_KILL"}'})
