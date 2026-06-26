@@ -1,62 +1,55 @@
-import sys
-import os
 import asyncio
+import ujson as json
 import logging
 import time
-import ujson as json
 import psutil
-from typing import Dict, Any, List, Optional
+import os
+from typing import Dict, Any, List
 
-from src.python.brains.registry import BrainRegistry
-from src.python.brains.specialized import MarketDataBrain, IndicatorBrain, TrendBrain, LiquidityBrain, MomentumBrain, RegimeBrain, NewsRiskBrain, ContrarianBrain, CorrelationBrain, AnomalyBrain, StructureBrain, RiskBrain, ExecutionBrain, MemoryBrain, MonitoringBrain, PortfolioBrain
-from src.python.brains.consensus import MetaBrain
 from src.python.bridge.server import BridgeServer
 from src.python.bridge.dashboards.native_gui import NativeDashboard
 from src.python.bridge.dashboards.web_server import WebDashboard
+from src.python.hive.ipc import HiveIPC
+from src.python.hive.config import AATConfig, load_config
+from src.python.brains.registry import BrainRegistry
+from src.python.brains.specialized import (
+    MarketDataBrain, IndicatorBrain, TrendBrain, MomentumBrain,
+    LiquidityBrain, RegimeBrain, NewsRiskBrain, ContrarianBrain,
+    CorrelationBrain, RiskBrain, ExecutionBrain, MemoryBrain,
+    MonitoringBrain, AnomalyBrain, PortfolioBrain, StructureBrain
+)
+from src.python.brains.consensus import MetaBrain
+from src.python.execution.ledger import TradeLedger
 from src.python.execution.manager import PositionManager
 from src.python.execution.risk_manager import RiskManager
-from src.python.execution.ledger import TradeLedger
-from src.python.hive.config import load_config
-from src.python.hive.ipc import get_ipc
 
 logger = logging.getLogger("AAT_Orchestrator")
 
 class HiveOrchestrator:
-    """10100: Bayesian Hive Orchestrator - Master Conductor."""
-    def __init__(self):
-        self.config = load_config()
-        self.ipc = get_ipc()
-        self.registry = BrainRegistry()
-        self.ledger = TradeLedger()
-        self.risk_manager = RiskManager(self.config)
-        self.pos_manager = PositionManager(self.ledger, self.risk_manager)
+    """10101: High-performance Central Orchestrator."""
+    def __init__(self, config_path: str = "config/main_config.json"):
+        self.config = load_config(config_path)
+        self.ipc = HiveIPC()
         self.server = BridgeServer(self.config.bridge.host, self.config.bridge.port, self.handle_client_message)
+        self.registry = BrainRegistry()
+        self.ledger = TradeLedger(db_path=self.config.system.database_path)
+        self.risk_manager = RiskManager(self.config.risk)
+        self.pos_manager = PositionManager(self.ledger, self.risk_manager)
 
-        self._initialize_ipc_state()
+        # Pass Global Magic to components
+        self.global_magic = self.config.system.global_magic
+
         self._initialize_brains()
         self._initialize_ipc_queues()
         self._initialize_dashboards()
 
-    def _initialize_ipc_state(self):
-        self.ipc.set_state("account_stats", {"equity": 0.0, "drawdown": 0.0, "pos_count": 0, "last_update": 0})
-        self.ipc.set_state("engine_stats", {"status": "INITIALIZING", "msgs_rx": 0, "msgs_tx": 0, "latency": 0.0, "active_clients": 0, "mps": 0.0, "server_time": time.time()})
-
-        self.ipc.set_state("sys_params", {
-            "risk_per_trade_pct": self.config.risk.risk_per_trade_pct,
-            "max_drawdown_pct": self.config.risk.max_drawdown_pct,
-            "daily_loss_limit_pct": self.config.risk.daily_loss_limit_pct,
-            "consensus_threshold": self.config.brains.consensus_threshold,
-            "session_active": False, "news_safe": True, "daily_trades": 0, "peak_equity": 0.0
-        })
-
     def _initialize_brains(self):
-        # 10105: Dynamic CPU Pinning based on available hardware
-        total_cores = psutil.cpu_count()
+        """10102: Initialize and register all 23 specialized brains."""
+        def get_affinity(core_idx: int) -> List[int]:
+            total_cores = psutil.cpu_count()
+            return [core_idx % total_cores] if total_cores else []
 
-        def get_affinity(preferred: int) -> List[int]:
-            if total_cores <= 1: return []
-            return [preferred % total_cores]
-
+        # Brains 1-23 distribution (Institutional Core Protocol)
         self.registry.register(MarketDataBrain("MarketData_1", cpu_affinity=get_affinity(2), ipc=self.ipc))
         self.registry.register(MarketDataBrain("MarketData_2", cpu_affinity=get_affinity(3), ipc=self.ipc))
         self.registry.register(IndicatorBrain("Indicator_1", cpu_affinity=get_affinity(4), ipc=self.ipc))
@@ -95,7 +88,7 @@ class HiveOrchestrator:
 
     def _initialize_dashboards(self):
         self.native_dash = NativeDashboard(ipc=self.ipc)
-        self.web_dash = WebDashboard(ipc=self.ipc, port=8009)
+        self.web_dash = WebDashboard(ipc=self.ipc, port=self.config.bridge.dashboard_port)
 
     async def handle_client_message(self, client_id: str, message: Dict[str, Any]) -> Dict[str, Any]:
         m_type = message.get("t")
@@ -184,6 +177,9 @@ class HiveOrchestrator:
                                 if event.get("t") == "DEC":
                                     internal_id = await self.ledger.record_intent(event["s"], event["act"], event["lts"], event["sl_p"], event["tp_p"])
                                     event["id"] = internal_id
+
+                                # Set Magic Number from config
+                                event["magic"] = self.global_magic
                                 asyncio.create_task(self.server.broadcast(event))
                             elif e_type == "TELEMETRY":
                                 sym = event["symbol"]

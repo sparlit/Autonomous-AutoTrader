@@ -18,14 +18,15 @@ private:
    CAATNativeSocket m_s; CTrade m_t; CAATDashboard m_d;
    string m_h; int m_p; uint m_l_hb, m_l_dp, m_hb_i;
    double m_l_pr, m_p_th; bool m_syn, m_fs, m_u_d, m_d_created;
-   ENUM_AAT_ROLE m_role;
+   ENUM_AAT_ROLE m_role; long m_magic;
 public:
-   CAATBridgeClient() : m_h("127.0.0.1"), m_p(8008), m_l_hb(0), m_l_dp(0), m_l_pr(0), m_p_th(0.0001), m_u_d(true), m_d_created(false), m_role(AAT_ROLE_MASTER) {
-      m_t.SetExpertMagicNumber(123456);
+   CAATBridgeClient() : m_h("127.0.0.1"), m_p(8008), m_l_hb(0), m_l_dp(0), m_l_pr(0), m_p_th(0.0001), m_u_d(true), m_d_created(false), m_role(AAT_ROLE_MASTER), m_magic(123456) {
+      m_t.SetExpertMagicNumber(m_magic);
    }
 
-   bool Init(string h, int p, ENUM_AAT_ROLE role, bool d=true) {
-      m_h=h; m_p=p; m_role=role; m_u_d=d;
+   bool Init(string h, int p, ENUM_AAT_ROLE role, long magic=123456, bool d=true) {
+      m_h=h; m_p=p; m_role=role; m_u_d=d; m_magic=magic;
+      m_t.SetExpertMagicNumber(m_magic);
       if(m_u_d) {
          string d_name = "AAT_Dash_" + _Symbol;
          m_d_created = m_d.Create(d_name, 320, 500);
@@ -70,11 +71,12 @@ public:
       int slp=(int)StringToInteger(CAATProtocol::GetV(m, "sl_p")), tpp=(int)StringToInteger(CAATProtocol::GetV(m, "tp_p"));
       double pt=SymbolInfoDouble(s, SYMBOL_POINT), pr=(a=="BUY")?SymbolInfoDouble(s, SYMBOL_ASK):SymbolInfoDouble(s, SYMBOL_BID);
       double sl=(a=="BUY")?pr-slp*pt:pr+slp*pt, tp=(a=="BUY")?pr+tpp*pt:pr-tpp*pt;
+      long msg_magic=StringToInteger(CAATProtocol::GetV(m, "magic")); if(msg_magic==0) msg_magic=m_magic;
 
       MqlTradeRequest req; ZeroMemory(req); MqlTradeResult res; ZeroMemory(res);
       req.action=TRADE_ACTION_DEAL; req.symbol=s; req.volume=l; req.type=(a=="BUY")?ORDER_TYPE_BUY:ORDER_TYPE_SELL; req.price=pr;
       req.sl=NormalizeDouble(sl, (int)SymbolInfoInteger(s, SYMBOL_DIGITS)); req.tp=NormalizeDouble(tp, (int)SymbolInfoInteger(s, SYMBOL_DIGITS));
-      req.magic=123456; req.comment=StringFormat("AAT:%d", id);
+      req.magic=msg_magic; req.comment=StringFormat("AAT:%d", id);
       bool r=OrderSendAsync(req, res);
       m_s.Send(CAATProtocol::BuildTRADE_ACK(id, (int)res.order, r?"":IntegerToString(res.retcode)));
    }

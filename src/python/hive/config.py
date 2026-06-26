@@ -23,11 +23,17 @@ class BrainsConfig(BaseModel):
     parallel_workers: int = 4
     consensus_threshold: float = 70.0
 
+class SystemConfig(BaseModel):
+    """13006: Global infrastructure settings."""
+    global_magic: int = 123456
+    database_path: str = "audit_records.db"
+
 class AATConfig(BaseModel):
     """13004: Global system configuration."""
     bridge: BridgeConfig = Field(default_factory=BridgeConfig)
     risk: RiskConfig = Field(default_factory=RiskConfig)
     brains: BrainsConfig = Field(default_factory=BrainsConfig)
+    system: SystemConfig = Field(default_factory=SystemConfig)
 
 def load_config(path: str = "config/main_config.json") -> AATConfig:
     """13005: Load and validate JSON configuration."""
