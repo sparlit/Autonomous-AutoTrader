@@ -1,17 +1,18 @@
 #property copyright "Copyright 2024, Jules (God Mode)"
-#property version   "3.00"
+#property version   "3.10"
 #property strict
 
 #include <AAT_Core.mqh>
 
-input string InpHost = "127.0.0.1";
-input int    InpPort = 8008;
+input string InpHost  = "127.0.0.1"; // Bridge Host
+input int    InpPort  = 8008;        // Bridge Port
+input long   InpMagic = 2026001;     // Magic Number
 
 CAATGateway gateway;
 
 int OnInit() {
-   if(!gateway.Connect(InpHost, InpPort)) {
-      Print("AAT: Connection Failed. Retrying in OnTick.");
+   if(!gateway.Connect(InpHost, InpPort, InpMagic)) {
+      Print("AAT: Connection Failed. Initializing background retry.");
    }
    EventSetTimer(1);
    return(INIT_SUCCEEDED);
