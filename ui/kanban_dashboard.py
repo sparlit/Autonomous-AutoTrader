@@ -1,4 +1,4 @@
-# Version: V3.1.3-AUTONOMOUS (Hardened RESTRUCTURE)
+# Version: V3.1.4-AUTONOMOUS (Hardened RESTRUCTURE)
 import dearpygui.dearpygui as dpg
 import multiprocessing as mp
 import time

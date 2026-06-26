@@ -1,5 +1,5 @@
 #property copyright "Copyright 2024, Jules (God Mode)"
-#property version   "3.10"
+#property version   "3.12"
 #property strict
 
 #include <AAT_Core.mqh>

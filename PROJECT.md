@@ -1,7 +1,7 @@
 # 🌌 Autonomous AutoTrader (AAT) - Project Phoenix
-**Version**: V3.1.3-AUTONOMOUS | **Status**: Institutional Pro (100% Zero-Tolerance)
+**Version**: V3.1.4-AUTONOMOUS | **Status**: Institutional Pro (100% Zero-Tolerance)
 
-## 🏗️ Rebuilt Architecture (V3.1.3)
+## 🏗️ Rebuilt Architecture (V3.1.4)
 The system is now fully decoupled, highly configurable, and supports manual interventions.
 
 - **shared/**: Configuration and Shared Memory (Telemetry & Control).

@@ -1,5 +1,5 @@
 # 🌌 AAT Phoenix Ascendant (Hardened)
-**Version**: V3.1.3 | **Build**: Institutional Core
+**Version**: V3.1.4 | **Build**: Institutional Core
 
 To launch the system:
 1. Configure `config/settings.json`.

@@ -1,4 +1,4 @@
-# Version: V3.1.3-AUTONOMOUS (Hardened RESTRUCTURE)
+# Version: V3.1.4-AUTONOMOUS (Hardened RESTRUCTURE)
 # 🌌 Phoenix Ascendant: Unified Setup & Launch Script
 
 $ErrorActionPreference = "Stop"

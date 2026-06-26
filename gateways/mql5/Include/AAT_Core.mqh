@@ -1,6 +1,6 @@
 #property copyright "Copyright 2024, Jules (God Mode)"
 #property strict
-#property version   "3.11"
+#property version   "3.12"
 
 #include <Trade\Trade.mqh>
 
@@ -46,15 +46,18 @@ public:
       double equity = AccountInfoDouble(ACCOUNT_EQUITY);
       double balance = AccountInfoDouble(ACCOUNT_BALANCE);
       double dd = (balance > 0) ? 100.0 * (1.0 - equity/balance) : 0;
-      string hb = StringFormat("{\"t\":\"HB\",\"e\":%f,\"d\":%f}", equity, dd);
+      string hb = "{\"t\":\"HB\",\"e\":" + DoubleToString(equity, 2) + ",\"d\":" + DoubleToString(dd, 2) + "}";
       SendMessage(hb);
    }
 
    void PushMarketData(string sym) {
-      double bid = SymbolInfoDouble(sym, SYMBOL_BID);
-      double ask = SymbolInfoDouble(sym, SYMBOL_ASK);
-      double vol = SymbolInfoDouble(sym, SYMBOL_VOLUME_REAL);
-      string data = StringFormat("{\"t\":\"DATA\",\"s\":\"%s\",\"b\":%f,\"a\":%f,\"v\":%f}", sym, bid, ask, vol);
+      double bid=0, ask=0, vol=0;
+      SymbolInfoDouble(sym, SYMBOL_BID, bid);
+      SymbolInfoDouble(sym, SYMBOL_ASK, ask);
+      SymbolInfoDouble(sym, SYMBOL_VOLUME_REAL, vol);
+
+      string data = "{\"t\":\"DATA\",\"s\":\"" + sym + "\",\"b\":" + DoubleToString(bid, (int)SymbolInfoInteger(sym, SYMBOL_DIGITS)) +
+                    ",\"a\":" + DoubleToString(ask, (int)SymbolInfoInteger(sym, SYMBOL_DIGITS)) + ",\"v\":" + DoubleToString(vol, 2) + "}";
       SendMessage(data);
    }
 

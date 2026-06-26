@@ -1,4 +1,4 @@
-# Version: V3.1.3-AUTONOMOUS (Hardened RESTRUCTURE)
+# Version: V3.1.4-AUTONOMOUS (Hardened RESTRUCTURE)
 import multiprocessing as mp
 import asyncio
 import logging
