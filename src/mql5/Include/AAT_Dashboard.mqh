@@ -66,6 +66,11 @@ bool CAATDashboard::Create(string name, int w, int h)
 {
    m_name = name; m_width = w; m_height = h;
    if(!m_canvas.CreateBitmapLabel(m_name, 10, 30, m_width, m_height, COLOR_FORMAT_ARGB_NORMALIZE)) return false;
+
+   // 10525: Set non-selectable and read-only to allow click-through for CHARTEVENT_CLICK
+   ObjectSetInteger(0, m_name, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, m_name, OBJPROP_READONLY, true);
+
    return true;
 }
 

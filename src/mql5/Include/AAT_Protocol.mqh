@@ -57,6 +57,7 @@ public:
       if(t == "TLM") return "TELEMETRY";
       if(t == "T_ACK") return "TRADE_ACK";
       if(t == "SYNC") return "SYNC";
+      if(t == "SYNC_REQ") return "SYNC_REQ";
       return t;
    }
 
