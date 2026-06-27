@@ -167,16 +167,27 @@ class NativeDashboard(Process):
 
         # Update Global Stats
         account = self.ipc.get_state("account_stats", {})
+        all_state = self.ipc.get_all_state()
+
         if account:
             dpg.set_value(self.equity_tag, f"EQUITY: ${account.get('equity', 0):,.2f}")
             dd = account.get('drawdown', 0)
             dpg.set_value(self.dd_tag, f"DRAWDOWN: {dd:.2f}%")
             dpg.bind_item_theme(self.dd_tag, self.themes['red'] if dd > 2 else self.themes['green'])
+            dpg.set_value(self.pos_tag, f"POS: {account.get('pos_count', 0)}")
 
+            # Fallback to symbol-specific stats if global is zero
             spread = account.get('spread', 0)
-            dpg.set_value(self.spread_tag, f"AVG SPREAD: {spread:.1f} pts")
-
             timer = account.get('candle_timer', '--:--')
+
+            if spread == 0 or timer == '--:--':
+                for key, val in all_state.items():
+                    if key.startswith("symbol_stats:"):
+                        if spread == 0: spread = val.get("spread", 0)
+                        if timer == '--:--': timer = val.get("candle_timer", "--:--")
+                        if spread > 0 and timer != "--:--": break
+
+            dpg.set_value(self.spread_tag, f"AVG SPREAD: {spread:.1f} pts")
             dpg.set_value(self.timer_tag, f"CANDLE TIMER: {timer}")
 
         engine = self.ipc.get_state("engine_stats", {})
@@ -191,8 +202,25 @@ class NativeDashboard(Process):
             dpg.bind_item_theme(self.status_tag, status_theme)
             dpg.set_value(self.reconnect_tag, f"CONNECTIONS: {engine.get('active_clients', 0)}")
 
+        params = self.ipc.get_state("sys_params", {})
+        if params:
+            dpg.set_value(self.param_risk, f"RISK/TRADE: {params.get('risk_per_trade_pct', 0):.1f}%")
+            dpg.set_value(self.param_dd_limit, f"MAX DD: {params.get('max_drawdown_pct', 0):.1f}%")
+            dpg.set_value(self.param_daily_limit, f"DAILY LIMIT: {params.get('daily_loss_limit_pct', 0):.1f}%")
+            dpg.set_value(self.param_consensus, f"CONSENSUS: {params.get('consensus_threshold', 0)*100:.0f}%")
+
+            sess_active = params.get('session_active', False)
+            dpg.set_value(self.bool_session, f"SESSION: {'ACTIVE' if sess_active else 'CLOSED'}")
+            dpg.bind_item_theme(self.bool_session, self.themes['green'] if sess_active else self.themes['red'])
+
+            news_safe = params.get('news_safe', True)
+            dpg.set_value(self.bool_news, f"NEWS: {'SAFE' if news_safe else 'BLACKOUT'}")
+            dpg.bind_item_theme(self.bool_news, self.themes['green'] if news_safe else self.themes['red'])
+
+            dpg.set_value(self.stat_trades, f"DAILY TRADES: {params.get('daily_trades', 0)}")
+            dpg.set_value(self.stat_peak, f"PEAK: ${params.get('peak_equity', 0):,.2f}")
+
         # Update Brain Table
-        all_state = self.ipc.get_all_state()
         now = time.time()
         for key, health in all_state.items():
             if key.startswith("brain_health:"):
