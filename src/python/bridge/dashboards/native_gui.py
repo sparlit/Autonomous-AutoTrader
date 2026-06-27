@@ -204,9 +204,21 @@ class NativeDashboard(Process):
                     dpg.set_value(row["mem"], f"{health.get('mem', 0):.1f}")
                     dpg.set_value(row["count"], str(health.get("count", 0)))
                     dpg.set_value(row["lat"], f"{health.get('latency', 0):.2f}")
-                    last_seen = now - health.get("last_seen", now)
-                    dpg.set_value(row["seen"], f"{last_seen:.1f}s ago")
-                    dpg.bind_item_theme(row["seen"], self.themes['red'] if last_seen > 10 else self.themes['gray'])
+
+                    # 10515: Precision health tracking
+                    last_hb = health.get("last_heartbeat", 0)
+                    last_seen = now - last_hb if last_hb > 0 else 999.9
+
+                    if last_seen < 10:
+                        dpg.set_value(row["status"], "ONLINE")
+                        dpg.bind_item_theme(row["status"], self.themes['green'])
+                        dpg.set_value(row["seen"], f"{last_seen:.1f}s ago")
+                        dpg.bind_item_theme(row["seen"], self.themes['gray'])
+                    else:
+                        dpg.set_value(row["status"], "OFFLINE")
+                        dpg.bind_item_theme(row["status"], self.themes['red'])
+                        dpg.set_value(row["seen"], "TIMEOUT" if last_hb > 0 else "WAITING")
+                        dpg.bind_item_theme(row["seen"], self.themes['red'])
 
     def kill_switch(self):
         if self.ipc: self.ipc.xadd("stream:orchestrator", {"payload": '{"type": "EMERGENCY_KILL"}'})

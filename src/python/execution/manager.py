@@ -11,12 +11,12 @@ class PositionManager:
         self.ledger = ledger
         self.risk_manager = risk_manager
 
-    async def monitor_and_manage(self, symbol: str, bid: float, ask: float, atr: float) -> List[Dict[str, Any]]:
+    async def monitor_and_manage(self, symbol: str, bid: float, ask: float, atr: float, smc_data: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """10505: Master management entry point."""
         current_price = (bid + ask) / 2
-        return await self.manage_open_positions(symbol, current_price, atr)
+        return await self.manage_open_positions(symbol, current_price, atr, smc_data)
 
-    async def manage_open_positions(self, symbol: str, current_price: float, atr: float) -> List[Dict[str, Any]]:
+    async def manage_open_positions(self, symbol: str, current_price: float, atr: float, smc_data: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """
         10501: Automated trade management: Partial Close and Breakeven logic.
         Magic: 10501
@@ -62,30 +62,41 @@ class PositionManager:
                         "reason": "BREAKEVEN_PROTECTION"
                     })
 
-            # 10504: Trailing Stop (ATR-based)
+            # 10504: Hybrid ATR-SMC Trailing Stop
             # Magic: 10504
             if atr > 0:
+                potential_sl = 0.0
+                reason = "TRAILING_ATR"
+
                 if action == "BUY":
+                    # ATR Base
                     potential_sl = current_price - 2 * atr
+                    # SMC Snap-to-Structure
+                    if smc_data and smc_data.get("swing_l"):
+                        swing_l = smc_data["swing_l"]
+                        if swing_l > potential_sl and swing_l < current_price:
+                            potential_sl = swing_l
+                            reason = "TRAILING_SMC_SWING_L"
+
                     if potential_sl > sl and potential_sl < current_price:
                         management_orders.append({
-                            "type": "EXECUTION_ORDER",
-                            "t": "MODIFY_SL",
-                            "tk": ticket,
-                            "s": symbol,
-                            "sl": potential_sl,
-                            "reason": "TRAILING_ATR"
+                            "type": "EXECUTION_ORDER", "t": "MODIFY_SL", "tk": ticket,
+                            "s": symbol, "sl": potential_sl, "reason": reason
                         })
                 else:
+                    # ATR Base
                     potential_sl = current_price + 2 * atr
+                    # SMC Snap-to-Structure
+                    if smc_data and smc_data.get("swing_h"):
+                        swing_h = smc_data["swing_h"]
+                        if swing_h < potential_sl and swing_h > current_price:
+                            potential_sl = swing_h
+                            reason = "TRAILING_SMC_SWING_H"
+
                     if potential_sl < sl and potential_sl > current_price:
                         management_orders.append({
-                            "type": "EXECUTION_ORDER",
-                            "t": "MODIFY_SL",
-                            "tk": ticket,
-                            "s": symbol,
-                            "sl": potential_sl,
-                            "reason": "TRAILING_ATR"
+                            "type": "EXECUTION_ORDER", "t": "MODIFY_SL", "tk": ticket,
+                            "s": symbol, "sl": potential_sl, "reason": reason
                         })
 
         return management_orders

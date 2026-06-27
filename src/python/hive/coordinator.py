@@ -4,13 +4,15 @@ import logging
 import time
 import psutil
 import os
-from typing import Dict, Any, List
+import pandas as pd
+from typing import Dict, Any, List, Optional
 
 from src.python.bridge.server import BridgeServer
 from src.python.bridge.dashboards.native_gui import NativeDashboard
 from src.python.bridge.dashboards.web_server import WebDashboard
 from src.python.hive.ipc import HiveIPC
 from src.python.hive.config import AATConfig, load_config
+from src.python.hive.hardware_analyst import HardwareAnalyst
 from src.python.brains.registry import BrainRegistry
 from src.python.brains.specialized import (
     MarketDataBrain, IndicatorBrain, TrendBrain, MomentumBrain,
@@ -19,6 +21,7 @@ from src.python.brains.specialized import (
     MonitoringBrain, AnomalyBrain, PortfolioBrain, StructureBrain
 )
 from src.python.brains.consensus import MetaBrain
+from src.python.analyst.price_action import SMCAnalyst
 from src.python.execution.ledger import TradeLedger
 from src.python.execution.manager import PositionManager
 from src.python.execution.risk_manager import RiskManager
@@ -27,54 +30,74 @@ logger = logging.getLogger("AAT_Orchestrator")
 
 class HiveOrchestrator:
     """10101: High-performance Central Orchestrator."""
-    def __init__(self, config_path: str = "config/main_config.json"):
+    def __init__(self, config_path: str = "config/main_config.json", credentials: Optional[Dict[str, str]] = None):
         self.config = load_config(config_path)
+        self.credentials = credentials
         self.ipc = HiveIPC()
+        self.hardware = HardwareAnalyst(db_path=self.config.system.database_path)
+        self.hardware.log_capabilities()
+
         self.server = BridgeServer(self.config.bridge.host, self.config.bridge.port, self.handle_client_message)
         self.registry = BrainRegistry()
         self.ledger = TradeLedger(db_path=self.config.system.database_path)
         self.risk_manager = RiskManager(self.config.risk)
         self.pos_manager = PositionManager(self.ledger, self.risk_manager)
+        self.smc = SMCAnalyst()
 
         # Pass Global Magic to components
         self.global_magic = self.config.system.global_magic
 
-        self._initialize_brains()
+        # 10108: IMPORTANT - Pre-initialize queues BEFORE brains to ensure picklable refs
         self._initialize_ipc_queues()
+        self._initialize_brains()
         self._initialize_dashboards()
 
     def _initialize_brains(self):
-        """10102: Initialize and register all 23 specialized brains."""
-        def get_affinity(core_idx: int) -> List[int]:
-            total_cores = psutil.cpu_count()
-            return [core_idx % total_cores] if total_cores else []
+        """10102: Initialize and register all specialized brains with hardware optimization."""
+        # 23 Brains to register
+        brain_names = [
+            "MarketData_1", "MarketData_2", "Indicator_1", "Indicator_2", "Indicator_3",
+            "Trend_1", "Trend_2", "Liquidity_1", "Momentum_1", "Regime_1", "Meta_1",
+            "NewsRisk_1", "Contrarian_1", "Correlation_1", "Risk_1", "Risk_2",
+            "Execution_1", "Execution_2", "Memory_1", "Monitoring_1", "Anomaly_1",
+            "Portfolio_1", "Structure_1"
+        ]
 
-        # Brains 1-23 distribution (Institutional Core Protocol)
-        self.registry.register(MarketDataBrain("MarketData_1", cpu_affinity=get_affinity(2), ipc=self.ipc))
-        self.registry.register(MarketDataBrain("MarketData_2", cpu_affinity=get_affinity(3), ipc=self.ipc))
-        self.registry.register(IndicatorBrain("Indicator_1", cpu_affinity=get_affinity(4), ipc=self.ipc))
-        self.registry.register(IndicatorBrain("Indicator_2", cpu_affinity=get_affinity(5), ipc=self.ipc))
-        self.registry.register(IndicatorBrain("Indicator_3", cpu_affinity=get_affinity(6), ipc=self.ipc))
-        self.registry.register(TrendBrain("Trend_1", cpu_affinity=get_affinity(7), ipc=self.ipc))
-        self.registry.register(TrendBrain("Trend_2", cpu_affinity=get_affinity(8), ipc=self.ipc))
-        self.registry.register(LiquidityBrain("Liquidity_1", cpu_affinity=get_affinity(9), ipc=self.ipc))
-        self.registry.register(MomentumBrain("Momentum_1", cpu_affinity=get_affinity(10), ipc=self.ipc))
-        self.registry.register(RegimeBrain("Regime_1", cpu_affinity=get_affinity(11), ipc=self.ipc))
-        self.registry.register(MetaBrain("Meta_1", cpu_affinity=get_affinity(12), threshold=self.config.brains.consensus_threshold, ipc=self.ipc))
-        self.registry.register(NewsRiskBrain("NewsRisk_1", cpu_affinity=get_affinity(13), ipc=self.ipc))
-        self.registry.register(ContrarianBrain("Contrarian_1", cpu_affinity=get_affinity(13), ipc=self.ipc))
-        self.registry.register(CorrelationBrain("Correlation_1", cpu_affinity=get_affinity(14), ipc=self.ipc))
-        self.registry.register(RiskBrain("Risk_1", cpu_affinity=get_affinity(15), ipc=self.ipc))
-        self.registry.register(RiskBrain("Risk_2", cpu_affinity=get_affinity(16), ipc=self.ipc))
-        self.registry.register(ExecutionBrain("Execution_1", cpu_affinity=get_affinity(17), ipc=self.ipc))
-        self.registry.register(ExecutionBrain("Execution_2", cpu_affinity=get_affinity(18), ipc=self.ipc))
-        self.registry.register(MemoryBrain("Memory_1", cpu_affinity=get_affinity(19), ipc=self.ipc))
-        self.registry.register(MonitoringBrain("Monitoring_1", cpu_affinity=get_affinity(19), ipc=self.ipc))
-        self.registry.register(AnomalyBrain("Anomaly_1", cpu_affinity=get_affinity(19), ipc=self.ipc))
-        self.registry.register(PortfolioBrain("Portfolio_1", cpu_affinity=get_affinity(19), ipc=self.ipc))
-        self.registry.register(StructureBrain("Structure_1", cpu_affinity=get_affinity(19), ipc=self.ipc))
+        affinity_map = self.hardware.get_optimized_affinity_map(len(brain_names))
+
+        def get_aff(idx): return affinity_map.get(idx, [0])
+
+        # Brains distribution (Institutional Core Protocol)
+        self.registry.register(MarketDataBrain("MarketData_1", cpu_affinity=get_aff(0), ipc=self.ipc))
+        self.registry.register(MarketDataBrain("MarketData_2", cpu_affinity=get_aff(1), ipc=self.ipc))
+        self.registry.register(IndicatorBrain("Indicator_1", cpu_affinity=get_aff(2), ipc=self.ipc))
+        self.registry.register(IndicatorBrain("Indicator_2", cpu_affinity=get_aff(3), ipc=self.ipc))
+        self.registry.register(IndicatorBrain("Indicator_3", cpu_affinity=get_aff(4), ipc=self.ipc))
+        self.registry.register(TrendBrain("Trend_1", cpu_affinity=get_aff(5), ipc=self.ipc))
+        self.registry.register(TrendBrain("Trend_2", cpu_affinity=get_aff(6), ipc=self.ipc))
+        self.registry.register(LiquidityBrain("Liquidity_1", cpu_affinity=get_aff(7), ipc=self.ipc))
+        self.registry.register(MomentumBrain("Momentum_1", cpu_affinity=get_aff(8), ipc=self.ipc))
+        self.registry.register(RegimeBrain("Regime_1", cpu_affinity=get_aff(9), ipc=self.ipc))
+
+        meta = MetaBrain("Meta_1", cpu_affinity=get_aff(10), threshold=self.config.brains.consensus_threshold, ipc=self.ipc)
+        meta.required_sources = ["Trend_1", "Indicator_1", "Liquidity_1", "Regime_1"]
+        self.registry.register(meta)
+
+        self.registry.register(NewsRiskBrain("NewsRisk_1", cpu_affinity=get_aff(11), ipc=self.ipc))
+        self.registry.register(ContrarianBrain("Contrarian_1", cpu_affinity=get_aff(12), ipc=self.ipc))
+        self.registry.register(CorrelationBrain("Correlation_1", cpu_affinity=get_aff(13), ipc=self.ipc))
+        self.registry.register(RiskBrain("Risk_1", cpu_affinity=get_aff(14), ipc=self.ipc))
+        self.registry.register(RiskBrain("Risk_2", cpu_affinity=get_aff(15), ipc=self.ipc))
+        self.registry.register(ExecutionBrain("Execution_1", cpu_affinity=get_aff(16), ipc=self.ipc))
+        self.registry.register(ExecutionBrain("Execution_2", cpu_affinity=get_aff(17), ipc=self.ipc))
+        self.registry.register(MemoryBrain("Memory_1", cpu_affinity=get_aff(18), ipc=self.ipc))
+        self.registry.register(MonitoringBrain("Monitoring_1", cpu_affinity=get_aff(19), ipc=self.ipc))
+        self.registry.register(AnomalyBrain("Anomaly_1", cpu_affinity=get_aff(20), ipc=self.ipc))
+        self.registry.register(PortfolioBrain("Portfolio_1", cpu_affinity=get_aff(21), ipc=self.ipc))
+        self.registry.register(StructureBrain("Structure_1", cpu_affinity=get_aff(22), ipc=self.ipc))
 
     def _initialize_ipc_queues(self):
+        """10105: Pre-initialize high-capacity streams."""
         queues = [
             "stream:orchestrator", "stream:MarketData_1", "stream:MarketData_2",
             "stream:Indicator_1", "stream:Indicator_2", "stream:Indicator_3",
@@ -84,7 +107,7 @@ class HiveOrchestrator:
             "stream:Memory_1", "stream:Monitoring_1", "stream:Anomaly_1", "stream:Portfolio_1", "stream:Structure_1"
         ]
         for q in queues:
-            self.ipc.get_queue(q)
+            self.ipc.create_stream(q, maxlen=5000)
 
     def _initialize_dashboards(self):
         self.native_dash = NativeDashboard(ipc=self.ipc)
@@ -117,11 +140,15 @@ class HiveOrchestrator:
                 await self.ledger.update_trade_from_sync(t["tk"], symbol, "BUY" if t["type"]==0 else "SELL", t["vol"], t["sl"], t["tp"])
 
         target = f"stream:MarketData_{1 if time.time() % 2 < 1 else 2}"
-        self.ipc.xadd(target, {"payload": json.dumps(message)}, maxlen=1000)
+        # 10116: Send raw message, xadd handles wrapping/encoding
+        self.ipc.xadd(target, message, maxlen=1000)
         return {"t": "ACK"}
 
     async def run(self):
         await self.ledger.init_db()
+        if self.credentials:
+            logger.info(f"Attempting Institutional Login for Account {self.credentials.get('account')}...")
+            # Real implementation would call MetaTrader5.initialize() here
         p = psutil.Process(os.getpid())
         total_cores = psutil.cpu_count()
         try:
@@ -147,6 +174,7 @@ class HiveOrchestrator:
                     mps = (current_rx - last_rx) / (now - last_stat_update) if last_stat_update > 0 else 0
 
                     # 10109: Dynamic status based on bridge activity
+                    # Use server.clients to determine if MT5 is connected
                     status = "OPTIMAL" if len(self.server.clients) > 0 else "WAITING"
 
                     self.ipc.set_state("engine_stats", {"status": status, "msgs_rx": current_rx, "msgs_tx": self.server.stats["msgs_tx"], "latency": self.server.stats["last_latency"], "active_clients": len(self.server.clients), "mps": mps, "server_time": now})
@@ -166,8 +194,18 @@ class HiveOrchestrator:
                             e_type = event.get("type")
 
                             if e_type == "MARKET_DATA":
-                                orders = await self.pos_manager.monitor_and_manage(event["symbol"], event["bid"], event["ask"], event.get("atr", 0))
-                                for order in orders: self.ipc.xadd("stream:orchestrator", {"payload": json.dumps(order)})
+                                # 10506: Compute live structure for Hybrid Trailing
+                                ltf_df = pd.DataFrame(event.get("ltf", []))
+                                smc_data = None
+                                if not ltf_df.empty:
+                                    if isinstance(event["ltf"][0], list): ltf_df.columns = ["o", "h", "l", "c", "t", "v"]
+                                    smc_data = self.smc.detect_market_structure(ltf_df, event.get("atr", 0))
+
+                                orders = await self.pos_manager.monitor_and_manage(event["symbol"], event["bid"], event["ask"], event.get("atr", 0), smc_data=smc_data)
+                                # 10115: Route management orders directly to bridge to avoid orchestrator loop saturation
+                                for order in orders:
+                                    order["magic"] = self.global_magic
+                                    asyncio.create_task(self.server.broadcast(order))
 
                                 self.ipc.xadd("stream:Meta_1", {"payload": json.dumps({"type": "MARKET_DATA_REFRESH", "symbol": event["symbol"]})}, maxlen=100)
                                 for b in ["Indicator_1", "Indicator_2", "Indicator_3", "Trend_1", "Trend_2", "Liquidity_1", "Regime_1", "Anomaly_1", "Momentum_1", "Structure_1"]:

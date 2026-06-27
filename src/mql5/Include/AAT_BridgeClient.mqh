@@ -40,6 +40,7 @@ public:
 
    void OnTick() {
       if(!m_s.IsConnected()) { m_s.Connect(m_h, m_p); m_syn=false; if(GetTickCount()-m_l_hb>60000) ActFS(); return; }
+      if(m_d.IsPaused()) return; // Proper state check
       m_fs=false; if(!m_syn) { if(m_s.Send(CAATProtocol::BuildSYNC(_Symbol))) m_syn=true; return; }
       uint n=GetTickCount(); double cp=SymbolInfoDouble(_Symbol, SYMBOL_BID);
       if(n-m_l_dp>10000) { if(m_s.Send(CAATProtocol::BuildHEARTBEAT(_Symbol, AccountInfoDouble(ACCOUNT_EQUITY), 0.0))) m_l_dp=n; }
@@ -49,11 +50,23 @@ public:
 
    void Proc() {
       string m=m_s.Receive(); if(m=="") return; m_l_hb=GetTickCount();
-      string t=CAATProtocol::GetMsgType(m); if(t=="DECISION") {
+      string t=CAATProtocol::GetMsgType(m); if(t=="TLM") HandleTlm(m);
+      else if(t=="DECISION") {
          string dr=CAATProtocol::GetV(m, "drw"); if(dr!="") Drw(dr);
-         string tl=CAATProtocol::GetV(m, "tlm"); if(tl!="") HandleTlm(tl);
          string mg=CAATProtocol::GetV(m, "mgmt"); if(mg!="") HandleMgmt(mg);
          string ac=CAATProtocol::GetV(m, "act"); if(ac!="" && ac!="WAIT") HandleTr(m);
+      }
+   }
+
+   void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam) {
+      if(id == CHARTEVENT_CLICK) {
+         string cmd = m_d.OnClick((int)lparam, (int)dparam);
+         if(cmd == "PANIC") {
+            Print("AAT: PANIC BUTTON PRESSED. Closing all positions for ", _Symbol);
+            for(int i=PositionsTotal()-1; i>=0; i--) { if(PositionGetSymbol(i)==_Symbol) m_t.PositionClose(PositionGetInteger(POSITION_TICKET)); }
+         } else if(cmd == "PAUSE") {
+            Print("AAT: SYSTEM ", m_d.OnClick(0,0)=="PAUSE" ? "PAUSED" : "RESUMED");
+         }
       }
    }
    void HandleTlm(string j) { if(!m_u_d) return; m_d.Render(_Symbol, CAATProtocol::GetV(j, "st"), StringToDouble(CAATProtocol::GetV(j, "scr")), CAATProtocol::GetV(j, "htf"), StringToDouble(CAATProtocol::GetV(j, "dd"))); }

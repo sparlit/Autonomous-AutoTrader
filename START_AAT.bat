@@ -1,4 +1,10 @@
 @echo off
-REM 🌌 Phoenix Ascendant - Institutional Wrapper
-powershell.exe -ExecutionPolicy Bypass -File .\START_AAT.ps1
+echo.
+echo 🌌 Launching Phoenix Gauntlet V3.0-AUTONOMOUS
+echo ===========================================
+echo.
+
+call venv\Scripts\activate.bat
+python main_engine.py
+
 pause
