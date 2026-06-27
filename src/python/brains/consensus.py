@@ -75,6 +75,15 @@ class MetaBrain(BaseBrain):
             if "data" in event:
                 state["atr"] = event["data"].get("atr", state["atr"]); state["rsi"] = event["data"].get("rsi", state["rsi"])
 
+            # 10615: Emit periodic telemetry for dashboards
+            if len(state["evidence_trail"]) % 2 == 0:
+                self.publish({
+                    "type": "TELEMETRY",
+                    "symbol": symbol,
+                    "scr": state["prior"],
+                    "htf": state["regime"]
+                })
+
         # Check for Decision
         if all(src in state["received_sources"] for src in self.required_sources):
             conf = state["confluence"]

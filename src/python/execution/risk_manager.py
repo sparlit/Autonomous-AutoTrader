@@ -37,8 +37,9 @@ class RiskManager:
         weekday = now_utc.weekday() # 0=Mon, 6=Sun
         time_utc = now_utc.time()
 
-        # Crypto is 24/7
-        if any(c in symbol.upper() for c in ["BTC", "ETH", "SOL", "BNB", "XRP"]):
+        # 11007: Crypto and Global status are 24/7
+        # We return True for GLOBAL to indicate the engine is capable of trading active markets (Crypto)
+        if symbol == "GLOBAL" or any(c in symbol.upper() for c in ["BTC", "ETH", "SOL", "BNB", "XRP"]):
             return True
 
         # Weekends (Saturday and Sunday before Tokyo open)

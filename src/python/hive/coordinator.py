@@ -120,7 +120,10 @@ class HiveOrchestrator:
             equity = message.get("e", 0.0)
             self.ipc.set_state("account_stats", {
                 "equity": equity, "drawdown": message.get("d", 0.0),
-                "pos_count": message.get("pc", 0), "last_update": time.time()
+                "pos_count": message.get("pc", 0),
+                "spread": message.get("sp", 0.0),
+                "candle_timer": message.get("ct", "--:--"),
+                "last_update": time.time()
             })
             if equity > self.risk_manager.peak_equity: self.risk_manager.peak_equity = equity
             s_stats = self.ipc.get_state(f"symbol_stats:{symbol}", {"symbol": symbol, "scr": 0.5, "htf": "NEUTRAL"})
