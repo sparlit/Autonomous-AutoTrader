@@ -1,5 +1,5 @@
 # 🌌 Autonomous AutoTrader (AAT) - Phoenix Ascendant Edition
-**Version**: V2.3.0-ASCENDANT | **Status**: Institutional Pro (100% Zero-Tolerance)
+**Version**: V3.0-AUTONOMOUS | **Status**: Institutional Pro (100% Zero-Tolerance)
 
 The definitive institutional-grade autonomous trading system for MetaTrader 5. Engineered for **Defensive Alpha**, AAT prioritizes capital preservation through rigorous Smart Money Concepts (SMC), Volume-Spread Analysis (VSA), and a multi-brain parallel consensus logic reinforced by a Rust-powered high-performance kernel.
 
@@ -18,8 +18,8 @@ Ensure these symbols are visible in your MT5 Market Watch.
 - **Why?**: The system is built for Multi-Timeframe (MTF) analysis. The DataCollector automatically pushes M1/M5 (LTF), H1 (Intraday), and H4 (HTF) data to the Brain. Attaching to M1 ensures the highest resolution for triggers while maintaining H4/D1 trend alignment.
 
 ### 3. How many different symbols should I use at a time?
-- **Capacity**: The "Phoenix Ascendant" architecture is designed for high-concurrency across **up to 20 symbols** simultaneously.
-- **Scaling**: Each symbol's analysis is distributed across 18 specialized worker processes. For optimal performance on standard hardware (8-16 cores), we recommend starting with **5-10 symbols** and scaling up as you monitor system latency.
+- **Capacity**: The "Phoenix Ascendant" architecture is designed for high-concurrency across **up to 25 symbols** simultaneously.
+- **Scaling**: Each symbol's analysis is distributed across 23 specialized worker processes. For optimal performance on standard hardware (16+ logical cores), we recommend starting with **5-10 symbols** and scaling up as you monitor system latency.
 
 
 ---
@@ -27,13 +27,14 @@ Ensure these symbols are visible in your MT5 Market Watch.
 ## 🏗️ The "Phoenix Ascendant" Paradigm
 AAT utilizes a hybrid architecture designed for maximum reliability and zero-latency execution.
 
-- **Rust Kernels (Performance Tier)**:
-  - `aat_heavy`: High-frequency consensus and order book management.
-  - `aat_rust_core`: Position math and risk calculations using `rust_decimal`.
-  - `aat_rust`: Logical verification and safety checks.
+- **Institutional Core (Rust)**:
+  - `aat_institutional_core`: Consolidated high-performance kernel.
+  - Parallel **Value-at-Risk (VaR)** calculation using Rayon.
+  - Institutional pre-trade risk validation using `rust_decimal`.
 - **Python Hive (Orchestration Tier)**:
-  - Managed by `HiveCoordinator`, coordinating asynchronous analysis and ML-driven decision making.
-  - Uses specialized brains pinned to independent CPU cores to bypass the Python GIL.
+  - Managed by `HiveOrchestrator`, coordinating 23 independent worker processes.
+  - **Sequence-Hardened Protocol**: Monotonic numbering to ensure 100% message integrity between Python and MT5.
+  - **Bayesian Probability Engine**: Multi-brain evidence aggregation for high-probability signals.
 
 ---
 
@@ -49,7 +50,7 @@ AAT utilizes a hybrid architecture designed for maximum reliability and zero-lat
    ```
 2. **Install Mandatory Dependencies**:
    ```bash
-   pip install pandas numpy pydantic ujson aiosqlite pytest-asyncio polars torch scikit-learn xgboost fastapi dearpygui maturin psutil fakeredis
+   pip install pandas numpy pydantic ujson aiosqlite pytest-asyncio polars torch scikit-learn xgboost fastapi dearpygui maturin psutil
    ```
 3. **Compile Rust Kernels** (Requires Rust toolchain):
    ```bash
@@ -84,17 +85,10 @@ AAT provides 360-degree telemetry via three distinct interfaces:
 
 ---
 
-## 🤖 MCP Integration
-AAT features a native Model Context Protocol (MCP) server for seamless agentic interaction.
-- **Entry Point**: `mcp_engine.py` (Implementation in `src/python/bridge/mcp_server.py`)
-- **Capabilities**: Real-time status querying, risk limit adjustments, and manual emergency interventions.
-
----
-
 ## 🛡️ Institutional Standards & Safety
 - **Zero-Tolerance Standard**: 100% removal of stubs, placeholders, and mocks. Every method is verified for production readiness.
-- **Institutional Developer Protocol**: Defined in `AGENTS.md`, requiring Deep Audit and Hardened Implementation for every change.
-- **7-Layer Risk Stack**: From infrastructure heartbeats to Monte Carlo pre-trade validation.
+- **Sequence-Hardened Communication**: Monotonic sequence numbering prevents out-of-order execution or packet loss.
+- **7-Layer Institutional Risk Stack**: From protocol-level security to aggregated Portfolio VaR validation.
 - **Failsafe System**: Automated breakeven moves and trade adoption via the `SYNC` handshake protocol.
 
 ---

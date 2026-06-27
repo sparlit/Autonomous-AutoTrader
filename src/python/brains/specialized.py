@@ -12,13 +12,26 @@ from src.python.analyst.volatility import VolatilityAnalyst
 from src.python.execution.risk_manager import RiskManager
 from src.python.hive.config import load_config
 
+# Institutional Rust Core for VaR
+try:
+    import aat_institutional_core as aat_rust
+    RUST_AVAILABLE = True
+except ImportError:
+    RUST_AVAILABLE = False
+
 logger = logging.getLogger("AAT_SpecializedBrains")
 
 class MarketDataBrain(BaseBrain):
     """Brain 1 - 10501: Data Ingestion and Normalization."""
     async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         if event.get("t") == "DP":
-            return {"type": "MARKET_DATA", "symbol": event["s"], "tf": event["tf"], "ltf": event["ltf"], "h1": event["h1"], "h4": event["h4"], "bid": event["bi"], "ask": event["as"], "atr": event.get("atr", 0)}
+            # 10502: Pass through tick metrics for precise exposure calculation
+            return {
+                "type": "MARKET_DATA", "symbol": event["s"], "tf": event["tf"],
+                "ltf": event["ltf"], "h1": event["h1"], "h4": event["h4"],
+                "bid": event["bi"], "ask": event["as"], "atr": event.get("atr", 0),
+                "tick_val": event.get("tv", 10.0), "tick_size": event.get("ts", 0.0001)
+            }
         return None
 
 class IndicatorBrain(BaseBrain):
@@ -33,8 +46,19 @@ class IndicatorBrain(BaseBrain):
             if df.empty: return None
             if isinstance(event["ltf"][0], list): df.columns = ["o", "h", "l", "c", "t", "v"]
             inds = self.analyst.calculate_all(df)
+
+            # Update symbol stats with realized vol for PortfolioBrain
+            symbol = event["symbol"]
+            s_stats = self.ipc.get_state(f"symbol_stats:{symbol}", {"symbol": symbol})
+            s_stats.update({
+                "realized_vol": inds.get("realized_vol", 0.002),
+                "tick_val": event.get("tick_val", 10.0),
+                "tick_size": event.get("tick_size", 0.0001)
+            })
+            self.ipc.set_state(f"symbol_stats:{symbol}", s_stats)
+
             rsi = inds["rsi"]
-            evidence = {"type": "EVIDENCE", "symbol": event["symbol"], "source": self.name, "data": inds}
+            evidence = {"type": "EVIDENCE", "symbol": symbol, "source": self.name, "data": inds}
             if rsi > 60: evidence.update({"p_e_h": 0.65, "p_e": 0.50, "direction": 1})
             elif rsi < 40: evidence.update({"p_e_h": 0.65, "p_e": 0.50, "direction": -1})
             else: evidence.update({"p_e_h": 0.50, "p_e": 0.50, "direction": 0})
@@ -242,16 +266,51 @@ class AnomalyBrain(BaseBrain):
         return None
 
 class PortfolioBrain(BaseBrain):
-    """Brain 9 - 10515: Global Risk and Capital Allocation."""
+    """Brain 9 - 10515: Global Risk and Capital Allocation with Institutional VaR."""
     async def initialize(self):
         await super().initialize()
         self.risk_manager = RiskManager(load_config())
+        self.last_var_check = 0
 
     async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         if event.get("t") == "HB":
             drawdown = event.get("d", 0)
             if drawdown > self.risk_manager.config.risk.max_drawdown_pct:
                 return {"type": "VETO", "symbol": "GLOBAL", "reason": "MAX_DRAWDOWN"}
+
+        # 10520: Real-time Institutional VaR Calculation
+        now = time.time()
+        if now - self.last_var_check > 5: # Check every 5 seconds
+            self.last_var_check = now
+            active_trades = self.ipc.get_state("active_trades", [])
+            if active_trades and RUST_AVAILABLE:
+                exposures = []
+                vols = []
+                for t in active_trades:
+                    # 10521: Accurate Exposure via Symbol Metrics
+                    s_stats = self.ipc.get_state(f"symbol_stats:{t['symbol']}", {})
+                    tick_val = s_stats.get("tick_val", 10.0)
+                    tick_size = s_stats.get("tick_size", 0.0001)
+
+                    # Exposure = (lots * tick_val) / tick_size
+                    # This represents the monetary value of the full position
+                    if tick_size > 0:
+                        exposure = (t['lots'] * tick_val) / tick_size
+                    else:
+                        exposure = t['lots'] * 100000 * t['entry_price']
+
+                    exposures.append(exposure)
+                    vols.append(s_stats.get("realized_vol", 0.002))
+
+                portfolio_var = aat_rust.calculate_var_parallel(exposures, vols)
+                equity = self.ipc.get_state("account_stats", {}).get("equity", 10000)
+                var_pct = (portfolio_var / equity) * 100 if equity > 0 else 0
+
+                self.ipc.set_state("portfolio_var", {"value": portfolio_var, "pct": var_pct})
+
+                if var_pct > 5.0:
+                    return {"type": "VETO", "symbol": "GLOBAL", "reason": f"VAR_LIMIT_EXCEEDED_{var_pct:.2f}%"}
+
         return None
 
 class MonitoringBrain(BaseBrain):
@@ -267,9 +326,8 @@ class CorrelationBrain(BaseBrain):
         # 10520: Multi-pair correlation check to prevent over-exposure
         if event.get("type") == "PROBABILISTIC_SIGNAL":
             symbol = event["symbol"]
-            # Simplified correlation check: don't take same direction trades on highly correlated pairs
-            # Real implementation would use a correlation matrix
-            active_trades = self.ipc.get_state("active_trades", {})
-            if "EURUSD" in symbol and "GBPUSD" in active_trades:
+            # 10521: Consistently handle active_trades as a LIST
+            active_trades = self.ipc.get_state("active_trades", [])
+            if "EURUSD" in symbol and any("GBPUSD" in t['symbol'] for t in active_trades):
                 return {"type": "VETO", "symbol": symbol, "reason": "HIGH_CORRELATION_GBPUSD"}
         return None
