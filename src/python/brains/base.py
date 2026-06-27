@@ -76,6 +76,7 @@ class BaseBrain(Process, BrainContract):
 
     async def _async_run(self):
         await self.initialize()
+        logger.info(f"🧠 Brain {self.name} online and active.")
         await self._main_loop()
 
     async def _main_loop(self):

@@ -47,8 +47,9 @@ class HiveOrchestrator:
         # Pass Global Magic to components
         self.global_magic = self.config.system.global_magic
 
-        self._initialize_brains()
+        # 10108: IMPORTANT - Pre-initialize queues BEFORE brains to ensure picklable refs
         self._initialize_ipc_queues()
+        self._initialize_brains()
         self._initialize_dashboards()
 
     def _initialize_brains(self):
@@ -96,6 +97,7 @@ class HiveOrchestrator:
         self.registry.register(StructureBrain("Structure_1", cpu_affinity=get_aff(22), ipc=self.ipc))
 
     def _initialize_ipc_queues(self):
+        """10105: Pre-initialize high-capacity streams."""
         queues = [
             "stream:orchestrator", "stream:MarketData_1", "stream:MarketData_2",
             "stream:Indicator_1", "stream:Indicator_2", "stream:Indicator_3",
@@ -105,7 +107,7 @@ class HiveOrchestrator:
             "stream:Memory_1", "stream:Monitoring_1", "stream:Anomaly_1", "stream:Portfolio_1", "stream:Structure_1"
         ]
         for q in queues:
-            self.ipc.get_queue(q)
+            self.ipc.create_stream(q, maxlen=5000)
 
     def _initialize_dashboards(self):
         self.native_dash = NativeDashboard(ipc=self.ipc)
@@ -138,7 +140,8 @@ class HiveOrchestrator:
                 await self.ledger.update_trade_from_sync(t["tk"], symbol, "BUY" if t["type"]==0 else "SELL", t["vol"], t["sl"], t["tp"])
 
         target = f"stream:MarketData_{1 if time.time() % 2 < 1 else 2}"
-        self.ipc.xadd(target, {"payload": json.dumps(message)}, maxlen=1000)
+        # 10116: Send raw message, xadd handles wrapping/encoding
+        self.ipc.xadd(target, message, maxlen=1000)
         return {"t": "ACK"}
 
     async def run(self):
@@ -199,7 +202,10 @@ class HiveOrchestrator:
                                     smc_data = self.smc.detect_market_structure(ltf_df, event.get("atr", 0))
 
                                 orders = await self.pos_manager.monitor_and_manage(event["symbol"], event["bid"], event["ask"], event.get("atr", 0), smc_data=smc_data)
-                                for order in orders: self.ipc.xadd("stream:orchestrator", {"payload": json.dumps(order)})
+                                # 10115: Route management orders directly to bridge to avoid orchestrator loop saturation
+                                for order in orders:
+                                    order["magic"] = self.global_magic
+                                    asyncio.create_task(self.server.broadcast(order))
 
                                 self.ipc.xadd("stream:Meta_1", {"payload": json.dumps({"type": "MARKET_DATA_REFRESH", "symbol": event["symbol"]})}, maxlen=100)
                                 for b in ["Indicator_1", "Indicator_2", "Indicator_3", "Trend_1", "Trend_2", "Liquidity_1", "Regime_1", "Anomaly_1", "Momentum_1", "Structure_1"]:

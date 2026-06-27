@@ -1,33 +1,31 @@
 import multiprocessing
 import logging
+import queue
+import ujson as json
 from typing import Dict, Any, List, Optional
 
 logger = logging.getLogger("AAT_IPC")
 
 class HiveIPC:
-    """10250: True IPC layer using standard multiprocessing primitives.
-    Hardened for Windows 'spawn' compatibility."""
+    """10250: Stabilized Institutional IPC Layer for Windows/Linux.
+    Uses Manager-backed primitives to ensure consistency across process boundaries."""
     def __init__(self):
         self.manager = multiprocessing.Manager()
-        self._queues = self.manager.dict()
         self._shared_state = self.manager.dict()
+        self._queues = self.manager.dict()
         self._lock = self.manager.Lock()
-        self._local_cache = {}
 
     def clear_memory(self):
-        """10251: Wipe all shared state and queues for a fresh startup."""
+        """10251: Wipe all shared state."""
         logger.info("🧹 Clearing IPC memory state...")
         with self._lock:
             self._shared_state.clear()
-            # Note: We don't necessarily want to delete the queues themselves as they might be mapped,
-            # but we should clear their contents.
+            # Clear queues but don't delete them to maintain process maps
             for name in self._queues.keys():
                 q = self._queues[name]
                 while not q.empty():
-                    try:
-                        q.get_nowait()
-                    except Exception:
-                        break
+                    try: q.get_nowait()
+                    except: break
         logger.info("✅ IPC memory cleared.")
 
     def __getstate__(self):
@@ -35,7 +33,6 @@ class HiveIPC:
         state = self.__dict__.copy()
         if 'manager' in state: del state['manager']
         if '_lock' in state: del state['_lock']
-        state['_local_cache'] = {}
         return state
 
     def __setstate__(self, state):
@@ -43,51 +40,66 @@ class HiveIPC:
         self.__dict__.update(state)
         self.manager = None
         self._lock = None
-        if not hasattr(self, '_local_cache'):
-            self._local_cache = {}
 
     def get_queue(self, name: str) -> multiprocessing.Queue:
-        # Avoid creating excessive queues if not needed
+        """Fetch a specific queue. MUST be pre-initialized by parent."""
         if name not in self._queues:
-            if self._lock is None:
-                raise RuntimeError(f"Queue '{name}' not found in child process. Parent must pre-initialize.")
+            if self.manager:
+                with self._lock:
+                   if name not in self._queues:
+                       logger.debug(f"Initializing IPC stream: {name}")
+                       self._queues[name] = self.manager.Queue(maxsize=1000)
+            else:
+                # Windows child process logic
+                raise RuntimeError(f"IPC Error: Stream {name} missing in child process.")
 
+        return self._queues[name]
+
+    def create_stream(self, name: str, maxlen: int = 1000):
+        """Pre-initialize a stream (Call from parent only)."""
+        if name not in self._queues:
             with self._lock:
-                if name not in self._queues:
-                    self._queues[name] = self.manager.Queue(maxsize=1000)
-
-        q = self._queues[name]
-        self._local_cache[name] = q
-        return q
+                self._queues[name] = self.manager.Queue(maxsize=maxlen)
 
     def xadd(self, stream: str, data: Dict[str, Any], maxlen: int = 1000):
         """Emulate Redis XADD."""
         try:
+            # 10259: Always wrap in 'payload' to maintain compatibility
+            payload_str = data if isinstance(data, str) else json.dumps(data)
+            wrapped = {"payload": payload_str}
+
             q = self.get_queue(stream)
-            if q.full():
+            try:
+                q.put_nowait(wrapped)
+            except queue.Full:
+                # Drop oldest if full
                 try:
                     q.get_nowait()
-                except Exception:
-                    logger.debug("Queue was full but empty on get_nowait")
-            q.put_nowait(data)
+                    q.put_nowait(wrapped)
+                except (queue.Empty, queue.Full):
+                    pass
         except Exception as e:
-            logger.error(f"IPC XADD Fail on {stream}: {e}")
+            logger.error(f"IPC XADD Critical Fail on {stream}: {e}")
 
-    def xread(self, streams: Dict[str, str], count: int = 1, block: int = 0) -> List[Any]:
+    def xread(self, streams: Dict[str, str], count: int = 50, block: int = 0) -> List[Any]:
+        """Emulate Redis XREAD."""
         results = []
         for stream_name in streams.keys():
             try:
                 q = self.get_queue(stream_name)
                 msgs = []
                 for _ in range(count):
-                    if q.empty():
+                    try:
+                        val = q.get_nowait()
+                        p = val.get("payload") if isinstance(val, dict) else val
+                        if isinstance(p, str): p = p.encode('utf-8')
+                        msgs.append(("msg_id", {b'payload': p}))
+                    except queue.Empty:
                         break
-                    val = q.get_nowait()
-                    msgs.append(("msg_id", {b'payload': val.get("payload")}))
                 if msgs:
                     results.append((stream_name, msgs))
-            except Exception as e:
-                logger.debug(f"XREAD skipped for {stream_name}: {e}")
+            except Exception:
+                continue
         return results
 
     def xdel(self, stream: str, msg_id: str):
@@ -102,8 +114,7 @@ class HiveIPC:
     def get_all_state(self) -> Dict[str, Any]:
         try:
             return dict(self._shared_state)
-        except Exception as e:
-            logger.debug(f"Failed to get all state: {e}")
+        except Exception:
             return {}
 
 _ipc_instance = None
