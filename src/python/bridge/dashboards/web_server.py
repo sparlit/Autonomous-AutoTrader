@@ -66,5 +66,11 @@ class WebDashboard(Process):
         async def health():
             return {"status": "ok", "m_id": 10403}
 
+        # 10405: Mount static assets for the React SPA
+        static_dir = os.path.join(os.path.dirname(__file__), "static")
+        assets_dir = os.path.join(static_dir, "assets")
+        if os.path.exists(assets_dir):
+            app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
         logger.info(f"Starting Web Dashboard on port {self.port}")
         uvicorn.run(app, host="0.0.0.0", port=self.port, log_level="warning")
