@@ -170,6 +170,7 @@ class HiveOrchestrator:
                     mps = (current_rx - last_rx) / (now - last_stat_update) if last_stat_update > 0 else 0
 
                     # 10109: Dynamic status based on bridge activity
+                    # Use server.clients to determine if MT5 is connected
                     status = "OPTIMAL" if len(self.server.clients) > 0 else "WAITING"
 
                     self.ipc.set_state("engine_stats", {"status": status, "msgs_rx": current_rx, "msgs_tx": self.server.stats["msgs_tx"], "latency": self.server.stats["last_latency"], "active_clients": len(self.server.clients), "mps": mps, "server_time": now})

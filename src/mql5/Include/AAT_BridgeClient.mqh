@@ -40,6 +40,7 @@ public:
 
    void OnTick() {
       if(!m_s.IsConnected()) { m_s.Connect(m_h, m_p); m_syn=false; if(GetTickCount()-m_l_hb>60000) ActFS(); return; }
+      if(m_d.IsPaused()) return; // Proper state check
       if(m_d.OnClick(0,0) == "PAUSE") return; // Internal state check
       m_fs=false; if(!m_syn) { if(m_s.Send(CAATProtocol::BuildSYNC(_Symbol))) m_syn=true; return; }
       uint n=GetTickCount(); double cp=SymbolInfoDouble(_Symbol, SYMBOL_BID);

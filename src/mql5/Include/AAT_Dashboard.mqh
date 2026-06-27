@@ -41,6 +41,7 @@ public:
    void              DrawButton(Rect &r, string text, color bg);
 
    string            OnClick(int x, int y);
+   bool              IsPaused() { return m_paused; }
 };
 
 CAATDashboard::CAATDashboard() : m_name("AAT_Dash"), m_width(320), m_height(550), m_paused(false), m_hist_ptr(0)

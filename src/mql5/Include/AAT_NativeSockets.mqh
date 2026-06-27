@@ -39,8 +39,18 @@ bool CAATNativeSocket::Connect(string host, int port, uint timeout_ms=5000)
    m_host = host; m_port = port; m_timeout = timeout_ms;
    if(m_socket != INVALID_HANDLE) Disconnect();
    m_socket = SocketCreate();
-   if(m_socket == INVALID_HANDLE) return false;
-   if(!SocketConnect(m_socket, m_host, m_port, m_timeout)) { SocketClose(m_socket); m_socket = INVALID_HANDLE; return false; }
+   if(m_socket == INVALID_HANDLE) {
+      Print("AAT: [CRITICAL] Failed to create socket. Check permissions.");
+      return false;
+   }
+   if(!SocketConnect(m_socket, m_host, m_port, m_timeout)) {
+      int err = GetLastError();
+      Print("AAT: [ERROR] Connection to bridge failed (", host, ":", port, "). Error: ", err);
+      if(err == 4014) Print("AAT: [ACTION REQUIRED] Please ensure 'Allow WebRequest for listed URL' is ENABLED in MT5 Options and '", host, "' is added.");
+      SocketClose(m_socket); m_socket = INVALID_HANDLE;
+      return false;
+   }
+   Print("AAT: [SUCCESS] Link established with Phoenix Bridge at ", host, ":", port);
    return true;
 }
 
