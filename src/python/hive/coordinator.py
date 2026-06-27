@@ -229,6 +229,10 @@ class HiveOrchestrator:
                                 self.ipc.set_state(f"symbol_stats:{sym}", s_state)
                                 telemetry_msg = {"t": "TLM", "s": sym, "st": status, "scr": event["scr"], "htf": event["htf"], "dd": event.get("dd", 0.0), "pc": self.ipc.get_state("account_stats", {}).get("pos_count", 0)}
                                 asyncio.create_task(self.server.broadcast(telemetry_msg))
+                            elif e_type == "FORCE_SYNC":
+                                asyncio.create_task(self.server.broadcast({"t": "SYNC_REQ"}))
+                            elif e_type == "EXECUTION_ORDER" and event.get("t") == "CLOSE_ALL":
+                                asyncio.create_task(self.server.broadcast({"t": "DEC", "mgmt": "CLOSE_ALL"}))
                             elif e_type == "EMERGENCY_KILL": self.stop(); return
                             self.ipc.xdel("stream:orchestrator", msg_id)
                 else: await asyncio.sleep(0.01)

@@ -51,6 +51,7 @@ public:
    void Proc() {
       string m=m_s.Receive(); if(m=="") return; m_l_hb=GetTickCount();
       string t=CAATProtocol::GetMsgType(m); if(t=="TLM") HandleTlm(m);
+      else if(t=="SYNC_REQ") { m_s.Send(CAATProtocol::BuildSYNC(_Symbol)); }
       else if(t=="DECISION") {
          string dr=CAATProtocol::GetV(m, "drw"); if(dr!="") Drw(dr);
          string mg=CAATProtocol::GetV(m, "mgmt"); if(mg!="") HandleMgmt(mg);
@@ -65,13 +66,22 @@ public:
             Print("AAT: PANIC BUTTON PRESSED. Closing all positions for ", _Symbol);
             for(int i=PositionsTotal()-1; i>=0; i--) { if(PositionGetSymbol(i)==_Symbol) m_t.PositionClose(PositionGetInteger(POSITION_TICKET)); }
          } else if(cmd == "PAUSE") {
-            Print("AAT: SYSTEM ", m_d.OnClick(0,0)=="PAUSE" ? "PAUSED" : "RESUMED");
+            Print("AAT: SYSTEM ", m_d.IsPaused() ? "PAUSED" : "RESUMED");
          }
       }
    }
    void HandleTlm(string j) { if(!m_u_d) return; m_d.Render(_Symbol, CAATProtocol::GetV(j, "st"), StringToDouble(CAATProtocol::GetV(j, "scr")), CAATProtocol::GetV(j, "htf"), StringToDouble(CAATProtocol::GetV(j, "dd"))); }
    void HandleMgmt(string j) {
-      string a=CAATProtocol::GetV(j, "act"); long tk=StringToInteger(CAATProtocol::GetV(j, "tk"));
+      string a=CAATProtocol::GetV(j, "act");
+      if(j == "CLOSE_ALL") a = "CLOSE_ALL"; // Support raw string from orchestrator broadcast
+
+      if(a == "CLOSE_ALL") {
+         Print("AAT: Global CLOSE_ALL received.");
+         for(int i=PositionsTotal()-1; i>=0; i--) { if(PositionGetSymbol(i)==_Symbol) m_t.PositionClose(PositionGetInteger(POSITION_TICKET)); }
+         return;
+      }
+
+      long tk=StringToInteger(CAATProtocol::GetV(j, "tk"));
       if(PositionSelectByTicket(tk)) {
          if(a=="CLOSE_PARTIAL") m_t.PositionClosePartial(tk, PositionGetDouble(POSITION_VOLUME)*StringToDouble(CAATProtocol::GetV(j, "pct")));
          else if(a=="MODIFY_SL") m_t.PositionModify(tk, StringToDouble(CAATProtocol::GetV(j, "sl")), PositionGetDouble(POSITION_TP));

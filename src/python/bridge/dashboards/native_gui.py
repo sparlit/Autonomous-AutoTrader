@@ -249,8 +249,9 @@ class NativeDashboard(Process):
                         dpg.bind_item_theme(row["seen"], self.themes['red'])
 
     def kill_switch(self):
-        if self.ipc: self.ipc.xadd("stream:orchestrator", {"payload": '{"type": "EMERGENCY_KILL"}'})
+        # 10520: Fix double-wrapping. xadd already handles encoding/wrapping.
+        if self.ipc: self.ipc.xadd("stream:orchestrator", {"type": "EMERGENCY_KILL"})
     def force_sync(self):
-        if self.ipc: self.ipc.xadd("stream:orchestrator", {"payload": '{"type": "FORCE_SYNC"}'})
+        if self.ipc: self.ipc.xadd("stream:orchestrator", {"type": "FORCE_SYNC"})
     def close_all_trades(self):
-        if self.ipc: self.ipc.xadd("stream:orchestrator", {"payload": '{"type": "EXECUTION_ORDER", "t": "CLOSE_ALL"}'})
+        if self.ipc: self.ipc.xadd("stream:orchestrator", {"type": "EXECUTION_ORDER", "t": "CLOSE_ALL"})
