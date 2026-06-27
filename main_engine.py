@@ -1,6 +1,12 @@
 import sys
 import os
 import asyncio
+import io
+
+# 10001: Force UTF-8 encoding for Windows Console to prevent "≡ƒîî" errors
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 import logging
 import psutil
 from pre_compile import pre_compile
@@ -9,6 +15,7 @@ from pre_compile import pre_compile
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from src.python.hive.coordinator import HiveOrchestrator
+from src.python.hive.security import CredentialManager
 
 def setup_os_optimization():
     """Pin the main supervisor to CPU 0 if available."""
@@ -34,7 +41,15 @@ if __name__ == "__main__":
     logger = logging.getLogger("AAT_Main")
     logger.info("Starting Hive Orchestrator...")
 
-    orchestrator = HiveOrchestrator()
+    # 11055: Initialize Security Vault
+    vault = CredentialManager()
+    creds = vault.load_credentials()
+    if creds:
+        logging.info(f"Vault unlocked for Account: {creds.get('account')}")
+    else:
+        logging.warning("Vault is empty. Manual login required in MT5 or use CredentialManager.save_credentials()")
+
+    orchestrator = HiveOrchestrator(credentials=creds)
 
     try:
         asyncio.run(orchestrator.run())

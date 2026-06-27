@@ -20,3 +20,6 @@ int OnInit() {
 void OnDeinit(const int reason) { EventKillTimer(); }
 void OnTick() { bridge.PerformUpdate(); }
 void OnTimer() { bridge.PerformUpdate(); }
+void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam) {
+   bridge.OnChartEvent(id, lparam, dparam, sparam);
+}
