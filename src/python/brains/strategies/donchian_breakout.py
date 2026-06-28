@@ -10,10 +10,10 @@ class DonchianBreakout(BaseBrain):
     """
     def __init__(self, name: str, ipc: Any = None):
         super().__init__(name, ipc=ipc)
-        self.magic = 2006
+        self.magic = 20004
 
     async def process(self, data: dict) -> Optional[SignalPayload]:
-        """Magic: 2006"""
+        """Magic: 20004"""
         history = data.get("history", [])
         if not history or len(history) < 20: return None
 

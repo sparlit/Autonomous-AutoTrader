@@ -7,12 +7,12 @@ class ADXTrend(BaseBrain):
     """
     10203: ADX Trend Strength Strategy.
     Logic: ADX > 25 indicates strong trend.
-    Magic: 20601
+    Magic: 20001
     """
     def __init__(self, name: str, ipc: Any = None):
         super().__init__(name, ipc=ipc)
         self.analyst = IndicatorAnalyst()
-        self.magic = 20601
+        self.magic = 20001
 
     async def process(self, data: dict) -> Optional[SignalPayload]:
         """Method Logic. Magic: 20602"""

@@ -8,11 +8,11 @@ class DayMaster(BaseBrain):
     """
     Institutional Day Trading (London ORB).
     Focus: Breakout of 07:00-08:00 UTC range.
-    Magic: 20201
+    Magic: 20003
     """
     def __init__(self, name: str, ipc: Any = None):
         super().__init__(name, ipc=ipc)
-        self.magic = 20201
+        self.magic = 20003
 
     async def process(self, data: dict) -> Optional[SignalPayload]:
         history = data.get("history", [])

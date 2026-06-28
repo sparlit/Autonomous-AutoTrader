@@ -6,11 +6,11 @@ class WyckoffMaster(BaseBrain):
     """
     10205: Wyckoff Methodology Strategy.
     Logic: Accumulation/Distribution phases, Spring/Upthrust detection.
-    Magic: 20901
+    Magic: 20013
     """
     def __init__(self, name: str, ipc: Any = None):
         super().__init__(name, ipc=ipc)
-        self.magic = 20901
+        self.magic = 20013
 
     async def process(self, data: dict) -> Optional[SignalPayload]:
         """Method Logic. Magic: 20902"""

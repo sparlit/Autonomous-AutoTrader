@@ -7,12 +7,12 @@ class VSAMaster(BaseBrain):
     """
     10204: Volume Spread Analysis (VSA) Strategy.
     Logic: Effort vs Result, Stopping Volume, No Demand.
-    Magic: 20801
+    Magic: 20012
     """
     def __init__(self, name: str, ipc: Any = None):
         super().__init__(name, ipc=ipc)
         self.vol_analyst = VolatilityAnalyst()
-        self.magic = 20801
+        self.magic = 20012
 
     async def process(self, data: dict) -> Optional[SignalPayload]:
         """Method Logic. Magic: 20802"""

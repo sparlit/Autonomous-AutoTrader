@@ -20,11 +20,11 @@ class SwingMaster(BaseBrain):
     Institutional Swing Trading Strategy.
     Alignment: D1/H4 Trend.
     Filter: RSI Overextension (via Rust Veto).
-    Magic: 20101
+    Magic: 20010
     """
     def __init__(self, name: str, ipc: Any = None):
         super().__init__(name, ipc=ipc)
-        self.magic = 20101
+        self.magic = 20010
 
     async def process(self, data: dict) -> Optional[SignalPayload]:
         """Method Logic. Magic: 20102"""

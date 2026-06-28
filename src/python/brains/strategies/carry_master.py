@@ -7,11 +7,11 @@ class CarryMaster(BaseBrain):
     """
     Carry/Position Trading Strategy.
     Alignment: D1 Trend + High Interest Differential (Simulated).
-    Magic: 20301
+    Magic: 20002
     """
     def __init__(self, name: str, ipc: Any = None):
         super().__init__(name, ipc=ipc)
-        self.magic = 20301
+        self.magic = 20002
         # Simulated Carry Map (Positive = Long Carry)
         self.carry_bias = {"USDJPY": 1, "GBPUSD": -1, "EURUSD": -1, "AUDUSD": 1, "NZDUSD": 1}
 

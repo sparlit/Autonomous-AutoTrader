@@ -5,10 +5,10 @@ from typing import Optional
 from src.python.brains.base import BaseBrain, SignalPayload
 
 class ICTKillzone(BaseBrain):
-    """Magic: 20501"""
+    """Magic: 20006"""
     def __init__(self, name: str, ipc: Any = None):
         super().__init__(name, ipc=ipc)
-        self.magic = 20501
+        self.magic = 20006
 
     async def process(self, data: dict) -> Optional[SignalPayload]:
         """Method Logic. Magic: 20502"""
