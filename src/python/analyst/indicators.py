@@ -13,17 +13,24 @@ class IndicatorAnalyst:
         ema200 = c.ewm(span=200, adjust=False).mean().iloc[-1]
         macd_line, signal_line, hist = self.macd(c)
         adx = self.adx(df)
+        atr = self.atr(df)
+
+        # 12105: Realized Volatility for Institutional VaR
+        # Annualized volatility of log returns
+        log_returns = np.log(c / c.shift(1))
+        realized_vol = log_returns.std() * np.sqrt(252 * 288) if len(log_returns) > 20 else 0.002
 
         return {
             "rsi": self.rsi(c),
-            "atr": self.atr(df),
+            "atr": atr,
             "ema_fast": c.ewm(span=50, adjust=False).mean().iloc[-1],
             "ema_slow": ema200,
             "ema_100": ema100,
             "macd": macd_line,
             "macd_signal": signal_line,
             "macd_hist": hist,
-            "adx": adx
+            "adx": adx,
+            "realized_vol": realized_vol
         }
 
     def rsi(self, series: pd.Series, period: int = 14) -> float:

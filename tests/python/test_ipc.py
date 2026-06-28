@@ -1,6 +1,7 @@
 import pytest
 import asyncio
 import time
+import ujson as json
 from src.python.hive.ipc import get_ipc
 
 @pytest.mark.asyncio
@@ -18,7 +19,8 @@ async def test_ipc_state_sharing():
 async def test_ipc_queue_emulation():
     ipc = get_ipc()
     stream = "test_stream_final"
-    data = {"payload": '{"test": "data"}'}
+    # xadd now wraps everything in {"payload": ...}
+    data = {"test": "data"}
 
     ipc.xadd(stream, data)
 
@@ -27,4 +29,9 @@ async def test_ipc_queue_emulation():
 
     assert len(results) == 1
     assert results[0][0] == stream
-    assert results[0][1][0][1][b"payload"] == '{"test": "data"}'
+
+    # The payload is double-encoded because xadd always wraps.
+    # BaseBrain and Orchestrator handle this by json.loads() then potentially another json.loads()
+    payload = results[0][1][0][1][b"payload"]
+    decoded = json.loads(payload)
+    assert decoded["test"] == "data"

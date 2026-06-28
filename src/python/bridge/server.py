@@ -14,6 +14,7 @@ class BridgeServer:
         self.port = port
         self.on_message_cb = on_message_cb
         self.clients: Dict[str, asyncio.StreamWriter] = {}
+        self.client_seqs: Dict[str, int] = {}
         self.stats = {"msgs_rx": 0, "msgs_tx": 0, "last_latency": 0.0}
         self.throttle_threshold = 0.05 # 50ms processing limit
 
@@ -35,6 +36,7 @@ class BridgeServer:
 
         logger.info(f"Ultra-Bridge: New connection from {client_id}")
         self.clients[client_id] = writer
+        self.client_seqs[client_id] = 0
 
         buffer = bytearray()
         try:
@@ -61,6 +63,8 @@ class BridgeServer:
                         response = await self.on_message_cb(client_id, message)
 
                         if response:
+                            self.client_seqs[client_id] += 1
+                            response["seq"] = self.client_seqs[client_id]
                             payload = json.dumps(response).encode() + b'\n'
                             writer.write(payload)
                             await writer.drain()
@@ -78,6 +82,7 @@ class BridgeServer:
             logger.error(f"Link Dropped: {client_id} ({e})")
         finally:
             self.clients.pop(client_id, None)
+            self.client_seqs.pop(client_id, None)
             logger.info(f"Client offline: {client_id}")
             try:
                 writer.close()
@@ -87,10 +92,15 @@ class BridgeServer:
 
     async def broadcast(self, message: Dict[str, Any]):
         """13006: Broadcast message to all connected clients."""
-        payload = json.dumps(message).encode() + b"\n"
         dead_clients = []
         for client_id, writer in self.clients.items():
             try:
+                # Per-client sequence for broadcast too
+                self.client_seqs[client_id] += 1
+                msg_copy = message.copy()
+                msg_copy["seq"] = self.client_seqs[client_id]
+
+                payload = json.dumps(msg_copy).encode() + b"\n"
                 writer.write(payload)
                 await writer.drain()
                 self.stats["msgs_tx"] += 1
@@ -101,6 +111,7 @@ class BridgeServer:
 
         for cid in dead_clients:
             self.clients.pop(cid, None)
+            self.client_seqs.pop(cid, None)
             logger.info(f"Pruned dead client: {cid}")
 
     async def start(self):
