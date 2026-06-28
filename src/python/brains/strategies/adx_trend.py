@@ -7,13 +7,15 @@ class ADXTrend(BaseBrain):
     """
     10203: ADX Trend Strength Strategy.
     Logic: ADX > 25 indicates strong trend.
+    Magic: 20601
     """
     def __init__(self, name: str, ipc: Any = None):
         super().__init__(name, ipc=ipc)
         self.analyst = IndicatorAnalyst()
-        self.magic = 2003
+        self.magic = 20601
 
     async def process(self, data: dict) -> Optional[SignalPayload]:
+        """Method Logic. Magic: 20602"""
         history = data.get("history", [])
         if len(history) < 30: return None
         df = pd.DataFrame(history)

@@ -7,7 +7,8 @@ from typing import Optional
 from src.python.brains.base import BaseBrain, SignalPayload
 
 # Import Rust Core for high-speed veto
-sys.path.append(os.path.join(os.path.dirname(__file__), '../../bridge'))
+# Updated pathing for restructured src/rust
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../../rust'))
 try:
     import aat_institutional_core as aat_rust_core
     RUST_CORE_AVAILABLE = True

@@ -16,6 +16,7 @@ class ScalpMaster(BaseBrain):
         self.magic = 20401
 
     async def process(self, data: dict) -> Optional[SignalPayload]:
+        """Method Logic. Magic: 20402"""
         history = data.get("history", [])
         if not history or len(history) < 30: return None
 

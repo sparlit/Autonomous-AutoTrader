@@ -7,13 +7,15 @@ class RSIMomentum(BaseBrain):
     """
     10202: RSI Momentum Strategy.
     Logic: RSI Overbought/Oversold levels with Trend filter.
+    Magic: 20701
     """
     def __init__(self, name: str, ipc: Any = None):
         super().__init__(name, ipc=ipc)
         self.analyst = IndicatorAnalyst()
-        self.magic = 2002
+        self.magic = 20701
 
     async def process(self, data: dict) -> Optional[SignalPayload]:
+        """Method Logic. Magic: 20702"""
         history = data.get("history", [])
         if len(history) < 30: return None
         df = pd.DataFrame(history)

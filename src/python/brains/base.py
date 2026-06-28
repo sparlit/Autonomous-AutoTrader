@@ -25,13 +25,16 @@ class BrainContract(ABC):
     """The strict contract every Brain must follow."""
     @abstractmethod
     async def initialize(self):
-        raise NotImplementedError()
+        """12001: Abstract initialization."""
+        logger.debug(f"Initializing base for {self.name}")
     @abstractmethod
     def run(self):
-        raise NotImplementedError()
+        """12002: Abstract run entry."""
+        logger.debug(f"Running base for {self.name}")
     @abstractmethod
     def health(self) -> Dict[str, Any]:
-        raise NotImplementedError()
+        """12003: Abstract health check."""
+        return {}
 
 class BaseBrain(Process, BrainContract):
     """
@@ -122,7 +125,8 @@ class BaseBrain(Process, BrainContract):
 
     @abstractmethod
     async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        raise NotImplementedError()
+        """12008: Core processing logic to be implemented by child."""
+        return None
 
     def publish(self, result: Dict[str, Any]):
         """12010: Publish to the Orchestrator stream with bounded length."""

@@ -26,7 +26,9 @@ from src.python.execution.ledger import TradeLedger
 from src.python.execution.manager import PositionManager
 from src.python.execution.risk_manager import RiskManager
 
+from src.python.analyst.normalization import AssetNormalizationLayer
 logger = logging.getLogger("AAT_Orchestrator")
+from src.python.brains.strategies import STRATEGY_MAP
 
 class HiveOrchestrator:
     """10101: High-performance Central Orchestrator."""
@@ -43,6 +45,7 @@ class HiveOrchestrator:
         self.risk_manager = RiskManager(self.config.risk)
         self.pos_manager = PositionManager(self.ledger, self.risk_manager)
         self.smc = SMCAnalyst()
+        self.normalization = AssetNormalizationLayer()
 
         # Pass Global Magic to components
         self.global_magic = self.config.system.global_magic
@@ -54,50 +57,51 @@ class HiveOrchestrator:
 
     def _initialize_brains(self):
         """10102: Initialize and register all specialized brains with hardware optimization."""
-        # 23 Brains to register
-        brain_names = [
-            "MarketData_1", "MarketData_2", "Indicator_1", "Indicator_2", "Indicator_3",
-            "Trend_1", "Trend_2", "Liquidity_1", "Momentum_1", "Regime_1", "Meta_1",
-            "NewsRisk_1", "Contrarian_1", "Correlation_1", "Risk_1", "Risk_2",
-            "Execution_1", "Execution_2", "Memory_1", "Monitoring_1", "Anomaly_1",
-            "Portfolio_1", "Structure_1"
+        # 10103: Dynamic Strategy Brain Loading
+        strategy_brains = []
+        for name, strategy_class in STRATEGY_MAP.items():
+            strategy_brains.append(strategy_class(name, ipc=self.ipc))
+
+        # Specialized core brains
+        core_brains = [
+            MarketDataBrain("MarketData_1", ipc=self.ipc),
+            MarketDataBrain("MarketData_2", ipc=self.ipc),
+            IndicatorBrain("Indicator_1", ipc=self.ipc),
+            IndicatorBrain("Indicator_2", ipc=self.ipc),
+            IndicatorBrain("Indicator_3", ipc=self.ipc),
+            TrendBrain("Trend_1", ipc=self.ipc),
+            TrendBrain("Trend_2", ipc=self.ipc),
+            LiquidityBrain("Liquidity_1", ipc=self.ipc),
+            MomentumBrain("Momentum_1", ipc=self.ipc),
+            RegimeBrain("Regime_1", ipc=self.ipc),
+            NewsRiskBrain("NewsRisk_1", ipc=self.ipc),
+            ContrarianBrain("Contrarian_1", ipc=self.ipc),
+            CorrelationBrain("Correlation_1", ipc=self.ipc),
+            RiskBrain("Risk_1", ipc=self.ipc),
+            RiskBrain("Risk_2", ipc=self.ipc),
+            ExecutionBrain("Execution_1", ipc=self.ipc),
+            ExecutionBrain("Execution_2", ipc=self.ipc),
+            MemoryBrain("Memory_1", ipc=self.ipc),
+            MonitoringBrain("Monitoring_1", ipc=self.ipc),
+            AnomalyBrain("Anomaly_1", ipc=self.ipc),
+            PortfolioBrain("Portfolio_1", ipc=self.ipc),
+            StructureBrain("Structure_1", ipc=self.ipc)
         ]
+
+        meta = MetaBrain("Meta_1", threshold=self.config.brains.consensus_threshold, ipc=self.ipc)
+        meta.required_sources = list(STRATEGY_MAP.keys())
+
+        all_brains = core_brains + strategy_brains + [meta]
+        brain_names = [b.name for b in all_brains]
 
         affinity_map = self.hardware.get_optimized_affinity_map(len(brain_names))
 
-        def get_aff(idx): return affinity_map.get(idx, [0])
-
-        # Brains distribution (Institutional Core Protocol)
-        self.registry.register(MarketDataBrain("MarketData_1", cpu_affinity=get_aff(0), ipc=self.ipc))
-        self.registry.register(MarketDataBrain("MarketData_2", cpu_affinity=get_aff(1), ipc=self.ipc))
-        self.registry.register(IndicatorBrain("Indicator_1", cpu_affinity=get_aff(2), ipc=self.ipc))
-        self.registry.register(IndicatorBrain("Indicator_2", cpu_affinity=get_aff(3), ipc=self.ipc))
-        self.registry.register(IndicatorBrain("Indicator_3", cpu_affinity=get_aff(4), ipc=self.ipc))
-        self.registry.register(TrendBrain("Trend_1", cpu_affinity=get_aff(5), ipc=self.ipc))
-        self.registry.register(TrendBrain("Trend_2", cpu_affinity=get_aff(6), ipc=self.ipc))
-        self.registry.register(LiquidityBrain("Liquidity_1", cpu_affinity=get_aff(7), ipc=self.ipc))
-        self.registry.register(MomentumBrain("Momentum_1", cpu_affinity=get_aff(8), ipc=self.ipc))
-        self.registry.register(RegimeBrain("Regime_1", cpu_affinity=get_aff(9), ipc=self.ipc))
-
-        meta = MetaBrain("Meta_1", cpu_affinity=get_aff(10), threshold=self.config.brains.consensus_threshold, ipc=self.ipc)
-        meta.required_sources = ["Trend_1", "Indicator_1", "Liquidity_1", "Regime_1"]
-        self.registry.register(meta)
-
-        self.registry.register(NewsRiskBrain("NewsRisk_1", cpu_affinity=get_aff(11), ipc=self.ipc))
-        self.registry.register(ContrarianBrain("Contrarian_1", cpu_affinity=get_aff(12), ipc=self.ipc))
-        self.registry.register(CorrelationBrain("Correlation_1", cpu_affinity=get_aff(13), ipc=self.ipc))
-        self.registry.register(RiskBrain("Risk_1", cpu_affinity=get_aff(14), ipc=self.ipc))
-        self.registry.register(RiskBrain("Risk_2", cpu_affinity=get_aff(15), ipc=self.ipc))
-        self.registry.register(ExecutionBrain("Execution_1", cpu_affinity=get_aff(16), ipc=self.ipc))
-        self.registry.register(ExecutionBrain("Execution_2", cpu_affinity=get_aff(17), ipc=self.ipc))
-        self.registry.register(MemoryBrain("Memory_1", cpu_affinity=get_aff(18), ipc=self.ipc))
-        self.registry.register(MonitoringBrain("Monitoring_1", cpu_affinity=get_aff(19), ipc=self.ipc))
-        self.registry.register(AnomalyBrain("Anomaly_1", cpu_affinity=get_aff(20), ipc=self.ipc))
-        self.registry.register(PortfolioBrain("Portfolio_1", cpu_affinity=get_aff(21), ipc=self.ipc))
-        self.registry.register(StructureBrain("Structure_1", cpu_affinity=get_aff(22), ipc=self.ipc))
+        for i, brain in enumerate(all_brains):
+            brain.cpu_affinity = affinity_map.get(i, [0])
+            self.registry.register(brain)
 
     def _initialize_ipc_queues(self):
-        """10105: Pre-initialize high-capacity streams."""
+        """10105: Pre-initialize high-capacity streams for all registered brains."""
         queues = [
             "stream:orchestrator", "stream:MarketData_1", "stream:MarketData_2",
             "stream:Indicator_1", "stream:Indicator_2", "stream:Indicator_3",
@@ -106,6 +110,10 @@ class HiveOrchestrator:
             "stream:Correlation_1", "stream:Risk_1", "stream:Risk_2", "stream:Execution_1", "stream:Execution_2",
             "stream:Memory_1", "stream:Monitoring_1", "stream:Anomaly_1", "stream:Portfolio_1", "stream:Structure_1"
         ]
+        # Dynamically add strategy streams
+        for strat_name in STRATEGY_MAP.keys():
+            queues.append(f"stream:{strat_name}")
+
         for q in queues:
             self.ipc.create_stream(q, maxlen=5000)
 
@@ -116,7 +124,8 @@ class HiveOrchestrator:
     async def handle_client_message(self, client_id: str, message: Dict[str, Any]) -> Dict[str, Any]:
         m_type = message.get("t")
         if m_type == "HB":
-            symbol = message.get("s", "UNKNOWN")
+            raw_symbol = message.get("s", "UNKNOWN")
+            symbol = self.normalization.normalize_symbol(raw_symbol)
             equity = message.get("e", 0.0)
             self.ipc.set_state("account_stats", {
                 "equity": equity, "drawdown": message.get("d", 0.0),
@@ -148,6 +157,7 @@ class HiveOrchestrator:
         return {"t": "ACK"}
 
     async def run(self):
+        self.ipc.clear_memory()
         await self.ledger.init_db()
         if self.credentials:
             logger.info(f"Attempting Institutional Login for Account {self.credentials.get('account')}...")
@@ -211,8 +221,13 @@ class HiveOrchestrator:
                                     asyncio.create_task(self.server.broadcast(order))
 
                                 self.ipc.xadd("stream:Meta_1", {"payload": json.dumps({"type": "MARKET_DATA_REFRESH", "symbol": event["symbol"]})}, maxlen=100)
+                                # Broadcast to core analytic brains
                                 for b in ["Indicator_1", "Indicator_2", "Indicator_3", "Trend_1", "Trend_2", "Liquidity_1", "Regime_1", "Anomaly_1", "Momentum_1", "Structure_1"]:
                                     self.ipc.xadd(f"stream:{b}", {"payload": json.dumps(event)}, maxlen=100)
+
+                                # Broadcast to parallel strategy brains
+                                for strat_name in STRATEGY_MAP.keys():
+                                    self.ipc.xadd(f"stream:{strat_name}", {"payload": json.dumps(event)}, maxlen=100)
                                 self.ipc.xadd("stream:NewsRisk_1", {"payload": json.dumps(event)}, maxlen=100)
                             elif e_type == "EXECUTION_ORDER":
                                 if event.get("t") == "DEC":
