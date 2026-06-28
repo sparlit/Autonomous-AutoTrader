@@ -4,7 +4,7 @@
 * "Clarify, Confirm, Complete" protocol strictly enforced.
 * Zero stubs, placeholders, or dummy code.
 * No 'pass' or 'NotImplementedError' in production logic.
-* Unique institutional magic numbers for every method and strategy.
+* Unique institutional magic numbers for all methods and strategies.
 * Recursive deep audits for every major change.
 * OODA Loop integration in all decision layers.
 * L99 System Uptime and Verification mandate.

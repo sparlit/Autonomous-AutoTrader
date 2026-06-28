@@ -10,7 +10,7 @@ class TestInstitutionalDocs(unittest.TestCase):
         self.architecture = self.root / "FINAL_ARCHITECTURE.md"
 
     def test_version_consistency(self):
-        version = "V2.3.0-ASCENDANT"
+        version = "V3.3.0"
         for doc in [self.readme, self.project, self.roadmap, self.architecture]:
             content = doc.read_text(encoding="utf-8")
             self.assertIn(version, content, f"Version {version} missing in {doc.name}")
@@ -22,7 +22,7 @@ class TestInstitutionalDocs(unittest.TestCase):
             self.assertIn(term, content, f"{term} missing in {doc.name}")
 
     def test_rust_kernel_mentions(self):
-        kernels = ["aat_heavy", "aat_rust_core", "aat_rust"]
+        kernels = ["Hardware Optimized", "aat_rust_core", "aat_rust"]
         content = self.readme.read_text(encoding="utf-8")
         for kernel in kernels:
             self.assertIn(kernel, content, f"Kernel {kernel} missing in README.md")

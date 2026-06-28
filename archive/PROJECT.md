@@ -14,14 +14,15 @@ AAT is a high-probability, autonomous trading system engineered for MetaTrader 5
 ---
 
 ## 🛠️ 2. System Overview (V3.0 Evolution)
-The system is built as a microkernel with event-driven decoupling, utilizing a **Multi-Brain Bayesian Orchestrator** pinned to 20 logical CPU cores.
+The system is built as a microkernel with event-driven decoupling, utilizing a **Multi-Brain Bayesian Orchestrator** pinned to 23 logical CPU processes.
 
 ### 🧩 Components
 - **Python Hive (Coordinator):** Global risk management and Bayesian evidence aggregation.
-- **Specialized Brains:** 20+ isolated processes (Market Data, Trend, Liquidity, Momentum, Regime, etc.).
-- **Analyst Tier:** Vectorized SMC, VSA, and Technical Indicator engines.
-- **MQL5 Agents:** Ultra-slim execution units with SYNC protocol and Heartbeat failsafes.
-- **Persistence:** SQLite (Audit Ledger) and Redis Stream simulation (IPC).
+- **Specialized Brains:** 23 isolated processes (Market Data, Trend, Liquidity, Momentum, Regime, Portfolio, etc.).
+- **Analyst Tier:** Vectorized SMC, VSA, Technical Indicator, and Volatility engines.
+- **MQL5 Agents:** Slim execution units with Sequence-Hardened protocol and Heartbeat failsafes.
+- **Institutional Core:** Rust-based parallel VaR and high-speed logic gates.
+- **Persistence:** SQLite (Audit Ledger) and Manager-backed IPC.
 
 ---
 
@@ -30,20 +31,20 @@ AAT V3.0 enforces a **3-of-4 Confluence Rule**:
 1. **Trend**: Multi-timeframe alignment (M1, M5, H1, H4).
 2. **Momentum**: MACD Histogram + ADX Strength confirmation.
 3. **Structure**: SMC Order Blocks, FVG, and Inducement validation.
-4. **Volatility**: ATR-based regime filtering (Trending vs. Ranging).
+4. **Volatility**: Realized Volatility-aware regime filtering.
 
-Final entry requires a **Trigger Candle** (Engulfing/Pin Bar) confirmation on the LTF.
+Final entry requires a **Trigger Candle** (Engulfing/Pin Bar) confirmation on the LTF and dynamic RSI overextension checks.
 
 ---
 
-## 🛡️ 4. Risk Management (The 7-Layer Stack)
-1. **L1: Infrastructure** - Heartbeat monitor and Latency tracking.
-2. **L2: Global Risk** - Max Drawdown and Daily Loss limits.
-3. **L3: Symbol Risk** - Spread Blowout and ATR-relative safety.
-4. **L4: News Risk** - 30-min blackout windows for NFP/FOMC.
-5. **L5: Position Lifecycle** - Partial TP @ 1R, Breakeven @ 1.5R, and dynamic ATR Trailing Stops.
-6. **L6: Correlation** - Cross-symbol exposure vetoes.
-7. **L7: Final Gate** - Mandatory "3 of 4" Confluence check.
+## 🛡️ 4. Risk Management (The Institutional Stack)
+1. **L1: Protocol Security** - Monotonic sequence numbering to detect packet loss.
+2. **L2: Aggregated Risk** - Portfolio-wide Value-at-Risk (VaR) via Rust kernel.
+3. **L3: Global Risk** - Max Drawdown and Daily Loss limits.
+4. **L4: Symbol Risk** - Spread Blowout and ATR-relative safety.
+5. **L5: News Risk** - 30-min blackout windows for NFP/FOMC.
+6. **L6: Position Lifecycle** - Partial TP @ 1R, Breakeven @ 1.5R, and Hybrid ATR-SMC Trailing Stops.
+7. **L7: Final Gate** - Bayesian Confidence Threshold (> 70%).
 
 ---
 

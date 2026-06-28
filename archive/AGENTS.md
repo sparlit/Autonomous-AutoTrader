@@ -1,3 +1,6 @@
+# Agent Instructions
+Always check and strictly follow the behavioral rules outlined in the local skills directory before writing code.
+
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
