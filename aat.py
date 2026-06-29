@@ -98,12 +98,17 @@ async def run():
     except KeyboardInterrupt:
         logging.info("Initiating Graceful Shutdown...")
         orchestrator.stop()
-        logging.info("Phoenix Gauntlet offline.")
+        logger.info("Phoenix Gauntlet offline.")
 
 def test():
     print("🧪 Running AAT Integration Test Suite...")
+    test_dir = "archive/tests"
+    if not os.path.exists(test_dir):
+        print("❌ Test directory not found in archive.")
+        return
+
     try:
-        subprocess.check_call([sys.executable, "-m", "pytest", "tests/python", "tests/test_v3_3_merge.py"])
+        subprocess.check_call([sys.executable, "-m", "pytest", f"{test_dir}/python/test_ipc.py", f"{test_dir}/python/test_brains.py", f"{test_dir}/python/test_coordinator.py", f"{test_dir}/test_v3_3_merge.py"])
     except subprocess.CalledProcessError:
         print("❌ Tests failed.")
         sys.exit(1)
