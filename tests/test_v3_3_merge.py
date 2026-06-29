@@ -13,7 +13,7 @@ async def test_v3_3_architecture_integrity():
     assert hasattr(orchestrator, "_spawn_brain_swarm")
     assert hasattr(orchestrator, "brains")
 
-    orchestrator._spawn_brain_swarm()
+    await orchestrator._spawn_brain_swarm()
     assert len(orchestrator.registry._brains) >= 18
     assert len(orchestrator.brains) >= 18
 

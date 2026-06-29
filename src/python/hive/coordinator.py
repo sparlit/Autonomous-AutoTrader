@@ -78,7 +78,7 @@ class HiveOrchestrator:
         self.ipc.create_stream("stream:orchestrator")
 
         # 2. Start Brains
-        self._spawn_brain_swarm()
+        await self._spawn_brain_swarm()
 
         # 3. Start Bridge Server
         asyncio.create_task(self.server.start())
@@ -117,18 +117,10 @@ class HiveOrchestrator:
                 "candle_timer": message.get("ct", "--:--"),
                 "last_hb": time.time()
             })
-            # Also route to PortfolioBrain for VaR checks
-            message["type"] = "HB"
-            self.ipc.xadd("stream:Portfolio_1", message)
+            self.ipc.xadd("stream:Portfolio_1", {"type": "HB", **message})
             return {"t": "ACK"}
 
-        elif m_type == "MARKET_DATA":
-            message["type"] = "MARKET_DATA"
-            self.ipc.xadd("stream:orchestrator", message)
-            return {"t": "ACK"}
-
-        elif m_type == "DP":
-            # Market data push
+        elif m_type == "DP": # Data Push
             message["type"] = "MARKET_DATA_RAW"
             self.ipc.xadd("stream:MarketData_1", message)
             return {"t": "ACK"}
@@ -154,28 +146,27 @@ class HiveOrchestrator:
                         for msg_id, data in msgs:
                             event = json.loads(data[b'payload'])
                             await self._process_orchestrator_event(event)
+                    await asyncio.sleep(0.005)
+                else:
+                    await asyncio.sleep(0.02)
 
                 self._update_system_stats()
-                await asyncio.sleep(0.01)
             except Exception as e:
                 logger.error(f"Orchestration Loop Error: {e}")
                 await asyncio.sleep(0.1)
 
     async def _process_orchestrator_event(self, event: Dict[str, Any]):
-        """10013: Logic for cross-component orchestration."""
+        """10013: Institutional Event Routing."""
         e_type = event.get("type")
 
         if e_type == "MARKET_DATA":
-            # 10506: Compute live structure for Hybrid Trailing
+            # 1. Run Position Management (Trailing SL, etc)
             symbol = event.get("symbol")
-            bid = event.get("bid", 0.0)
-            ask = event.get("ask", 0.0)
-            atr = event.get("atr", 0.0)
+            bid, ask, atr = event.get("bid", 0), event.get("ask", 0), event.get("atr", 0)
             ltf_df = pd.DataFrame(event.get("ltf", []))
             smc_data = None
             if not ltf_df.empty:
-                if isinstance(event["ltf"][0], list):
-                    ltf_df.columns = ["o", "h", "l", "c", "t", "v"]
+                if isinstance(event["ltf"][0], list): ltf_df.columns = ["o", "h", "l", "c", "t", "v"]
                 smc_data = self.smc.detect_market_structure(ltf_df, atr)
 
             orders = await self.pos_manager.monitor_and_manage(symbol, bid, ask, atr, smc_data=smc_data)
@@ -183,16 +174,37 @@ class HiveOrchestrator:
                 order["magic"] = self.config.system.global_magic
                 await self.server.broadcast(order)
 
-            # Fan out to all listening Brains
-            for stream in list(self.ipc._queues.keys()):
-                if stream.startswith("stream:") and stream != "stream:orchestrator":
-                    self.ipc.xadd(stream, event)
+            # 2. Fan out to Strategy/Analyst Brains
+            strategy_swarm = [
+                "Trend_1", "Indicator_1", "Momentum_1", "Structure_1", "Liquidity_1",
+                "Regime_1", "Anomaly_1", "SwingMaster", "ScalpMaster",
+                "VSAMaster", "WyckoffMaster", "ICTKillzone"
+            ]
+            for b in strategy_swarm:
+                self.ipc.xadd(f"stream:{b}", event)
+
+        elif e_type in ["EVIDENCE", "REGIME_STATUS", "MOMENTUM_STATUS", "STRUCTURE_STATUS"]:
+            # Route evidence from specialists to MetaBrain
+            self.ipc.xadd("stream:MetaBrain", event)
+
+        elif e_type == "PROBABILISTIC_SIGNAL":
+            # Route to Vetting chain
+            for b in ["Risk_1", "Contrarian_1", "Correlation_1", "NewsRisk_1"]:
+                self.ipc.xadd(f"stream:{b}", event)
+
+        elif e_type in ["VETO", "NEWS_VETO"]:
+            # Route vetos back to MetaBrain and RiskBrain
+            self.ipc.xadd("stream:MetaBrain", event)
+            self.ipc.xadd("stream:Risk_1", event)
+
+        elif e_type == "VALIDATED_TRADE":
+            # Route to Actuator
+            self.ipc.xadd("stream:Execution_1", event)
 
         elif e_type == "EXECUTION_ORDER":
-            # Final output from ExecutionBrain
+            # Final output to MT5
             event["magic"] = self.config.system.global_magic
             if event.get("t") == "DEC":
-                # Record intent and get internal ID
                 internal_id = await self.ledger.record_intent(
                     event["s"], event["act"], event["lts"], event["sl_p"], event["tp_p"]
                 )
@@ -201,19 +213,12 @@ class HiveOrchestrator:
 
         elif e_type == "TELEMETRY":
             telemetry_msg = {
-                "t": "TLM",
-                "s": event["symbol"],
-                "st": "OPTIMAL" if self.server.clients else "WAITING",
-                "scr": event["scr"],
-                "htf": event["htf"],
+                "t": "TLM", "s": event["symbol"], "st": "OPTIMAL" if self.server.clients else "WAITING",
+                "scr": event["scr"], "htf": event["htf"],
                 "dd": self.ipc.get_state("account_stats", {}).get("drawdown", 0.0),
                 "pc": self.ipc.get_state("account_stats", {}).get("pos_count", 0)
             }
             await self.server.broadcast(telemetry_msg)
-
-        elif e_type in ["RELIABILITY_REPORT", "VETO", "NEWS_VETO"]:
-            # Route to MetaBrain
-            self.ipc.xadd("stream:MetaBrain", event)
 
     def _update_system_stats(self):
         stats = {
@@ -225,7 +230,6 @@ class HiveOrchestrator:
             "server_time": time.time()
         }
         self.ipc.set_state("engine_stats", stats)
-        # Periodic update of active trades for dashboards
         asyncio.create_task(self._sync_trades_to_ipc())
 
     async def _sync_trades_to_ipc(self):
@@ -233,11 +237,10 @@ class HiveOrchestrator:
         self.ipc.set_state("active_trades", trades)
 
     async def broadcast_command(self, cmd: Dict[str, Any]):
-        """Publish command to all connected clients."""
         await self.server.broadcast(cmd)
 
-    def _spawn_brain_swarm(self):
-        """10015: Parallel process spawning with affinity locking."""
+    async def _spawn_brain_swarm(self):
+        """10015: Stabilized parallel process spawning."""
         swarm_classes = [
             (MarketDataBrain, "MarketData_1"),
             (TrendBrain, "Trend_1"),
@@ -263,23 +266,22 @@ class HiveOrchestrator:
             (MetaBrain, "MetaBrain")
         ]
 
-        # 10260: Pre-initialize ALL brain streams in the parent process
         for _, name in swarm_classes:
             self.ipc.create_stream(f"stream:{name}")
 
         affinity_map = self.hardware.get_optimized_affinity_map(len(swarm_classes))
 
         for i, (brain_cls, name) in enumerate(swarm_classes):
-            # Special handling for brains that support cpu_affinity in __init__
-            if name in ["MetaBrain", "Trend_1", "Indicator_1", "MarketData_1"]: # Expand this list as needed or fix BaseBrain
+            if name in ["MetaBrain", "Trend_1", "Indicator_1", "MarketData_1"]:
                  brain = brain_cls(name=name, ipc=self.ipc, cpu_affinity=affinity_map.get(i))
             else:
                  brain = brain_cls(name=name, ipc=self.ipc)
                  brain.cpu_affinity = affinity_map.get(i)
 
             self.registry.register(brain)
+            brain.start()
+            await asyncio.sleep(0.1)
 
-        self.registry.start_all()
         self.brains = list(self.registry._brains.values())
 
     def stop(self, *args):
