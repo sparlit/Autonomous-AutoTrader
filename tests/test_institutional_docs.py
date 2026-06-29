@@ -10,7 +10,7 @@ class TestInstitutionalDocs(unittest.TestCase):
         self.architecture = self.root / "FINAL_ARCHITECTURE.md"
 
     def test_version_consistency(self):
-        version = "V2.3.0-ASCENDANT"
+        version = "V3.3.0"
         for doc in [self.readme, self.project, self.roadmap, self.architecture]:
             content = doc.read_text(encoding="utf-8")
             self.assertIn(version, content, f"Version {version} missing in {doc.name}")
