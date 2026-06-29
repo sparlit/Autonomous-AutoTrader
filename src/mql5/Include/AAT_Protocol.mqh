@@ -79,7 +79,7 @@ public:
          while(e < StringLen(j)) {
             e = StringFind(j, "\"", e);
             if(e < 0) break;
-            if(StringGetCharacter(j, e-1) != '\') break;
+            if(StringGetCharacter(j, e-1) != 92) break;
             e++;
          }
       }
