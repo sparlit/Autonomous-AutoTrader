@@ -17,6 +17,7 @@ from src.python.bridge.server import BridgeServer
 from src.python.hive.config import AATConfig, load_config
 from src.python.analyst.price_action import SMCAnalyst
 from src.python.brains.registry import BrainRegistry
+from src.python.hive.hardware_analyst import HardwareAnalyst
 
 # Strategy Brains
 from src.python.brains.strategies.swing_master import SwingMaster
@@ -51,6 +52,7 @@ class HiveOrchestrator:
         self.credentials = credentials
         self.ipc = HiveIPC()
         self.registry = BrainRegistry()
+        self.hardware = HardwareAnalyst(self.config.system.database_path)
 
         # Core Components
         self.server = BridgeServer(self.config.bridge.host, self.config.bridge.port, self.handle_client_message)
@@ -66,6 +68,7 @@ class HiveOrchestrator:
     async def run(self):
         """10002: Orchestration Entry Point."""
         logger.info("Initializing Phoenix Gauntlet V3.3.0...")
+        self.hardware.log_capabilities()
 
         # 1. Database and Shared Memory
         await self.ledger.init_db()
@@ -85,8 +88,20 @@ class HiveOrchestrator:
 
         logger.info("AAT V3.3.0 Fully Operational.")
 
+        # Pin orchestrator to Core 1 if available
+        self._setup_affinity()
+
         # 5. Main Orchestration Loop
         await self._orchestration_loop()
+
+    def _setup_affinity(self):
+        try:
+            p = psutil.Process(os.getpid())
+            if psutil.cpu_count() > 1:
+                p.cpu_affinity([1])
+                logger.info("Orchestrator pinned to CPU 1")
+        except Exception as e:
+            logger.debug(f"Orchestrator affinity fail: {e}")
 
     async def handle_client_message(self, client_id: str, message: Dict[str, Any]) -> Dict[str, Any]:
         """10010: Inbound message router for MT5 Clients."""
@@ -223,7 +238,7 @@ class HiveOrchestrator:
 
     def _spawn_brain_swarm(self):
         """10015: Parallel process spawning with affinity locking."""
-        swarm = [
+        swarm_classes = [
             (MarketDataBrain, "MarketData_1"),
             (TrendBrain, "Trend_1"),
             (IndicatorBrain, "Indicator_1"),
@@ -249,13 +264,19 @@ class HiveOrchestrator:
         ]
 
         # 10260: Pre-initialize ALL brain streams in the parent process
-        # This prevents the 'missing stream' crash in child processes
-        for _, name in swarm:
+        for _, name in swarm_classes:
             self.ipc.create_stream(f"stream:{name}")
 
-        for i, (brain_cls, name) in enumerate(swarm):
-            cpu_cores = [i % psutil.cpu_count()]
-            brain = brain_cls(name=name, ipc=self.ipc)
+        affinity_map = self.hardware.get_optimized_affinity_map(len(swarm_classes))
+
+        for i, (brain_cls, name) in enumerate(swarm_classes):
+            # Special handling for brains that support cpu_affinity in __init__
+            if name in ["MetaBrain", "Trend_1", "Indicator_1", "MarketData_1"]: # Expand this list as needed or fix BaseBrain
+                 brain = brain_cls(name=name, ipc=self.ipc, cpu_affinity=affinity_map.get(i))
+            else:
+                 brain = brain_cls(name=name, ipc=self.ipc)
+                 brain.cpu_affinity = affinity_map.get(i)
+
             self.registry.register(brain)
 
         self.registry.start_all()
