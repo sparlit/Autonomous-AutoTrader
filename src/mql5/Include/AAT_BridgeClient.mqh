@@ -16,7 +16,7 @@ class CAATBridgeClient
 {
 private:
    CAATNativeSocket m_s; CTrade m_t; CAATDashboard m_d;
-   string m_h; int m_p; uint m_l_hb, m_l_dp, m_l_pr, m_l_tk;
+   string m_h; int m_p; uint m_l_hb, m_l_dp, m_l_tk; double m_l_pr;
    double m_p_th; bool m_syn, m_fs, m_u_d, m_d_created;
    ENUM_AAT_ROLE m_role; long m_magic;
    long m_seq_tx, m_seq_rx;
