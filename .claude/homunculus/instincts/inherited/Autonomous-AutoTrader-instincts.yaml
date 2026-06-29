@@ -1,0 +1,298 @@
+# Instincts generated from https://github.com/sparlit/Autonomous-AutoTrader
+# Generated: 2026-06-29T23:39:22.273Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: Autonomous-AutoTrader-commit-conventional
+trigger: "when writing a commit message"
+confidence: 0.85
+domain: git
+source: repo-analysis
+source_repo: https://github.com/sparlit/Autonomous-AutoTrader
+---
+
+# Autonomous AutoTrader Commit Conventional
+
+## Action
+
+Use conventional commit format with prefixes: feat
+
+## Evidence
+
+- 1 commits analyzed
+- Detected conventional commit pattern
+- Examples: feat: merge branches into main, stabilize V3.3.0 architecture, and fix MQL5 errors
+
+---
+id: Autonomous-AutoTrader-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/sparlit/Autonomous-AutoTrader
+---
+
+# Autonomous AutoTrader Commit Length
+
+## Action
+
+Write moderate-length commit messages (~82 characters)
+
+## Evidence
+
+- Average commit message length: 82 chars
+- Based on 1 commits
+
+---
+id: Autonomous-AutoTrader-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/sparlit/Autonomous-AutoTrader
+---
+
+# Autonomous AutoTrader Naming Files
+
+## Action
+
+Use snake_case naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: snake_case
+
+---
+id: Autonomous-AutoTrader-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/sparlit/Autonomous-AutoTrader
+---
+
+# Autonomous AutoTrader Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: Autonomous-AutoTrader-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/sparlit/Autonomous-AutoTrader
+---
+
+# Autonomous AutoTrader Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: Autonomous-AutoTrader-test-naming
+trigger: "when creating a test file"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/sparlit/Autonomous-AutoTrader
+---
+
+# Autonomous AutoTrader Test Naming
+
+## Action
+
+Name test files using the pattern: *.test.ts
+
+## Evidence
+
+- File pattern: *.test.ts
+- Consistent across test files
+
+---
+id: autonomous-autotrader-instinct-file-naming
+trigger: "When creating a new Python file"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: sparlit/Autonomous-AutoTrader
+---
+
+# Autonomous Autotrader Instinct File Naming
+
+## Action
+
+Name the file using snake_case
+
+## Evidence
+
+- Pattern in files: Python files use snake_case
+
+---
+id: autonomous-autotrader-instinct-function-naming
+trigger: "When defining a new Python function"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: sparlit/Autonomous-AutoTrader
+---
+
+# Autonomous Autotrader Instinct Function Naming
+
+## Action
+
+Name the function using camelCase
+
+## Evidence
+
+- Pattern in files: functions use camelCase
+
+---
+id: autonomous-autotrader-instinct-class-naming
+trigger: "When defining a new Python class"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: sparlit/Autonomous-AutoTrader
+---
+
+# Autonomous Autotrader Instinct Class Naming
+
+## Action
+
+Name the class using PascalCase
+
+## Evidence
+
+- Pattern in files: classes use PascalCase
+
+---
+id: autonomous-autotrader-instinct-constant-naming
+trigger: "When defining a constant in Python"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: sparlit/Autonomous-AutoTrader
+---
+
+# Autonomous Autotrader Instinct Constant Naming
+
+## Action
+
+Name the constant using SCREAMING_SNAKE_CASE
+
+## Evidence
+
+- Pattern in files: constants use SCREAMING_SNAKE_CASE
+
+---
+id: autonomous-autotrader-instinct-import-style
+trigger: "When importing modules in Python"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: sparlit/Autonomous-AutoTrader
+---
+
+# Autonomous Autotrader Instinct Import Style
+
+## Action
+
+Use relative imports
+
+## Evidence
+
+- Pattern in files: imports are relative
+
+---
+id: autonomous-autotrader-instinct-export-style
+trigger: "When exporting functions or classes in Python"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: sparlit/Autonomous-AutoTrader
+---
+
+# Autonomous Autotrader Instinct Export Style
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- Pattern in files: named exports observed
+
+---
+id: autonomous-autotrader-instinct-test-file-pattern
+trigger: "When creating a new test file"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: sparlit/Autonomous-AutoTrader
+---
+
+# Autonomous Autotrader Instinct Test File Pattern
+
+## Action
+
+Name the file with the pattern *.test.ts
+
+## Evidence
+
+- Pattern in files: test files use *.test.ts
+
+---
+id: autonomous-autotrader-instinct-test-type
+trigger: "When writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: sparlit/Autonomous-AutoTrader
+---
+
+# Autonomous Autotrader Instinct Test Type
+
+## Action
+
+Write unit tests
+
+## Evidence
+
+- Pattern in files: testTypes include unit
+
+---
+id: autonomous-autotrader-instinct-commit-format
+trigger: "When making a git commit"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: sparlit/Autonomous-AutoTrader
+---
+
+# Autonomous Autotrader Instinct Commit Format
+
+## Action
+
+Use the conventional commit format with 'feat' as the prefix for new features
+
+## Evidence
+
+- Seen in commit: 'feat: merge branches into main, stabilize V3.3.0 architecture, and fix MQL5 errors'
+
