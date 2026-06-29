@@ -1,6 +1,6 @@
 #property copyright "Copyright 2024, Jules (God Mode)"
 #property link      "https://github.com/sparlit/Autonomous-AutoTrader"
-#property version   "3.00"
+#property version   "3.30"
 #property strict
 #include <AAT_BridgeClient.mqh>
 
@@ -20,3 +20,7 @@ int OnInit() {
 void OnDeinit(const int reason) { EventKillTimer(); }
 void OnTick() { bridge.PerformUpdate(); }
 void OnTimer() { bridge.PerformUpdate(); }
+
+void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam) {
+   bridge.OnChartEvent(id, lparam, dparam, sparam);
+}
