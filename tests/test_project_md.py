@@ -1,7 +1,7 @@
 """
-Tests for PROJECT.md — V2.3.0-ASCENDANT (Pragmatic Realignment)
+Tests for PROJECT.md — V3.3.0 (Pragmatic Realignment)
 
-These tests validate the structural and content changes introduced in the V2.3.0-ASCENDANT
+These tests validate the structural and content changes introduced in the V3.3.0
 revision of PROJECT.md.
 """
 
@@ -23,10 +23,10 @@ class TestVersionBump(unittest.TestCase):
         self.content = _read_md()
 
     def test_title_contains_v1_9_0(self):
-        self.assertIn("Version**: V2.3.0-ASCENDANT", self.content)
+        self.assertIn("Version**: V3.3.0", self.content)
 
     def test_operational_mode_is_v1_9_0(self):
-        self.assertIn("Version**: V2.3.0-ASCENDANT", self.content)
+        self.assertIn("Version**: V3.3.0", self.content)
 
 
 class TestInstitutionalRealityAuditSection(unittest.TestCase):
@@ -195,7 +195,7 @@ class TestCoreValuesSection(unittest.TestCase):
         self.values_block = match.group(0) if match else ""
 
     def test_core_values_section_exists(self):
-        self.assertIn("Core Values (V2.3.0-ASCENDANT - Zero-Tolerance)", self.content)
+        self.assertIn("Core Values (V3.3.0 - Zero-Tolerance)", self.content)
 
     def test_sovereignty_value_present(self):
         self.assertIn("Sovereignty", self.values_block)
