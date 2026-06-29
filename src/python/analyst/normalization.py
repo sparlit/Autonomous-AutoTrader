@@ -1,45 +1,42 @@
-import logging
-from typing import Dict, Any, Optional
-
-logger = logging.getLogger("AAT_Normalization")
+import re
+from typing import Dict, Any, List, Optional
 
 class AssetNormalizationLayer:
     """
-    14001: Institutional Asset Normalization Layer.
-    Handles precision, tick values, and lot-size scaling across Forex, Metal, Crypto, and Stocks.
+    11001: Institutional Asset Normalization.
+    Handles broker-specific suffixes (e.g., EURUSD.pro, BTCUSD.m).
+    Maps symbols to asset classes (Forex, Crypto, Metal, Stock).
     """
-
     def __init__(self):
-        # Default mappings for non-standard assets
-        self.asset_configs = {
-            "BTCUSD": {"type": "CRYPTO", "precision": 2, "min_lot": 0.01},
-            "ETHUSD": {"type": "CRYPTO", "precision": 2, "min_lot": 0.1},
-            "XAUUSD": {"type": "METAL", "precision": 2, "min_lot": 0.01},
-            "WTI": {"type": "COMMODITY", "precision": 2, "min_lot": 0.1},
+        self.asset_map = {
+            "XAU": "METAL", "XAG": "METAL", "XPT": "METAL",
+            "BTC": "CRYPTO", "ETH": "CRYPTO", "SOL": "CRYPTO",
+            "USOil": "COMMODITY", "UKOil": "COMMODITY"
         }
 
-    def normalize_symbol(self, raw_symbol: str) -> str:
-        """14002: Universal Symbol Arbiter - Strips broker suffixes."""
-        # Institutional Regex would go here, for now ruthless stripping
-        import re
-        # Strip trailing non-alphanumeric except common ones
-        clean = re.sub(r'[^a-zA-Z0-9]+$', '', raw_symbol)
-        # Handle specific common broker suffixes like .pro, .ecn, .m
-        for suffix in ['.pro', '.ecn', '.m', '.x', '_']:
-            if clean.endswith(suffix):
-                clean = clean[:-len(suffix)]
+    def normalize(self, raw_symbol: str) -> str:
+        """Strip broker suffixes. Logic: 11002"""
+        # Strip common suffixes like .pro, .m, .x, _i
+        clean = re.sub(r'(\.pro|\.m|\.x|_i|\.ecn)$', '', raw_symbol, flags=re.IGNORECASE)
         return clean.upper()
 
-    def get_contract_value(self, symbol: str, bid: float) -> float:
-        """14003: Calculate notional value of 1.0 lot."""
-        # In MetaTrader, SYMBOL_TRADE_TICK_VALUE is provided, but we verify here
-        sym = self.normalize_symbol(symbol)
-        if "BTC" in sym: return bid # 1 BTC
-        if "XAU" in sym: return bid * 100 # 100 oz
-        return 100000.0 # Default Forex Lot 100k
+    def get_asset_class(self, symbol: str) -> str:
+        """Identify asset class for risk weighting. Logic: 11003"""
+        clean = self.normalize(symbol)
 
-    def scale_lots(self, symbol: str, raw_lots: float) -> float:
-        """14004: Ensure lot size meets asset-specific minimums."""
-        sym = self.normalize_symbol(symbol)
-        config = self.asset_configs.get(sym, {"min_lot": 0.01})
-        return max(raw_lots, config["min_lot"])
+        # Check prefix mapping
+        for prefix, a_class in self.asset_map.items():
+            if clean.startswith(prefix): return a_class
+
+        # Default heuristics
+        if len(clean) == 6 and clean.isalpha(): return "FOREX"
+        if len(clean) >= 3 and any(c.isdigit() for c in clean): return "CRYPTO"
+
+        return "STOCK"
+
+    def calculate_lot_step(self, symbol: str) -> float:
+        """11005: Deterministic lot step based on asset class."""
+        a_class = self.get_asset_class(symbol)
+        if a_class == "CRYPTO": return 0.01
+        if a_class == "FOREX": return 0.01
+        return 0.1

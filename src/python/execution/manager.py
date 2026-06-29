@@ -8,7 +8,6 @@ logger = logging.getLogger("AAT_PositionManager")
 class PositionManager:
     """10500: Institutional Position Lifecycle Management."""
     def __init__(self, ledger: TradeLedger, risk_manager: RiskManager):
-        """10501: Initialize PositionManager."""
         self.ledger = ledger
         self.risk_manager = risk_manager
 

@@ -8,15 +8,14 @@ class ScalpMaster(BaseBrain):
     """
     M1 SMC Scalping Strategy.
     Logic: Liquidity Sweep + Reversal Candle.
-    Magic: 20008
+    Magic: 20401
     """
     def __init__(self, name: str, ipc: Any = None):
         super().__init__(name, ipc=ipc)
         self.smc = SMCAnalyst()
-        self.magic = 20008
+        self.magic = 20401
 
     async def process(self, data: dict) -> Optional[SignalPayload]:
-        """Method Logic. Magic: 20402"""
         history = data.get("history", [])
         if not history or len(history) < 30: return None
 

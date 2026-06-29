@@ -6,10 +6,10 @@ from src.python.brains.base import BaseBrain, SignalPayload
 class TurtleBreakout(BaseBrain):
     def __init__(self, name: str, ipc: Any = None):
         super().__init__(name, ipc=ipc)
-        self.magic = 20011
+        self.magic = 20005
 
     async def process(self, data: dict) -> Optional[SignalPayload]:
-        """Magic: 20011"""
+        """Magic: 2005"""
         history = data.get("history", [])
         if not history or len(history) < 21: return None
 

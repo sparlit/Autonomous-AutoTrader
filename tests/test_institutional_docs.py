@@ -22,7 +22,7 @@ class TestInstitutionalDocs(unittest.TestCase):
             self.assertIn(term, content, f"{term} missing in {doc.name}")
 
     def test_rust_kernel_mentions(self):
-        kernels = ["Hardware Optimized", "aat_rust_core", "aat_rust"]
+        kernels = ["aat_heavy", "aat_rust_core", "aat_rust"]
         content = self.readme.read_text(encoding="utf-8")
         for kernel in kernels:
             self.assertIn(kernel, content, f"Kernel {kernel} missing in README.md")

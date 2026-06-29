@@ -5,13 +5,12 @@ from typing import Optional
 from src.python.brains.base import BaseBrain, SignalPayload
 
 class ICTKillzone(BaseBrain):
-    """Magic: 20006"""
     def __init__(self, name: str, ipc: Any = None):
         super().__init__(name, ipc=ipc)
-        self.magic = 20006
+        self.magic = 20004
 
     async def process(self, data: dict) -> Optional[SignalPayload]:
-        """Method Logic. Magic: 20502"""
+        """Magic: 2004"""
         history = data.get("history", [])
         if not history or len(history) < 20: return None
 

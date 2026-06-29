@@ -75,7 +75,7 @@ class TestRiskAssessmentTable(unittest.TestCase):
 
     def test_team_burnout_mitigation(self):
         self.assertIn("Team Burnout", self.risk_block)
-        self.assertIn("Multi-core Redundancy", self.risk_block)
+        self.assertIn("8-person redundancy", self.risk_block)
 
 
 class TestSectionStructure(unittest.TestCase):
@@ -170,7 +170,7 @@ class TestTeamSection(unittest.TestCase):
         self.team_block = match.group(0) if match else ""
 
     def test_team_section_exists(self):
-        self.assertIn("Project Identity", self.content)
+        self.assertIn("Minimum Viable Team (8 People)", self.content)
 
     def test_backend_kernel_engineers_title(self):
         self.assertIn("Backend/Kernel Engineers", self.team_block)

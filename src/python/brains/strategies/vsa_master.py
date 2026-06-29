@@ -1,44 +1,39 @@
-import pandas as pd
 from typing import Any, Optional
 from src.python.brains.base import BaseBrain, SignalPayload
-from src.python.analyst.volatility import VolatilityAnalyst
+import pandas as pd
 
 class VSAMaster(BaseBrain):
     """
-    10204: Volume Spread Analysis (VSA) Strategy.
-    Logic: Effort vs Result, Stopping Volume, No Demand.
-    Magic: 20012
+    Volume Spread Analysis (VSA) Strategy.
+    Logic: Effort vs Result, Stopping Volume.
+    Magic: 20501
     """
     def __init__(self, name: str, ipc: Any = None):
         super().__init__(name, ipc=ipc)
-        self.vol_analyst = VolatilityAnalyst()
-        self.magic = 20012
+        self.magic = 20501
 
     async def process(self, data: dict) -> Optional[SignalPayload]:
-        """Method Logic. Magic: 20802"""
         history = data.get("history", [])
-        if len(history) < 20: return None
-        df = pd.DataFrame(history)
-        if isinstance(history[0], list): df.columns = ["o", "h", "l", "c", "t", "v"]
+        if not history or len(history) < 20: return None
 
-        vsa = self.vol_analyst.analyze_vsa(df)
+        df = pd.DataFrame(history)
+        last_v = df['v'].iloc[-1]; prev_v = df['v'].iloc[-2]
+        spread = df['h'].iloc[-1] - df['l'].iloc[-1]
+
+        avg_v = df['v'].rolling(20).mean().iloc[-1]
 
         direction = 0
-        confidence = 0.0
-
-        if vsa["effort"] == "HIGH" and vsa["result"] == "STRONG":
-            direction = 1 if df['c'].iloc[-1] > df['o'].iloc[-1] else -1
-            confidence = 0.7
-        elif vsa["anomaly"] == "ABSORPTION":
-            # Reversal potential
-            direction = -1 if df['c'].iloc[-1] > df['o'].iloc[-1] else 1
-            confidence = 0.65
+        if last_v > 2 * avg_v and spread < (df['h'] - df['l']).rolling(20).mean().iloc[-1]:
+            # Stopping volume - possible reversal
+            close = df['c'].iloc[-1]; low = df['l'].iloc[-1]; high = df['h'].iloc[-1]
+            if close > (low + high)/2: direction = 1
+            else: direction = -1
 
         return SignalPayload(
             symbol=data.get("s", "UNKNOWN"),
             timeframe=data.get("tf", 0),
             direction=direction,
-            confidence=confidence,
+            confidence=0.65 if direction != 0 else 0.0,
             strategy_name=self.name,
             magic=self.magic
         )

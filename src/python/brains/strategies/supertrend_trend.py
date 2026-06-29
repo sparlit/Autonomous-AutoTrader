@@ -11,10 +11,10 @@ class SupertrendTrend(BaseBrain):
     """
     def __init__(self, name: str, ipc: Any = None):
         super().__init__(name, ipc=ipc)
-        self.magic = 20009
+        self.magic = 20007
 
     async def process(self, data: dict) -> Optional[SignalPayload]:
-        """Magic: 20009"""
+        """Magic: 2007"""
         history = data.get("history", [])
         if not history or len(history) < 15: return None
 

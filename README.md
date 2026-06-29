@@ -11,7 +11,7 @@ AAT V3.3.0 is a high-performance, autonomous trading hive engineered for MetaTra
 - **Hardware Optimized**: Specifically tuned for Intel i7 14-core / 20-thread architectures.
 
 ## 🛠️ Quick Start
-1. **Setup**: Run `python setup_aat.py` to install dependencies and compile Rust kernels (`aat_rust_core`, `aat_rust`).
+1. **Setup**: Run `python setup_aat.py` to install dependencies and compile Rust kernels (`aat_heavy`, `aat_rust_core`, `aat_rust`).
 2. **Configure**: Use `scripts/set_creds.py` to store broker credentials.
 3. **Launch**: Execute `python run_aat.py` from the root.
 4. **MT5**: Attach `AAT_DataCollector.mq5` to M1 charts.

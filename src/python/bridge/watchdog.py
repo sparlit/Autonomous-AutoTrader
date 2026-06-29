@@ -1,34 +1,47 @@
 import asyncio
 import logging
 import time
-from typing import Dict, Any
+from typing import Dict, Any, List
 
-logger = logging.getLogger("AAT_Watchdog")
+logger = logging.getLogger("AAT_L99_Watchdog")
 
-class SystemWatchdog:
-    """14001: Independent connectivity and health monitor."""
-    def __init__(self, agent_states: Dict[str, Dict[str, Any]], timeout: float = 30.0):
-        self.agent_states = agent_states
+class L99Watchdog:
+    """
+    14901: L99 Hardened Watchdog.
+    Implements bidirectional heartbeats and emergency safety protocols.
+    """
+    def __init__(self, orchestrator: Any, timeout: float = 15.0):
+        self.orchestrator = orchestrator
         self.timeout = timeout
         self.running = False
+        self.last_mt5_heartbeat = time.time()
+        self.emergency_triggered = False
 
     async def run(self):
-        """14002: Watchdog execution loop."""
+        """14902: Monitor MT5-Python link integrity."""
         self.running = True
-        logger.info("Watchdog started.")
+        logger.info("L99 Watchdog Active (Zero-Tolerance Mode)")
         while self.running:
             now = time.time()
-            stale_clients = []
-            for client_id, state in self.agent_states.items():
-                if now - state.get("last_seen", 0) > self.timeout:
-                    logger.warning(f"Client {client_id} ({state.get('symbol')}) is STALE.")
-                    stale_clients.append(client_id)
+            if now - self.last_mt5_heartbeat > self.timeout:
+                if not self.emergency_triggered:
+                    await self._trigger_emergency_flatten()
 
-            for cid in stale_clients:
-                self.agent_states.pop(cid, None)
+            await asyncio.sleep(1.0)
 
-            await asyncio.sleep(10.0)
+    def heartbeat(self):
+        """Record pulse from MT5."""
+        self.last_mt5_heartbeat = time.time()
+        if self.emergency_triggered:
+            logger.info("L99 Link Restored. Resetting safety state.")
+            self.emergency_triggered = False
+
+    async def _trigger_emergency_flatten(self):
+        """14905: Emergency Protocol - Close all positions if link drops."""
+        logger.critical("L99 LINK FAILURE: MT5 Connection Lost. Triggering EMERGENCY FLATTEN.")
+        self.emergency_triggered = True
+        # Logic to send CLOSE_ALL command via bridge if possible, or log for local failsafe
+        await self.orchestrator.broadcast_command({"mgmt": "CLOSE_ALL", "reason": "L99_LINK_FAILURE"})
 
     def stop(self):
-        """14003: Graceful watchdog termination."""
         self.running = False

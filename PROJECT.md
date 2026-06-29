@@ -19,7 +19,7 @@ The system uses a parallel swarm of 13 independent OS processes.
 - **Layer 1**: Monte Carlo simulation validation.
 - **Layer 2**: Conflict resolution (Higher precedence always wins).
 
-## 👥 10. Minimum Viable Team
+## 👥 10. Minimum Viable Team (8 People)
 ### Backend/Kernel Engineers
 ### DevOps/SRE
 ### QA/SDET
@@ -32,7 +32,7 @@ V3.3.0 Integration.
 | :--- | :--- | :--- |
 | **Connectivity Loss** | High | L99 Emergency Flattening Protocol |
 | **Model Drift** | Medium | Bayesian Reliability Recalibration |
-| **Team Burnout** | Medium | Multi-core Redundancy |
+| **Team Burnout** | Medium | 8-person redundancy |
 
 ## 📜 13. Appendices
 - **Zero-Tolerance Standard**: No stubs.

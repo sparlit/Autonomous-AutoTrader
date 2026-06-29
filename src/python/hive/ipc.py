@@ -77,7 +77,7 @@ class HiveIPC:
                     q.get_nowait()
                     q.put_nowait(wrapped)
                 except (queue.Empty, queue.Full):
-                    logger.warning(f"Queue {stream} dropped overflow packet.")
+                    logger.debug("IPC queue maintenance: dropping oldest item")
         except Exception as e:
             logger.error(f"IPC XADD Critical Fail on {stream}: {e}")
 
