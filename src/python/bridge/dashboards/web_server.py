@@ -21,8 +21,6 @@ def to_dict(obj):
     else:
         return obj
 
-logger = logging.getLogger("AAT_WebDashboard")
-
 class WebDashboard(Process):
     """10400: FastAPI Web Terminal for remote telemetry."""
     def __init__(self, ipc: Any = None, port: int = 8009):
@@ -33,6 +31,9 @@ class WebDashboard(Process):
     def run(self):
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - WebDash - %(levelname)s - %(message)s')
         app = FastAPI()
+
+        # 10405: Mount static assets for the React SPA
+        static_dir = os.path.join(os.path.dirname(__file__), "static")
 
         @app.websocket("/ws")
         async def websocket_endpoint(websocket: WebSocket):
@@ -59,18 +60,25 @@ class WebDashboard(Process):
 
         @app.get("/")
         async def get_index():
-            path = os.path.join(os.path.dirname(__file__), "static/index.html")
+            path = os.path.join(static_dir, "index.html")
             return FileResponse(path)
 
         @app.get("/health")
         async def health():
             return {"status": "ok", "m_id": 10403}
 
-        # 10405: Mount static assets for the React SPA
-        static_dir = os.path.join(os.path.dirname(__file__), "static")
+        # Mount assets and favicon
         assets_dir = os.path.join(static_dir, "assets")
         if os.path.exists(assets_dir):
             app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+        # Route for favicon and icons
+        @app.get("/{file_name}")
+        async def get_static_file(file_name: str):
+            file_path = os.path.join(static_dir, file_name)
+            if os.path.exists(file_path):
+                return FileResponse(file_path)
+            return {"error": "Not Found"}
 
         logger.info(f"Starting Web Dashboard on port {self.port}")
         uvicorn.run(app, host="0.0.0.0", port=self.port, log_level="warning")

@@ -83,19 +83,20 @@ void CAATDashboard::Render(string symbol, string status, double score, string ht
    int y = 60;
    DrawSection(20, y, "SYMBOL", symbol + " [" + EnumToString(_Period) + "]", m_clr_text); y += 35;
 
-   double spread = (SymbolInfoDouble(symbol, SYMBOL_ASK) - SymbolInfoDouble(symbol, SYMBOL_BID)) / SymbolInfoDouble(symbol, SYMBOL_POINT);
+   double spread = (SymbolInfoDouble(symbol, SYMBOL_ASK) - SymbolInfoDouble(symbol, SYMBOL_BID)) / (SymbolInfoDouble(symbol, SYMBOL_POINT) > 0 ? SymbolInfoDouble(symbol, SYMBOL_POINT) : 1);
    DrawSection(20, y, "SPREAD", DoubleToString(spread, 1) + " pts", (spread > 20 ? m_clr_neon_red : m_clr_text)); y += 35;
 
    datetime candle_end = (datetime)SeriesInfoInteger(symbol, _Period, SERIES_LASTBAR_DATE) + PeriodSeconds(_Period);
    long remaining = candle_end - TimeCurrent();
+   if(remaining < 0) remaining = 0;
    string timer = StringFormat("%02d:%02d", remaining / 60, remaining % 60);
    DrawSection(20, y, "CANDLE", timer, clrCyan); y += 35;
 
    m_canvas.Line(10, y, m_width-10, y, ColorToARGB(m_clr_header)); y += 20;
 
-   color signal_clr = (score > 0) ? m_clr_neon_green : (score < 0 ? m_clr_neon_red : m_clr_text);
-   DrawSection(20, y, "SIGNAL", (score > 0 ? "BULLISH BIAS" : (score < 0 ? "BEARISH BIAS" : "NEUTRAL")), signal_clr); y += 35;
-   DrawSection(20, y, "POSTERIOR", DoubleToString(MathAbs(score), 2), signal_clr); y += 35;
+   color signal_clr = (score > 0.5) ? m_clr_neon_green : (score < -0.5 ? m_clr_neon_red : m_clr_text);
+   DrawSection(20, y, "SIGNAL", (score > 0.5 ? "BULLISH BIAS" : (score < -0.5 ? "BEARISH BIAS" : "NEUTRAL")), signal_clr); y += 35;
+   DrawSection(20, y, "CONFIDENCE", DoubleToString(MathAbs(score), 2), signal_clr); y += 35;
    color htf_clr = (htf_trend == "BULLISH") ? m_clr_neon_green : (htf_trend == "BEARISH" ? m_clr_neon_red : m_clr_text);
    DrawSection(20, y, "HTF ALIGN", htf_trend, htf_clr); y += 35;
 
@@ -158,8 +159,9 @@ void CAATDashboard::DrawEquityCurve(int x, int y, int w, int h)
 {
    m_canvas.Rectangle(x, y, x + w, y + h, ColorToARGB(m_clr_header));
    double min_e = m_equity_history[0], max_e = m_equity_history[0];
-   for(int i=0; i<100; i++) { if(m_equity_history[i]>0) { min_e = MathMin(min_e, m_equity_history[i]); max_e = MathMax(max_e, m_equity_history[i]); } }
-   if(max_e == min_e) return;
+   bool has_data = false;
+   for(int i=0; i<100; i++) { if(m_equity_history[i]>0) { if(!has_data) { min_e = m_equity_history[i]; max_e = m_equity_history[i]; has_data=true;} else { min_e = MathMin(min_e, m_equity_history[i]); max_e = MathMax(max_e, m_equity_history[i]); } } }
+   if(!has_data || max_e == min_e) return;
 
    int last_px = -1, last_py = -1;
    for(int i=0; i<100; i++) {
@@ -181,7 +183,7 @@ void CAATDashboard::DrawButton(Rect &r, string text, color bg)
 
 string CAATDashboard::OnClick(int x, int y)
 {
-   // Offset from chart corner (10, 30) - see Create()
+   // Offset from chart corner (10, 30)
    int ox = x - 10, oy = y - 30;
    if(ox >= m_btn_panic.x1 && ox <= m_btn_panic.x2 && oy >= m_btn_panic.y1 && oy <= m_btn_panic.y2) return "PANIC";
    if(ox >= m_btn_pause.x1 && ox <= m_btn_pause.x2 && oy >= m_btn_pause.y1 && oy <= m_btn_pause.y2) { m_paused = !m_paused; return "PAUSE"; }

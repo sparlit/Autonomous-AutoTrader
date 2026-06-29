@@ -18,9 +18,10 @@ public:
    }
 
    static string BuildDATA_PUSH(string s, ENUM_TIMEFRAMES tf, int c, long seq) {
-      string h_ltf = BuildH(s, tf, c);
-      string h_h1 = BuildH(s, PERIOD_H1, 50);
-      string h_h4 = BuildH(s, PERIOD_H4, 30);
+      // 10300: Optimized Data Volume - 30 bars LTF, 30 bars H1, 20 bars H4
+      string h_ltf = BuildH(s, tf, 30);
+      string h_h1 = BuildH(s, PERIOD_H1, 30);
+      string h_h4 = BuildH(s, PERIOD_H4, 20);
       double pt = SymbolInfoDouble(s, SYMBOL_POINT);
       double spread = (pt > 0) ? (SymbolInfoDouble(s, SYMBOL_ASK) - SymbolInfoDouble(s, SYMBOL_BID)) / pt : 0;
 
@@ -67,7 +68,6 @@ public:
       string s = "\"" + k + "\":"; int p = StringFind(j, s); if(p<0) return "";
       int st = p + StringLen(s); if(st >= StringLen(j)) return "";
 
-      // Skip whitespace
       ushort fc = StringGetCharacter(j, st);
       while(st < StringLen(j)-1 && (fc == ' ' || fc == '\t' || fc == '\r' || fc == '\n' || fc == ':')) {
          st++; fc = StringGetCharacter(j, st);
@@ -79,7 +79,7 @@ public:
          while(e < StringLen(j)) {
             e = StringFind(j, "\"", e);
             if(e < 0) break;
-            if(StringGetCharacter(j, e-1) != '\\') break; // Handle escaped quotes
+            if(StringGetCharacter(j, e-1) != '\') break;
             e++;
          }
       }
@@ -97,7 +97,7 @@ public:
 
       if(e<0) return "";
       string v = StringSubstr(j, st, e-st);
-      return StringTrimLeft(StringTrimRight(v));
+      StringTrimRight(v); StringTrimLeft(v); return v;
    }
 
 private:
