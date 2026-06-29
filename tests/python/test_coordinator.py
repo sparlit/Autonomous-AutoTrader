@@ -14,7 +14,7 @@ async def test_orchestrator_initialization():
     assert orchestrator.pos_manager is not None
 
 @pytest.mark.asyncio
-async def test_bridge_handling():
+async def test_brain_swarm_spawn():
     orchestrator = HiveOrchestrator()
     # Mock some expected state
     orchestrator.ipc.create_stream("stream:MarketData_1")
