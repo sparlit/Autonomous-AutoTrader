@@ -11,7 +11,7 @@ class RSIMomentum(BaseBrain):
     def __init__(self, name: str, ipc: Any = None):
         super().__init__(name, ipc=ipc)
         self.analyst = IndicatorAnalyst()
-        self.magic = 2002
+        self.magic = 20002
 
     async def process(self, data: dict) -> Optional[SignalPayload]:
         history = data.get("history", [])
