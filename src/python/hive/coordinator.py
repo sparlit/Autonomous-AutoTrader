@@ -71,6 +71,9 @@ class HiveOrchestrator:
         await self.ledger.init_db()
         self.ipc.clear_memory()
 
+        # Pre-initialize MUST-HAVE streams
+        self.ipc.create_stream("stream:orchestrator")
+
         # 2. Start Brains
         self._spawn_brain_swarm()
 
@@ -166,7 +169,7 @@ class HiveOrchestrator:
                 await self.server.broadcast(order)
 
             # Fan out to all listening Brains
-            for stream in self.ipc._queues.keys():
+            for stream in list(self.ipc._queues.keys()):
                 if stream.startswith("stream:") and stream != "stream:orchestrator":
                     self.ipc.xadd(stream, event)
 
@@ -244,6 +247,11 @@ class HiveOrchestrator:
             (ICTKillzone, "ICTKillzone"),
             (MetaBrain, "MetaBrain")
         ]
+
+        # 10260: Pre-initialize ALL brain streams in the parent process
+        # This prevents the 'missing stream' crash in child processes
+        for _, name in swarm:
+            self.ipc.create_stream(f"stream:{name}")
 
         for i, (brain_cls, name) in enumerate(swarm):
             cpu_cores = [i % psutil.cpu_count()]
