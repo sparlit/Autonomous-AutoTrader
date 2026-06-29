@@ -1,34 +1,33 @@
 # 🌌 Project Autonomous AutoTrader (AAT)
 **Internal Code-Name**: Phoenix Gauntlet
-**Version**: V3.3.0 | **Status**: Production Ready (100% Zero-Tolerance)
+**Version**: V3.0-AUTONOMOUS (Institutional Pro)
 
-## 🏗️ 1. Project Identity & Vision
+## 📖 1. Project Identity & Vision
 AAT operates under a Zero-Tolerance Standard for stubs and placeholders.
 AAT is a high-probability, autonomous trading system engineered for MetaTrader 5, powered by a Python-based "Brain." It operates on the principle of **Defensive Alpha**: capital preservation is the primary objective; profit is a secondary outcome of discipline.
 
-### 💎 Core Values (V3.3.0 - Zero-Tolerance)
-- **Sovereignty**: 100% FOSS. Your data, your keys, your execution.
-- **Transparency**: No black boxes. Every decision is logged, audited, and verifiable.
-- **Performance**: Leveraging the best of Python and MT5 ecosystems.
+### 💎 Core Values (V3.0-AUTONOMOUS - Zero-Tolerance)
+- **Sovereignty:** 100% FOSS. Your data, your keys, your execution.
+- **Transparency:** No black boxes. Every decision is logged, audited, and verifiable.
+- **Python + MT5:** Leveraging the best of both ecosystems.
 
 ---
 
-## 🛠️ 2. System Overview
-The system is built as a microkernel with event-driven decoupling, utilizing a **Multi-Brain Bayesian Orchestrator** pinned to multi-core CPU processes.
+## 🛠️ 2. System Overview (V3.0 Evolution)
+The system is built as a microkernel with event-driven decoupling, utilizing a **Multi-Brain Bayesian Orchestrator** pinned to 23 logical CPU processes.
 
 ### 🧩 Components
-- **Python Hive (Coordinator)**: Global risk management and Bayesian evidence aggregation.
-- **Specialized Brains**: 23 isolated processes (Market Data, Trend, Liquidity, Momentum, Regime, Portfolio, etc.).
-- **Analyst Tier**: Vectorized SMC, VSA, Technical Indicator, and Volatility engines.
-- **MQL5 Agents**: Slim execution units with Sequence-Hardened protocol and Heartbeat failsafes.
-- **Institutional Core**: Rust-based parallel VaR and high-speed logic gates.
-- **Persistence**: SQLite (Audit Ledger) - optimized for local low-latency governance.
-- **Security**: AES-256-GCM Secure Gateway.
+- **Python Hive (Coordinator):** Global risk management and Bayesian evidence aggregation.
+- **Specialized Brains:** 23 isolated processes (Market Data, Trend, Liquidity, Momentum, Regime, Portfolio, etc.).
+- **Analyst Tier:** Vectorized SMC, VSA, Technical Indicator, and Volatility engines.
+- **MQL5 Agents:** Slim execution units with Sequence-Hardened protocol and Heartbeat failsafes.
+- **Institutional Core:** Rust-based parallel VaR and high-speed logic gates.
+- **Persistence:** SQLite (Audit Ledger) and Manager-backed IPC.
 
 ---
 
 ## 🧠 3. Quantitative Strategy (Confluence Engine)
-AAT V3.3 enforces a **3-of-4 Confluence Rule**:
+AAT V3.0 enforces a **3-of-4 Confluence Rule**:
 1. **Trend**: Multi-timeframe alignment (M1, M5, H1, H4).
 2. **Momentum**: MACD Histogram + ADX Strength confirmation.
 3. **Structure**: SMC Order Blocks, FVG, and Inducement validation.
@@ -46,20 +45,6 @@ Final entry requires a **Trigger Candle** (Engulfing/Pin Bar) confirmation on th
 5. **L5: News Risk** - 30-min blackout windows for NFP/FOMC.
 6. **L6: Position Lifecycle** - Partial TP @ 1R, Breakeven @ 1.5R, and Hybrid ATR-SMC Trailing Stops.
 7. **L7: Final Gate** - Bayesian Confidence Threshold (> 70%).
-
----
-
-## 🗺️ 5. Strategic Roadmap
-- **V3.3.0 Integration**: Finalize parallel swarm and Bayesian reliability recalibration.
-- **L99 Emergency**: Implementing bidirectional watchdog and emergency flattening protocol.
-
----
-
-## 📜 6. Risk Assessment
-| Risk | Impact | Mitigation |
-| :--- | :--- | :--- |
-| **Connectivity Loss** | High | L99 Emergency Flattening Protocol |
-| **Model Drift** | Medium | Bayesian Reliability Recalibration |
 
 ---
 

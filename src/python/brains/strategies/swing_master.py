@@ -70,8 +70,8 @@ class SwingMaster(BaseBrain):
         if RUST_AVAILABLE:
             if aat_rust.validate_swing_setup_fast(trend_h4, trend_d1, curr_rsi):
                 # Additional Python-side dynamic check
-                if trend_h4 == 1 and curr_rsi > upper_limit: pass
-                elif trend_h4 == -1 and curr_rsi < lower_limit: pass
+                if (trend_h4 == 1 and curr_rsi > upper_limit) or (trend_h4 == -1 and curr_rsi < lower_limit):
+                    direction = 0
                 else:
                     direction = trend_h4
                     confidence = 0.8

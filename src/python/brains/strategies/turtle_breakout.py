@@ -6,7 +6,7 @@ from src.python.brains.base import BaseBrain, SignalPayload
 class TurtleBreakout(BaseBrain):
     def __init__(self, name: str, ipc: Any = None):
         super().__init__(name, ipc=ipc)
-        self.magic = 2005
+        self.magic = 20005
 
     async def process(self, data: dict) -> Optional[SignalPayload]:
         """Magic: 2005"""

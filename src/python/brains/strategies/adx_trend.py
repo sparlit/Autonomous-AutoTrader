@@ -11,7 +11,7 @@ class ADXTrend(BaseBrain):
     def __init__(self, name: str, ipc: Any = None):
         super().__init__(name, ipc=ipc)
         self.analyst = IndicatorAnalyst()
-        self.magic = 2003
+        self.magic = 20003
 
     async def process(self, data: dict) -> Optional[SignalPayload]:
         history = data.get("history", [])

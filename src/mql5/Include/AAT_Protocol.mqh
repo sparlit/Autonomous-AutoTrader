@@ -97,7 +97,7 @@ public:
 
       if(e<0) return "";
       string v = StringSubstr(j, st, e-st);
-      return StringTrimLeft(StringTrimRight(v));
+      StringTrimRight(v); StringTrimLeft(v); return v;
    }
 
 private:

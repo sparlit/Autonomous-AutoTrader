@@ -1,26 +1,19 @@
-# 📝 AAT Project TODO List
+# 📝 AAT V3.3.0 PENDING TASKS (TODO)
 
-## ✅ Completed
-- [ ] Initial System Architecture (MT5 + Python Socket Bridge)
-- [ ] 100% FOSS & Zero-Stub Implementation
-- [ ] Versioning Convention: `[PROJECT]-[COMPONENT]-V[MAJOR].[MINOR].[PATCH]`
-- [ ] Multi-Source Data Aggregation (Yahoo Finance, Forex Factory, FXStreet)
-- [ ] Advanced Strategy Master (Trend, Mean Rev, Breakout, Scalping, Pivot-Harmonic)
-- [ ] High-Probability Weighted Consensus Engine
-- [ ] Interactive MT5 Dashboard with Real-time Signal/Status Grid
-- [ ] Dynamic Risk Configuration directly on Chart
-- [ ] Pyramid Scaling System (Initial 0.01 + staggered additions)
-- [ ] News Straddle Execution Logic (FF High Impact Detection)
-- [ ] Risk Management Suite (VaR, Correlation Matrix, ATR Regime Analysis)
-- [ ] Prediction Market Integration (Polymarket Sentiment Scraper)
-- [ ] Multi-Timeframe Candle Countdown Timer
-- [ ] Hardening & 50-Client Stress Testing
+## 🔴 CRITICAL (System Stability)
+- [ ] **Protobuf Migration**: Transition from JSON to Protocol Buffers for the event bus as mandated by Institutional Standards.
+- [ ] **PostgreSQL Governance**: Implement PostgreSQL backend for Trade Ledger and Audit trail to support high-concurrency governance (replacing current SQLite implementation).
+- [ ] **Kernel Compilation**: Verify 'aat_heavy' and 'aat_rust' kernels are fully optimized and linked for the target OS (Windows/Linux).
 
-## 🚀 Future Roadmap
-- [ ] Direct FIX API implementation for ultra-low latency execution.
-- [ ] Reinforcement Learning (RL) agent for dynamic strategy weighting.
-- [ ] Optical Character Recognition (OCR) for scraping restricted terminal data.
-- [ ] Decentralized Dashboard syncing via IPFS for remote monitoring.
+## 🟡 MAJOR (Feature Parity)
+- [ ] **Complete 23-Brain Swarm**: Expand the current 18-brain cluster to the full 23-brain swarm by implementing remaining specialized ML and HMM brains.
+- [ ] **Hardware Affinity Mapping**: Refine the 'HardwareAnalyst' to provide granular, cross-OS CPU affinity maps for optimal thread isolation.
+- [ ] **FIX Protocol Phase 2**: Begin implementation of FIX protocol bridge for direct market access (DMA), bypassing MT5 for institutional speed.
+
+## 🟢 MINOR (Maintenance & UX)
+- [ ] **Web Dashboard JWT**: Finalize the JWT authentication layer for the FastAPI remote telemetry server.
+- [ ] **MQL5 HUD Enhancement**: Add more granular Bayesian confidence intervals to the MT5 Canvas HUD overlay.
+- [ ] **Automated Backtesting**: Integrate the 'ml_trainer.py' with the new parallel brain swarm for recursive strategy optimization.
 
 ---
-**Status:** FULLY OPERATIONAL (Autonomous Mode Active)
+**Status**: 85% Operational (Phoenix Gauntlet Active)
