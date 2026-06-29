@@ -3,7 +3,7 @@ SETLOCAL EnableDelayedExpansion
 
 :: 16000: Phoenix Gauntlet One-Click Bootstrap
 echo.
-echo 🌌 PHOENIX GAUNTLET V3.0-AUTONOMOUS
+echo 🌌 PHOENIX GAUNTLET V3.3.0-ASCENDANT
 echo ====================================
 echo.
 

@@ -4,9 +4,9 @@
 * Create Verifiable Tasks
 * Demand Steelman Critique
 * Enforce Plan Mode first, then start auto implementing
-* Multithread Parallel hydrid processing
-* OODA
-* L99
+* Multithread Parallel hybrid processing
+* OODA (Observe, Orient, Decide, Act)
+* L99 (Hardened Logic)
 * Prepare detailed todo task list before start working
 * Proactively Compact
 * Strictly follow "Clarify, Confirm, Complete" protocol
@@ -43,10 +43,10 @@
 * no excuses of any
 * no skips
 * read tasks todo list before start working.
-* rearrange re-write the tasks todo list with all updataed tasks after cleanup.
+* rearrange re-write the tasks todo list with all updated tasks after cleanup.
 * strictly adhere to rules
 * think harder
-* update tha tasks todo.md file after every successfull tasks completion.
+* update the tasks todo.md file after every successful tasks completion.
 -------------------
 
 ## Architecture Requirements
@@ -62,7 +62,7 @@
 -------------------
 
 ## Quality Assurance Requirements
-* Verify No undocumented dependencies remian
+* Verify No undocumented dependencies remain
 * Verify all edge cases have been considered.
 * Verify completeness.
 * Verify consistency.
@@ -81,7 +81,7 @@
 * Verify no dummy codes remain
 * Verify no dummy wrappers remain
 * Verify no duplicate names remain
-* Verify no duplicates functions remain
+* Verify no duplicate functions remain
 * Verify no errors remain
 * Verify no flaws remain
 * Verify no gaps remain
@@ -95,7 +95,7 @@
 * Verify no orphaned modules remain
 * Verify no placeholders remain
 * Verify no stubs remain
-* Verify no tasks remian
+* Verify no tasks remain
 * Verify no unfinished components remain
 * Verify no unreachable code paths remain
 * Verify no unresolved bottlenecks remain.
@@ -103,20 +103,19 @@
 * Verify the solution is deployable
 -------------------
 
-## Project specific reauirements policy
-* Unique magic number for each methods
-* Unique magic number for each strategies
+## Project specific requirements policy
+* Unique magic number for each method
+* Unique magic number for each strategy
 -------------------
 
-Supplimentory task for ML Training: Search the web / youtube / dark web / public informations / codelabs / github / gitlab / codebase / all accessable public data to find:
+Supplementary task for ML Training: Search the web / youtube / dark web / public informations / codelabs / github / gitlab / codebase / all accessible public data to find:
 	- Forex trading methods
 	- Forex trading strategies
 	- Forex trading apps 100% FOSS
-	- Forex trading informations
+	- Forex trading information
 -------------------
 
-/loop /council /brainstorming /ultrathink /swarm fan out agents, fan out subagents, fan out spawn agents. fix all errors. Any spec change → I revise the design doc before proceeding → "approve spec" → invoke writing-plans, then dispatch agents → proceed with fixes. 
--------------------
+/loop /council /brainstorming /ultrathink /swarm fan out agents, fan out subagents, fan out spawn agents. fix all errors. Any spec change → I revise the design doc before proceeding → "approve spec" → invoke writing-plans, then dispatch agents → proceed with fixes.
 
 Analyze the proceed:
 - adapt only the best options from the below and integrate into the project.

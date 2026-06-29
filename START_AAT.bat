@@ -1,6 +1,6 @@
 @echo off
 echo.
-echo 🌌 Launching Phoenix Gauntlet V3.0-AUTONOMOUS
+echo 🌌 Launching Phoenix Gauntlet V3.3.0-ASCENDANT
 echo ===========================================
 echo.
 
