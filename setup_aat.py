@@ -8,9 +8,13 @@ def setup():
     subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
 
     print("Step 2: Compiling Rust Institutional Kernels...")
-    os.chdir("src/rust")
-    subprocess.check_call(["cargo", "build", "--release"])
-    os.chdir("../..")
+    if os.path.exists("src/rust_institutional_core"):
+        os.chdir("src/rust_institutional_core")
+        try:
+            subprocess.check_call(["maturin", "develop"])
+        except Exception as e:
+            print(f"Rust compilation skipped or failed: {e}")
+        os.chdir("../..")
 
     print("Step 3: Initializing Environment...")
     if not os.path.exists("logs"): os.makedirs("logs")

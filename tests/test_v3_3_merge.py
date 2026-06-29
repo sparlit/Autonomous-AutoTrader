@@ -8,19 +8,17 @@ from src.python.hive.ipc import HiveIPC
 async def test_v3_3_architecture_integrity():
     """Verify that the merged orchestrator follows the V3.3.0 swarm pattern."""
     orchestrator = HiveOrchestrator()
-    assert hasattr(orchestrator, "brains")
+    assert hasattr(orchestrator, "registry")
     assert hasattr(orchestrator, "watchdog")
     assert hasattr(orchestrator, "_spawn_brain_swarm")
+    assert hasattr(orchestrator, "brains")
 
-    # Check if expected brains are in the spawn list
-    # We can't easily check strategy_classes without refactoring,
-    # but we can verify it spawns something.
     orchestrator._spawn_brain_swarm()
-    assert len(orchestrator.brains) >= 6
+    assert len(orchestrator.registry._brains) >= 18
+    assert len(orchestrator.brains) >= 18
 
     # Verify MetaBrain is present
-    meta_brain = next((b for b in orchestrator.brains if b.name == "MetaBrain"), None)
-    assert meta_brain is not None
+    assert "MetaBrain" in orchestrator.registry._brains
 
     orchestrator.stop()
 

@@ -14,7 +14,7 @@ AAT is a high-probability, autonomous trading system engineered for MetaTrader 5
 ---
 
 ## 🛠️ 2. System Overview
-The system is built as a microkernel with event-driven decoupling, utilizing a **Multi-Brain Bayesian Orchestrator** pinned to 23 logical CPU processes.
+The system is built as a microkernel with event-driven decoupling, utilizing a **Multi-Brain Bayesian Orchestrator** pinned to multi-core CPU processes.
 
 ### 🧩 Components
 - **Python Hive (Coordinator)**: Global risk management and Bayesian evidence aggregation.
@@ -22,7 +22,7 @@ The system is built as a microkernel with event-driven decoupling, utilizing a *
 - **Analyst Tier**: Vectorized SMC, VSA, Technical Indicator, and Volatility engines.
 - **MQL5 Agents**: Slim execution units with Sequence-Hardened protocol and Heartbeat failsafes.
 - **Institutional Core**: Rust-based parallel VaR and high-speed logic gates.
-- **Persistence**: SQLite (Audit Ledger) and Manager-backed IPC.
+- **Persistence**: SQLite (Audit Ledger) - optimized for local low-latency governance.
 - **Security**: AES-256-GCM Secure Gateway.
 
 ---
