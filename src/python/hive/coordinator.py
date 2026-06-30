@@ -117,8 +117,8 @@ class HiveOrchestrator:
         if m_type == "HB": # Heartbeat
             self.watchdog.heartbeat()
             self.ipc.set_state("account_stats", {
-                "equity": message.get("eq", 0.0),
-                "drawdown": message.get("dd", 0.0),
+                "equity": message.get("eq", message.get("e", 0.0)),
+                "drawdown": message.get("dd", message.get("d", 0.0)),
                 "pos_count": message.get("pc", 0),
                 "spread": message.get("sp", 0.0),
                 "candle_timer": message.get("ct", "--:--"),
@@ -138,6 +138,10 @@ class HiveOrchestrator:
                 await self.ledger.update_trade_from_sync(
                     t['tk'], t['s'], t['act'], t['vol'], t['sl'], t['tp']
                 )
+            # Prune closed trades
+            active_tickets = [t["tk"] for t in tickets]
+            await self.ledger.prune_trades(active_tickets)
+            return {"t": "SYNC_ACK"}
             return {"t": "SYNC_ACK"}
 
         return {"t": "SYNC_REQ"}
