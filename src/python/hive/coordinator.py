@@ -241,7 +241,36 @@ class HiveOrchestrator:
 
     async def _sync_trades_to_ipc(self):
         trades = await self.ledger.get_all_active_trades()
-        self.ipc.set_state("active_trades", trades)
+        now = time.time()
+        enriched_trades = []
+        for t in trades:
+            symbol = t['symbol']
+            s_stats = self.ipc.get_state(f"symbol_stats:{symbol}", {})
+            bid = s_stats.get("bid", 0)
+            ask = s_stats.get("ask", 0)
+            tick_val = s_stats.get("tick_val", 10.0)
+            tick_size = s_stats.get("tick_size", 0.0001)
+
+            if bid > 0 and ask > 0:
+                current_price = bid if t['action'] == "BUY" else ask
+                diff = (current_price - t['entry_price']) if t['action'] == "BUY" else (t['entry_price'] - current_price)
+
+                # PL in Points/Pips
+                t['pl_points'] = diff / tick_size if tick_size > 0 else 0
+                # PL in Currency
+                t['pl_currency'] = t['lots'] * t['pl_points'] * tick_val if tick_size > 0 else 0
+            else:
+                t['pl_points'] = 0.0
+                t['pl_currency'] = 0.0
+
+            t['duration'] = now - t['timestamp']
+            # Enrich status if managed
+            if t.get('partial_tp_hit') == 1:
+                t['status'] = "PARTIAL_HIT"
+
+            enriched_trades.append(t)
+
+        self.ipc.set_state("active_trades", enriched_trades)
 
     async def broadcast_command(self, cmd: Dict[str, Any]):
         await self.server.broadcast(cmd)

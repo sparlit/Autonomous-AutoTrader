@@ -94,7 +94,40 @@ class RiskManager:
             "tp_pts": int((sl_dist * 2) / tick_size)
         }
 
-    def validate_trade(self, symbol: str, action: str, current_equity: float, atr: float = 0.0, spread: float = 0.0, tick_val: float = 10.0, tick_size: float = 0.0001, ignore_session: bool = False) -> Dict[str, Any]:
+
+    def calculate_institutional_params(self, equity: float, atr: float, symbol: str, action: str,
+                                     probability: float = 0.5, confluence: int = 0,
+                                     regime: str = "NORMAL", tick_val: float = 10.0,
+                                     tick_size: float = 0.0001) -> Dict[str, Any]:
+        """
+        11010: Institutional Alpha Position Sizing & SL/TP Calibration.
+        Based on probability, confluence, and market regime.
+        """
+        base_params = self.calculate_trade_params(equity, atr, symbol, action, tick_val, tick_size)
+
+        # 1. Trend/Regime Multiplier
+        regime_mult = 1.2 if "TRENDING_FAST" in regime else (1.0 if "TRENDING" in regime else 0.8)
+
+        # 2. Probability/MTF Multiplier (Center at 0.7)
+        prob_mult = probability / 0.70
+
+        # 3. Confluence Multiplier (3 of 4 rule)
+        conf_mult = 1.0 + (confluence - 3) * 0.1 if confluence >= 3 else 0.7
+
+        # Apply multipliers to lots
+        final_lots = base_params["lots"] * regime_mult * prob_mult * conf_mult
+
+        # 4. Dynamic SL/TP Ratio based on confidence
+        # Higher confidence = tighter SL and/or further TP
+        tp_mult = 1.0 + (probability - 0.7) * 2.0 # Extra reward for high confidence
+
+        return {
+            "lots": max(self.config.risk.min_lot_size, round(final_lots, 2)),
+            "sl_pts": base_params["sl_pts"], # SL remains ATR based for safety
+            "tp_pts": int(base_params["tp_pts"] * max(1.0, tp_mult))
+        }
+
+def validate_trade(self, symbol: str, action: str, current_equity: float, atr: float = 0.0, spread: float = 0.0, tick_val: float = 10.0, tick_size: float = 0.0001, ignore_session: bool = False) -> Dict[str, Any]:
         """
         11006: Hardened 7-Layer Risk Stack validation.
         Magic: 11006

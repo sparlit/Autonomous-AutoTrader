@@ -73,6 +73,24 @@ class NativeDashboard(Process):
                         }
 
             dpg.add_spacer(height=10)
+            dpg.add_text("ACTIVE INSTITUTIONAL POSITIONS", color=[0, 242, 255])
+            dpg.add_separator()
+            with dpg.table(tag="TradesTable", header_row=True, borders_innerH=True, borders_outerH=True, borders_innerV=True, borders_outerV=True, resizable=True):
+                dpg.add_table_column(label="SYMBOL")
+                dpg.add_table_column(label="TICKET")
+                dpg.add_table_column(label="ACTION")
+                dpg.add_table_column(label="LOTS")
+                dpg.add_table_column(label="ENTRY")
+                dpg.add_table_column(label="SL")
+                dpg.add_table_column(label="TP")
+                dpg.add_table_column(label="PL ($)")
+                dpg.add_table_column(label="PL (PTS)")
+                dpg.add_table_column(label="DURATION")
+                dpg.add_table_column(label="STATUS")
+
+            self.trade_rows = {} # We will clear and rebuild this table as it's dynamic
+
+            dpg.add_spacer(height=10)
             with dpg.group(horizontal=True):
                 dpg.add_button(label="EMERGENCY KILL", callback=self.kill_switch, width=150, height=40)
                 dpg.add_button(label="FORCE SYNC", callback=self.force_sync, width=150, height=40)
@@ -158,6 +176,32 @@ class NativeDashboard(Process):
                             dpg.set_value(row["status"], "OFFLINE")
                             dpg.bind_item_theme(row["status"], self.themes['red'])
                             dpg.set_value(row["seen"], "TIMEOUT")
+
+            # Update Running Trades
+            active_trades = self.ipc.get_state("active_trades", [])
+            # Clear existing rows in TradesTable
+            for child in dpg.get_item_children("TradesTable", 1):
+                dpg.delete_item(child)
+
+            for t in active_trades:
+                with dpg.table_row(parent="TradesTable"):
+                    dpg.add_text(t['symbol'], color=[255, 255, 255])
+                    dpg.add_text(str(t['ticket']))
+                    action_color = [57, 255, 20] if t['action'] == "BUY" else [255, 0, 0]
+                    dpg.add_text(t['action'], color=action_color)
+                    dpg.add_text(f"{t['lots']:.2f}")
+                    dpg.add_text(f"{t['entry_price']:.5f}")
+                    dpg.add_text(f"{t['sl_price']:.5f}", color=[255, 100, 100])
+                    dpg.add_text(f"{t['tp_price']:.5f}", color=[100, 255, 100])
+
+                    pl_currency = t.get('pl_currency', 0)
+                    pl_color = [57, 255, 20] if pl_currency >= 0 else [255, 0, 0]
+                    dpg.add_text(f"${pl_currency:,.2f}", color=pl_color)
+                    dpg.add_text(f"{t.get('pl_points', 0):.1f}", color=pl_color)
+
+                    dur = t.get('duration', 0)
+                    dpg.add_text(f"{int(dur//60)}m {int(dur%60)}s")
+                    dpg.add_text(t.get('status', 'OPEN'), color=[0, 242, 255])
         except Exception:
             pass
 
