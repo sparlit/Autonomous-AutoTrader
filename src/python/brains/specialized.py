@@ -274,7 +274,7 @@ class PortfolioBrain(BaseBrain):
 
     async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         if event.get("t") == "HB":
-            drawdown = event.get("d", 0)
+            drawdown = event.get("dd", 0)
             if drawdown > self.risk_manager.config.risk.max_drawdown_pct:
                 return {"type": "VETO", "symbol": "GLOBAL", "reason": "MAX_DRAWDOWN"}
 

@@ -13,7 +13,12 @@ async def test_v3_3_architecture_integrity():
     assert hasattr(orchestrator, "_spawn_brain_swarm")
     assert hasattr(orchestrator, "brains")
 
-    await orchestrator._spawn_brain_swarm()
+    # In some environments, the decorator or mocking might cause issues.
+    # We ensure we are awaiting a coroutine.
+    coro = orchestrator._spawn_brain_swarm()
+    if coro is not None:
+        await coro
+
     assert len(orchestrator.registry._brains) >= 18
     assert len(orchestrator.brains) >= 18
 
