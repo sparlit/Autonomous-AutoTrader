@@ -25,9 +25,20 @@ class MarketDataBrain(BaseBrain):
     """Brain 1 - 10501: Data Ingestion and Normalization."""
     async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         if event.get("t") == "DP":
+            symbol = event["s"]
+            # Update symbol stats for real-time tracking
+            s_stats = self.ipc.get_state(f"symbol_stats:{symbol}", {"symbol": symbol})
+            s_stats.update({
+                "bid": event["bi"],
+                "ask": event["as"],
+                "tick_val": event.get("tv", 10.0),
+                "tick_size": event.get("ts", 0.0001)
+            })
+            self.ipc.set_state(f"symbol_stats:{symbol}", s_stats)
+
             # 10502: Pass through tick metrics for precise exposure calculation
             return {
-                "type": "MARKET_DATA", "symbol": event["s"], "tf": event["tf"],
+                "type": "MARKET_DATA", "symbol": symbol, "tf": event["tf"],
                 "ltf": event["ltf"], "h1": event["h1"], "h4": event["h4"],
                 "bid": event["bi"], "ask": event["as"], "atr": event.get("atr", 0),
                 "tick_val": event.get("tv", 10.0), "tick_size": event.get("ts", 0.0001)
@@ -233,13 +244,40 @@ class RiskBrain(BaseBrain):
         if event.get("type") == "PROBABILISTIC_SIGNAL":
             symbol = event["symbol"]; prob = event["probability"]
             if prob < 0.55: return None
-            regime_score = 1.0 if event.get("regime") == "TRENDING_FAST" else (0.8 if "TRENDING" in event.get("regime", "") else 0.5)
-            v = self.risk_manager.validate_trade(symbol, event["action"], 1000.0, atr=event["atr"])
+
+            # Fetch real-time tick metrics from IPC
+            s_stats = self.ipc.get_state(f"symbol_stats:{symbol}", {})
+            tick_val = s_stats.get("tick_val", 10.0)
+            tick_size = s_stats.get("tick_size", 0.0001)
+
+            # Use institutional calculation logic
+            v = self.risk_manager.validate_trade(symbol, event["action"], 1000.0, atr=event["atr"], tick_val=tick_val, tick_size=tick_size)
+
             if v["safe"]:
-                prob_mult = (prob - 0.50) / 0.45
-                final_lots = round(v["lots"] * prob_mult * regime_score * self.execution_score, 2)
-                if final_lots < 0.01: return None
-                return {"type": "VALIDATED_TRADE", "symbol": symbol, "action": event["action"], "lots": final_lots, "sl_pts": v["sl_pts"], "tp_pts": v["tp_pts"], "probability": prob, "evidence_trail": event.get("evidence_trail", [])}
+                inst_params = self.risk_manager.calculate_institutional_params(
+                    equity=1000.0,
+                    atr=event["atr"],
+                    symbol=symbol,
+                    action=event["action"],
+                    probability=prob,
+                    confluence=event.get("confluence", 0),
+                    regime=event.get("regime", "NORMAL"),
+                    tick_val=tick_val,
+                    tick_size=tick_size
+                )
+
+                if inst_params["lots"] < 0.01: return None
+
+                return {
+                    "type": "VALIDATED_TRADE",
+                    "symbol": symbol,
+                    "action": event["action"],
+                    "lots": inst_params["lots"],
+                    "sl_pts": inst_params["sl_pts"],
+                    "tp_pts": inst_params["tp_pts"],
+                    "probability": prob,
+                    "evidence_trail": event.get("evidence_trail", [])
+                }
         return None
 
 class ExecutionBrain(BaseBrain):
