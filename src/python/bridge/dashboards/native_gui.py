@@ -73,6 +73,24 @@ class NativeDashboard(Process):
                         }
 
             dpg.add_spacer(height=10)
+            dpg.add_text("ACTIVE INSTITUTIONAL POSITIONS", color=[0, 242, 255])
+            dpg.add_separator()
+            with dpg.table(tag="TradesTable", header_row=True, borders_innerH=True, borders_outerH=True, borders_innerV=True, borders_outerV=True, resizable=True):
+                dpg.add_table_column(label="SYMBOL")
+                dpg.add_table_column(label="TICKET")
+                dpg.add_table_column(label="ACTION")
+                dpg.add_table_column(label="LOTS")
+                dpg.add_table_column(label="ENTRY")
+                dpg.add_table_column(label="SL")
+                dpg.add_table_column(label="TP")
+                dpg.add_table_column(label="PL ($)")
+                dpg.add_table_column(label="PL (PTS)")
+                dpg.add_table_column(label="DURATION")
+                dpg.add_table_column(label="STATUS")
+
+            self.trade_rows = {} # We will clear and rebuild this table as it's dynamic
+
+            dpg.add_spacer(height=10)
             with dpg.group(horizontal=True):
 
             dpg.add_spacer(height=10)
