@@ -138,6 +138,10 @@ class HiveOrchestrator:
                 await self.ledger.update_trade_from_sync(
                     t['tk'], t['s'], t['act'], t['vol'], t['sl'], t['tp']
                 )
+            # Prune closed trades
+            active_tickets = [t["tk"] for t in tickets]
+            await self.ledger.prune_trades(active_tickets)
+            return {"t": "SYNC_ACK"}
             return {"t": "SYNC_ACK"}
 
         return {"t": "SYNC_REQ"}

@@ -158,3 +158,20 @@ class TradeLedger:
         Magic: 16006
         """
         return self._peak_equity
+
+    async def prune_trades(self, active_tickets: List[int]):
+        """
+        16017: Prune trades that are no longer active in MT5.
+        Magic: 16017
+        """
+        if not active_tickets:
+            await self.close_all_active_trades()
+            return
+
+        async with aiosqlite.connect(self.db_path) as db:
+            sql_marks = ", ".join(["?"] * len(active_tickets))
+            await db.execute(
+                f"UPDATE trades SET status = 'CLOSED' WHERE status = 'OPEN' AND ticket NOT IN ({sql_marks})",
+                active_tickets
+            )
+            await db.commit()

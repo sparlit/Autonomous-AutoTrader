@@ -80,7 +80,7 @@ class HiveIPC:
                     q.get_nowait()
                     q.put_nowait(wrapped)
                 except (queue.Empty, queue.Full):
-                    pass
+                    logger.debug("IPC Local Queue Saturation")
         except Exception as e:
             logger.error(f"IPC XADD Critical Fail on {stream}: {e}")
 

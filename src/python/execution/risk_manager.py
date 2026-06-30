@@ -127,7 +127,7 @@ class RiskManager:
             "tp_pts": int(base_params["tp_pts"] * max(1.0, tp_mult))
         }
 
-def validate_trade(self, symbol: str, action: str, current_equity: float, atr: float = 0.0, spread: float = 0.0, tick_val: float = 10.0, tick_size: float = 0.0001, ignore_session: bool = False) -> Dict[str, Any]:
+    def validate_trade(self, symbol: str, action: str, current_equity: float, atr: float = 0.0, spread: float = 0.0, tick_val: float = 10.0, tick_size: float = 0.0001, ignore_session: bool = False) -> Dict[str, Any]:
         """
         11006: Hardened 7-Layer Risk Stack validation.
         Magic: 11006
