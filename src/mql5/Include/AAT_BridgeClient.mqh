@@ -138,9 +138,9 @@ public:
 
       // 13101: Dynamic Filling Mode Detection
       int filling = (int)SymbolInfoInteger(s, SYMBOL_FILLING_MODE);
-      if((filling & SYMBOL_FILLING_FOK) != 0) req.type_filling = SYMBOL_FILLING_FOK;
-      else if((filling & SYMBOL_FILLING_IOC) != 0) req.type_filling = SYMBOL_FILLING_IOC;
-      else req.type_filling = SYMBOL_FILLING_RETURN;
+      if((filling & SYMBOL_FILLING_FOK) != 0) req.type_filling = ORDER_FILLING_FOK;
+      else if((filling & SYMBOL_FILLING_IOC) != 0) req.type_filling = ORDER_FILLING_IOC;
+      else req.type_filling = ORDER_FILLING_RETURN;
 
       bool r=OrderSendAsync(req, res);
       if(!r) Print("AAT: Trade Error for ", s, ": ", res.retcode);
