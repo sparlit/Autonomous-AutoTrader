@@ -117,8 +117,8 @@ class HiveOrchestrator:
         if m_type == "HB": # Heartbeat
             self.watchdog.heartbeat()
             self.ipc.set_state("account_stats", {
-                "equity": message.get("eq", 0.0),
-                "drawdown": message.get("dd", 0.0),
+                "equity": message.get("eq", message.get("e", 0.0)),
+                "drawdown": message.get("dd", message.get("d", 0.0)),
                 "pos_count": message.get("pc", 0),
                 "spread": message.get("sp", 0.0),
                 "candle_timer": message.get("ct", "--:--"),

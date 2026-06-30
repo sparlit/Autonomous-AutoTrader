@@ -55,7 +55,11 @@ public:
 
       // Throttled Heartbeat (10s)
       if(n-m_l_hb>10000) {
-         if(m_s.Send(CAATProtocol::BuildHEARTBEAT(_Symbol, AccountInfoDouble(ACCOUNT_EQUITY), 0.0, ++m_seq_tx))) m_l_hb=n;
+         double eq = AccountInfoDouble(ACCOUNT_EQUITY);
+         double bal = AccountInfoDouble(ACCOUNT_BALANCE);
+         double dd = (bal > 0) ? (bal - eq) / bal * 100.0 : 0;
+         if(dd < 0) dd = 0;
+         if(m_s.Send(CAATProtocol::BuildHEARTBEAT(_Symbol, eq, dd, PositionsTotal(), ++m_seq_tx))) m_l_hb=n;
       }
 
       // Throttled Data Push (Min 200ms between ticks, or price change, or 60s forced)

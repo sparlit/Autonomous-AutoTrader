@@ -5,7 +5,7 @@
 class CAATProtocol
 {
 public:
-   static string BuildHEARTBEAT(string s, double e, double d, long seq) {
+   static string BuildHEARTBEAT(string s, double e, double d, int pc, long seq) {
       double spread = SymbolInfoDouble(s, SYMBOL_ASK) - SymbolInfoDouble(s, SYMBOL_BID);
       double pt = SymbolInfoDouble(s, SYMBOL_POINT);
       double spread_pts = (pt > 0) ? spread / pt : 0;
@@ -14,7 +14,7 @@ public:
       if(remaining < 0) remaining = 0;
       string timer = StringFormat("%02d:%02d", (int)(remaining / 60), (int)(remaining % 60));
 
-      return StringFormat("{\"t\":\"HB\",\"s\":\"%s\",\"e\":%.2f,\"d\":%.2f,\"sp\":%.1f,\"ct\":\"%s\",\"seq\":%lld}", s, e, d, spread_pts, timer, seq);
+      return StringFormat("{\"t\":\"HB\",\"s\":\"%s\",\"eq\":%.2f,\"dd\":%.2f,\"pc\":%d,\"sp\":%.1f,\"ct\":\"%s\",\"seq\":%lld}", s, e, d, pc, spread_pts, timer, seq);
    }
 
    static string BuildDATA_PUSH(string s, ENUM_TIMEFRAMES tf, int c, long seq) {
