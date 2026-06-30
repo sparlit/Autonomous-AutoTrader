@@ -108,6 +108,7 @@ class MetaBrain(BaseBrain):
                     res = {
                         "type": "PROBABILISTIC_SIGNAL", "symbol": symbol, "action": action,
                         "probability": state["prior"], "regime": state["regime"], "atr": state["atr"], "rsi": state["rsi"],
+                        "confluence": agreement_count,
                         "evidence_trail": state["evidence_trail"],
                         "explainability": [f"{e['source']} ({e['reliability']:.2f}): {'+' if e['impact'] >= 0 else ''}{e['impact']:.2f} -> P={e['posterior']:.2f}" for e in state['evidence_trail']]
                     }
