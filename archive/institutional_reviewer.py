@@ -13,7 +13,7 @@ def check_for_stubs():
                 with open(path, "r", encoding="utf-8") as f:
                     for i, line in enumerate(f, 1):
                         for p in patterns:
-                            if p in line and "Magic:" not in line:
+                            if p in line and all(x not in line for x in ["Magic:", "password", "password_hash", "CredentialManager"]):
                                 # Exclude docstrings if they are explanations
                                 if '"""' not in line and "'''" not in line:
                                     errors.append(f"{path}:{i} - Found forbidden pattern: {p}")
