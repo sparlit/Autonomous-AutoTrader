@@ -122,15 +122,28 @@ public:
       int id=(int)StringToInteger(CAATProtocol::GetV(m, "id")); string s=CAATProtocol::GetV(m, "s"); if(s=="") s=_Symbol;
       string a=CAATProtocol::GetV(m, "act"); double l=StringToDouble(CAATProtocol::GetV(m, "lts"));
       int slp=(int)StringToInteger(CAATProtocol::GetV(m, "sl_p")), tpp=(int)StringToInteger(CAATProtocol::GetV(m, "tp_p"));
-      double pt=SymbolInfoDouble(s, SYMBOL_POINT), pr=(a=="BUY")?SymbolInfoDouble(s, SYMBOL_ASK):SymbolInfoDouble(s, SYMBOL_BID);
-      double sl=(a=="BUY")?pr-slp*pt:pr+slp*pt, tp=(a=="BUY")?pr+tpp*pt:pr-tpp*pt;
+
+      // 13100: Use TickSize for consistent price reconstruction with Python
+      double ts=SymbolInfoDouble(s, SYMBOL_TRADE_TICK_SIZE);
+      if(ts <= 0) ts = SymbolInfoDouble(s, SYMBOL_POINT);
+
+      double pr=(a=="BUY")?SymbolInfoDouble(s, SYMBOL_ASK):SymbolInfoDouble(s, SYMBOL_BID);
+      double sl=(a=="BUY")?pr-slp*ts:pr+slp*ts, tp=(a=="BUY")?pr+tpp*ts:pr-tpp*ts;
       long msg_magic=StringToInteger(CAATProtocol::GetV(m, "magic")); if(msg_magic==0) msg_magic=m_magic;
 
       MqlTradeRequest req; ZeroMemory(req); MqlTradeResult res; ZeroMemory(res);
       req.action=TRADE_ACTION_DEAL; req.symbol=s; req.volume=l; req.type=(a=="BUY")?ORDER_TYPE_BUY:ORDER_TYPE_SELL; req.price=pr;
       req.sl=NormalizeDouble(sl, (int)SymbolInfoInteger(s, SYMBOL_DIGITS)); req.tp=NormalizeDouble(tp, (int)SymbolInfoInteger(s, SYMBOL_DIGITS));
       req.magic=msg_magic; req.comment=StringFormat("AAT:%d", id);
+
+      // 13101: Dynamic Filling Mode Detection
+      int filling = (int)SymbolInfoInteger(s, SYMBOL_FILLING_MODE);
+      if((filling & SYMBOL_FILLING_FOK) != 0) req.type_filling = SYMBOL_FILLING_FOK;
+      else if((filling & SYMBOL_FILLING_IOC) != 0) req.type_filling = SYMBOL_FILLING_IOC;
+      else req.type_filling = SYMBOL_FILLING_RETURN;
+
       bool r=OrderSendAsync(req, res);
+      if(!r) Print("AAT: Trade Error for ", s, ": ", res.retcode);
       m_s.Send(CAATProtocol::BuildTRADE_ACK(id, (int)res.order, r?"":IntegerToString(res.retcode), ++m_seq_tx));
    }
    void ActFS() { if(m_fs) return; for(int i=PositionsTotal()-1; i>=0; i--) { if(PositionGetSymbol(i)==_Symbol) { ulong tk=PositionGetInteger(POSITION_TICKET); double en=PositionGetDouble(POSITION_PRICE_OPEN), tp=PositionGetDouble(POSITION_TP), cu=PositionGetDouble(POSITION_PRICE_CURRENT); if(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY && cu>en+50*_Point) m_t.PositionModify(tk, en+10*_Point, tp); else if(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_SELL && cu<en-50*_Point) m_t.PositionModify(tk, en-10*_Point, tp); } } m_fs=true; }

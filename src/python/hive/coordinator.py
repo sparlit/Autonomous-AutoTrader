@@ -126,14 +126,14 @@ class HiveOrchestrator:
             return {"t": "ACK"}
 
         elif m_type == "SYNC":
-            tickets = message.get("tickets", [])
+            tickets = message.get("tk", [])
             for t in tickets:
                 await self.ledger.update_trade_from_sync(
                     t['tk'], t['s'], t['act'], t['vol'], t['sl'], t['tp']
                 )
             return {"t": "SYNC_ACK"}
 
-        return {"t": "ACK"}
+        return {"t": "SYNC_REQ"}
 
     async def _orchestration_loop(self):
         """10012: The central event bus reader."""

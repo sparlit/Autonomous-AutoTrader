@@ -40,9 +40,9 @@ public:
          ulong tk = PositionGetTicket(i);
          if(PositionSelectByTicket(tk) && PositionGetString(POSITION_SYMBOL) == s) {
             if(!first) tks += ",";
-            tks += StringFormat("{\"tk\":%lld,\"type\":%d,\"vol\":%.2f,\"tp\":%.5f,\"sl\":%.5f}",
-               PositionGetInteger(POSITION_TICKET),
-               PositionGetInteger(POSITION_TYPE),
+            string act = (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY) ? "BUY" : "SELL";
+            tks += StringFormat("{\"tk\":%lld,\"s\":\"%s\",\"act\":\"%s\",\"vol\":%.2f,\"tp\":%.5f,\"sl\":%.5f}",
+               tk, s, act,
                PositionGetDouble(POSITION_VOLUME),
                PositionGetDouble(POSITION_TP),
                PositionGetDouble(POSITION_SL));
