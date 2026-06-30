@@ -86,6 +86,13 @@ class HiveOrchestrator:
         # 4. Start Watchdog
         asyncio.create_task(self.watchdog.run())
 
+        # 10450: Launch Monitoring Dashboards
+        self.web_dash = WebDashboard(ipc=self.ipc, port=self.config.bridge.dashboard_port)
+        self.web_dash.start()
+
+        self.native_dash = NativeDashboard(ipc=self.ipc)
+        self.native_dash.start()
+
         logger.info("AAT V3.3.0 Fully Operational.")
 
         # Pin orchestrator to Core 1 if available
@@ -126,14 +133,14 @@ class HiveOrchestrator:
             return {"t": "ACK"}
 
         elif m_type == "SYNC":
-            tickets = message.get("tickets", [])
+            tickets = message.get("tk", [])
             for t in tickets:
                 await self.ledger.update_trade_from_sync(
                     t['tk'], t['s'], t['act'], t['vol'], t['sl'], t['tp']
                 )
             return {"t": "SYNC_ACK"}
 
-        return {"t": "ACK"}
+        return {"t": "SYNC_REQ"}
 
     async def _orchestration_loop(self):
         """10012: The central event bus reader."""
@@ -286,5 +293,7 @@ class HiveOrchestrator:
 
     def stop(self, *args):
         self.running = False
+        if hasattr(self, 'web_dash'): self.web_dash.terminate()
+        if hasattr(self, 'native_dash'): self.native_dash.terminate()
         self.registry.stop_all()
         logger.info("AAT V3.3.0 Shutdown Complete.")
