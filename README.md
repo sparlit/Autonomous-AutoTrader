@@ -18,6 +18,8 @@ The system is managed via a unified CLI:
 - **Parallel Brain Swarm**: Each strategy runs in its own isolated process, pinned to CPU cores.
 - **Bayesian Consensus**: Logic-weighted signal aggregation for high-probability execution.
 - **Universal Asset Layer**: Native support for Forex, Metal, Crypto, Oil, and Stocks.
+- **Real-Time Trade Telemetry**: High-fidelity tracking of PL, SL, TP, and duration across all dashboards.
+- **Institutional Risk Engine**: Bayesian-weighted position sizing and dynamic SL/TP calibration.
 - **L99 Hardening**: Bidirectional watchdog and emergency safety protocols.
 - **Hardware Optimized**: Specifically tuned for multi-core architectures (Intel i7/i9).
 
