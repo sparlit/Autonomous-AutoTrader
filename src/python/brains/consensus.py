@@ -23,9 +23,18 @@ class MetaBrain(BaseBrain):
 
     async def initialize(self):
         await super().initialize()
+        # Trigger initial learning cycle
+        asyncio.create_task(self._learning_loop())
 
     async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         symbol = event.get("symbol")
+        if event.get("scaling"):
+            # 10615: High-Confidence Scaling Signal
+            return {
+                "type": "PROBABILISTIC_SIGNAL", "symbol": symbol, "action": event["action"],
+                "probability": event.get("probability", 0.90), "regime": "TRENDING",
+                "atr": event.get("atr", 0), "rsi": 50, "confluence": 4, "scaling": True
+            }
         if not symbol: return None
         if symbol not in self.symbol_state: self.symbol_state[symbol] = self._new_state()
         state = self.symbol_state[symbol]; e_type = event.get("type")
@@ -110,11 +119,12 @@ class MetaBrain(BaseBrain):
                     if action == "SELL" and "BEARISH" not in state["structure_trigger"]: valid_trigger = False
 
                 if valid_trigger:
+                    import json
                     res = {
                         "type": "PROBABILISTIC_SIGNAL", "symbol": symbol, "action": action,
                         "probability": state["prior"], "regime": state["regime"], "atr": state["atr"], "rsi": state["rsi"],
                         "confluence": agreement_count,
-                        "evidence_trail": state["evidence_trail"],
+                        "evidence_trail": json.dumps(state["evidence_trail"]),
                         "explainability": [f"{e['source']} ({e['reliability']:.2f}): {'+' if e['impact'] >= 0 else ''}{e['impact']:.2f} -> P={e['posterior']:.2f}" for e in state['evidence_trail']]
                     }
                     self.symbol_state[symbol] = self._new_state()
@@ -133,3 +143,48 @@ class MetaBrain(BaseBrain):
         directions = [e["direction"] for e in state["evidence_trail"] if e["direction"] != 0]
         if not directions: return "WAIT"
         net_dir = sum(directions); return "BUY" if net_dir > 0 else ("SELL" if net_dir < 0 else "WAIT")
+
+    async def _learning_loop(self):
+        """10630: The institutional Learn <-> Evaluate <-> Fix loop."""
+        import aiosqlite
+        while self.is_running:
+            try:
+                # 1. Fetch recent closed trades
+                from src.python.execution.ledger import TradeLedger
+                ledger = TradeLedger()
+                await ledger.init_db()
+
+                async with aiosqlite.connect(ledger.db_path) as db:
+                    db.row_factory = aiosqlite.Row
+                    # Look back 24h
+                    async with db.execute("SELECT * FROM trades WHERE status = 'CLOSED' AND timestamp > ?", (time.time() - 86400,)) as cursor:
+                        recent_trades = [dict(row) for row in await cursor.fetchall()]
+
+                if recent_trades:
+                    logger.info(f"MetaBrain: Analyzing {len(recent_trades)} recent trades for learning.")
+                    for trade in recent_trades:
+                        try:
+                            # 10631: Reliability Calibration based on outcome
+                            profit = trade.get("profit", 0)
+                            # Parse evidence trail if stored as JSON string
+                            trail_str = trade.get("evidence_trail", "[]")
+                            import json
+                            trail = json.loads(trail_str) if isinstance(trail_str, str) else trail_str
+
+                            adjustment = 0.05 if profit > 0 else -0.05
+                            for evidence in trail:
+                                src = evidence.get("source")
+                                if src:
+                                    if src not in self.brain_reliability: self.brain_reliability[src] = 1.0
+                                    # Adjust reliability: Gain on profit, penalty on loss
+                                    self.brain_reliability[src] = max(0.1, min(1.0, self.brain_reliability[src] + adjustment))
+                                    logger.info(f"Learning: Adjusted {src} reliability to {self.brain_reliability[src]:.2f}")
+                        except: continue
+
+                    # 10632: Publish reliability report to the hive
+                    self.publish({"type": "RELIABILITY_REPORT", "scores": self.brain_reliability})
+
+                await asyncio.sleep(3600) # Run every hour
+            except Exception as e:
+                logger.error(f"Learning Loop Error: {e}")
+                await asyncio.sleep(60)
