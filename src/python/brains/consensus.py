@@ -75,7 +75,6 @@ class MetaBrain(BaseBrain):
             if "data" in event:
                 state["atr"] = event["data"].get("atr", state["atr"]); state["rsi"] = event["data"].get("rsi", state["rsi"])
 
-            # 10615: Emit periodic telemetry for dashboards
             if len(state["evidence_trail"]) % 2 == 0:
                 self.publish({
                     "type": "TELEMETRY",
@@ -86,6 +85,13 @@ class MetaBrain(BaseBrain):
 
         # Check for Decision
         if all(src in state["received_sources"] for src in self.required_sources):
+            # 10620: Signal Latching Logic
+            # Check for existing positions via shared IPC trades
+            active_trades = self.ipc.get_state("active_trades", [])
+            if any(t['symbol'] == symbol for t in active_trades):
+                logger.debug(f"Signal suppressed for {symbol}: Position already open.")
+                return None
+
             conf = state["confluence"]
             action = self._determine_direction(state)
             if action == "WAIT": return None
@@ -98,7 +104,6 @@ class MetaBrain(BaseBrain):
             if conf["volatility"] == 1: agreement_count += 1
 
             if agreement_count >= 3 and state["prior"] >= self.threshold and not state["veto"]:
-                # If we have a structure trigger candle, it must match our action
                 valid_trigger = True
                 if state.get("structure_trigger") != "NONE":
                     if action == "BUY" and "BULLISH" not in state["structure_trigger"]: valid_trigger = False

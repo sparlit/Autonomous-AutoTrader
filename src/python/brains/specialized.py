@@ -204,7 +204,7 @@ class NewsRiskBrain(BaseBrain):
     """Brain - 10509: News safety veto."""
     async def initialize(self):
         await super().initialize()
-        self.risk_manager = RiskManager(load_config())
+        self.risk_manager = RiskManager(load_config(), ipc=self.ipc)
 
     async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         if not self.risk_manager.is_news_safe():
@@ -237,7 +237,7 @@ class RiskBrain(BaseBrain):
     """Brain 6 - 10512: Probabilistic Position Sizing."""
     async def initialize(self):
         await super().initialize()
-        self.risk_manager = RiskManager(load_config())
+        self.risk_manager = RiskManager(load_config(), ipc=self.ipc)
         self.execution_score = 0.95
 
     async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -245,17 +245,21 @@ class RiskBrain(BaseBrain):
             symbol = event["symbol"]; prob = event["probability"]
             if prob < 0.55: return None
 
+            # Fetch real-time account stats from IPC
+            acc_stats = self.ipc.get_state("account_stats", {})
+            current_equity = acc_stats.get("equity", 10000.0) # Default to 10k safe floor if IPC is warming up
+
             # Fetch real-time tick metrics from IPC
             s_stats = self.ipc.get_state(f"symbol_stats:{symbol}", {})
             tick_val = s_stats.get("tick_val", 10.0)
             tick_size = s_stats.get("tick_size", 0.0001)
 
-            # Use institutional calculation logic
-            v = self.risk_manager.validate_trade(symbol, event["action"], 1000.0, atr=event["atr"], tick_val=tick_val, tick_size=tick_size)
+            # Use institutional calculation logic with DYNAMIC equity
+            v = self.risk_manager.validate_trade(symbol, event["action"], current_equity, atr=event["atr"], tick_val=tick_val, tick_size=tick_size)
 
             if v["safe"]:
                 inst_params = self.risk_manager.calculate_institutional_params(
-                    equity=1000.0,
+                    equity=current_equity,
                     atr=event["atr"],
                     symbol=symbol,
                     action=event["action"],
@@ -307,7 +311,7 @@ class PortfolioBrain(BaseBrain):
     """Brain 9 - 10515: Global Risk and Capital Allocation with Institutional VaR."""
     async def initialize(self):
         await super().initialize()
-        self.risk_manager = RiskManager(load_config())
+        self.risk_manager = RiskManager(load_config(), ipc=self.ipc)
         self.last_var_check = 0
 
     async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -331,7 +335,6 @@ class PortfolioBrain(BaseBrain):
                     tick_size = s_stats.get("tick_size", 0.0001)
 
                     # Exposure = (lots * tick_val) / tick_size
-                    # This represents the monetary value of the full position
                     if tick_size > 0:
                         exposure = (t['lots'] * tick_val) / tick_size
                     else:
@@ -364,7 +367,6 @@ class CorrelationBrain(BaseBrain):
         # 10520: Multi-pair correlation check to prevent over-exposure
         if event.get("type") == "PROBABILISTIC_SIGNAL":
             symbol = event["symbol"]
-            # 10521: Consistently handle active_trades as a LIST
             active_trades = self.ipc.get_state("active_trades", [])
             if "EURUSD" in symbol and any("GBPUSD" in t['symbol'] for t in active_trades):
                 return {"type": "VETO", "symbol": symbol, "reason": "HIGH_CORRELATION_GBPUSD"}

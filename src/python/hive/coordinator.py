@@ -57,7 +57,7 @@ class HiveOrchestrator:
         # Core Components
         self.server = BridgeServer(self.config.bridge.host, self.config.bridge.port, self.handle_client_message)
         self.ledger = TradeLedger(self.config.system.database_path)
-        self.risk_manager = RiskManager(self.config.risk)
+        self.risk_manager = RiskManager(self.config, ipc=self.ipc)
         self.pos_manager = PositionManager(self.ledger, self.risk_manager)
         self.watchdog = L99Watchdog(self)
         self.smc = SMCAnalyst()
@@ -116,8 +116,24 @@ class HiveOrchestrator:
 
         if m_type == "HB": # Heartbeat
             self.watchdog.heartbeat()
+            equity = message.get("eq", message.get("e", 0.0))
+
+            # 10025: Global peak tracking for drawdown enforcement
+            if equity > self.risk_manager.peak_equity:
+                self.risk_manager.peak_equity = equity
+
+            # 10026: Institutional Equity Guard (Auto-Flatten on DD breach)
+            if self.risk_manager.peak_equity > 0:
+                dd_pct = (self.risk_manager.peak_equity - equity) / self.risk_manager.peak_equity * 100.0
+                if dd_pct > self.config.risk.max_drawdown_pct:
+                    logger.critical(f"⚠️ DRAWDOWN BREACH DETECTED: {dd_pct:.2f}% (Limit: {self.config.risk.max_drawdown_pct}%). TRIGGERING GLOBAL FLATTEN.")
+                    await self.server.broadcast({
+                        "t": "DECISION", "s": "GLOBAL", "act": "MGMT", "mgmt": "CLOSE_ALL",
+                        "reason": f"EQUITY_GUARD_BREACH_{dd_pct:.2f}PCT"
+                    })
+
             self.ipc.set_state("account_stats", {
-                "equity": message.get("eq", message.get("e", 0.0)),
+                "equity": equity,
                 "drawdown": message.get("dd", message.get("d", 0.0)),
                 "pos_count": message.get("pc", 0),
                 "spread": message.get("sp", 0.0),
@@ -141,7 +157,6 @@ class HiveOrchestrator:
             # Prune closed trades
             active_tickets = [t["tk"] for t in tickets]
             await self.ledger.prune_trades(active_tickets)
-            return {"t": "SYNC_ACK"}
             return {"t": "SYNC_ACK"}
 
         return {"t": "SYNC_REQ"}
@@ -195,21 +210,17 @@ class HiveOrchestrator:
                 self.ipc.xadd(f"stream:{b}", event)
 
         elif e_type in ["EVIDENCE", "REGIME_STATUS", "MOMENTUM_STATUS", "STRUCTURE_STATUS"]:
-            # Route evidence from specialists to MetaBrain
             self.ipc.xadd("stream:MetaBrain", event)
 
         elif e_type == "PROBABILISTIC_SIGNAL":
-            # Route to Vetting chain
             for b in ["Risk_1", "Contrarian_1", "Correlation_1", "NewsRisk_1"]:
                 self.ipc.xadd(f"stream:{b}", event)
 
         elif e_type in ["VETO", "NEWS_VETO"]:
-            # Route vetos back to MetaBrain and RiskBrain
             self.ipc.xadd("stream:MetaBrain", event)
             self.ipc.xadd("stream:Risk_1", event)
 
         elif e_type == "VALIDATED_TRADE":
-            # Route to Actuator
             self.ipc.xadd("stream:Execution_1", event)
 
         elif e_type == "EXECUTION_ORDER":
@@ -220,6 +231,9 @@ class HiveOrchestrator:
                     event["s"], event["act"], event["lts"], event["sl_p"], event["tp_p"]
                 )
                 event["id"] = internal_id
+                # 10020: Increment shared trade count globally
+                self.risk_manager.increment_trade_count(event["s"])
+
             await self.server.broadcast(event)
 
         elif e_type == "TELEMETRY":
@@ -258,17 +272,13 @@ class HiveOrchestrator:
             if bid > 0 and ask > 0:
                 current_price = bid if t['action'] == "BUY" else ask
                 diff = (current_price - t['entry_price']) if t['action'] == "BUY" else (t['entry_price'] - current_price)
-
-                # PL in Points/Pips
                 t['pl_points'] = diff / tick_size if tick_size > 0 else 0
-                # PL in Currency
                 t['pl_currency'] = t['lots'] * t['pl_points'] * tick_val if tick_size > 0 else 0
             else:
                 t['pl_points'] = 0.0
                 t['pl_currency'] = 0.0
 
             t['duration'] = now - t['timestamp']
-            # Enrich status if managed
             if t.get('partial_tp_hit') == 1:
                 t['status'] = "PARTIAL_HIT"
 
