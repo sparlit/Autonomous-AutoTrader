@@ -57,7 +57,6 @@ class HiveOrchestrator:
         # Core Components
         self.server = BridgeServer(self.config.bridge.host, self.config.bridge.port, self.handle_client_message)
         self.ledger = TradeLedger(self.config.system.database_path)
-        # Pass IPC to RiskManager for shared state
         self.risk_manager = RiskManager(self.config, ipc=self.ipc)
         self.pos_manager = PositionManager(self.ledger, self.risk_manager)
         self.watchdog = L99Watchdog(self)
@@ -122,6 +121,16 @@ class HiveOrchestrator:
             # 10025: Global peak tracking for drawdown enforcement
             if equity > self.risk_manager.peak_equity:
                 self.risk_manager.peak_equity = equity
+
+            # 10026: Institutional Equity Guard (Auto-Flatten on DD breach)
+            if self.risk_manager.peak_equity > 0:
+                dd_pct = (self.risk_manager.peak_equity - equity) / self.risk_manager.peak_equity * 100.0
+                if dd_pct > self.config.risk.max_drawdown_pct:
+                    logger.critical(f"⚠️ DRAWDOWN BREACH DETECTED: {dd_pct:.2f}% (Limit: {self.config.risk.max_drawdown_pct}%). TRIGGERING GLOBAL FLATTEN.")
+                    await self.server.broadcast({
+                        "t": "DECISION", "s": "GLOBAL", "act": "MGMT", "mgmt": "CLOSE_ALL",
+                        "reason": f"EQUITY_GUARD_BREACH_{dd_pct:.2f}PCT"
+                    })
 
             self.ipc.set_state("account_stats", {
                 "equity": equity,
@@ -212,7 +221,6 @@ class HiveOrchestrator:
             self.ipc.xadd("stream:Risk_1", event)
 
         elif e_type == "VALIDATED_TRADE":
-            # Route to Actuator
             self.ipc.xadd("stream:Execution_1", event)
 
         elif e_type == "EXECUTION_ORDER":
