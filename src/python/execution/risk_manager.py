@@ -84,7 +84,7 @@ class RiskManager:
         11005: Strict Lot Sizing & Initial RR (1:1).
         Rule: Maximum lot size for initial trades will be 0.01 lots only.
         """
-        lots = 0.01
+        lots = 0.01  # ZERO-TOLERANCE: STRICT INITIAL LOT SIZE
         if atr <= 0: return {"lots": lots, "sl_pts": 0, "tp_pts": 0}
 
         # Initial SL at 2*ATR
@@ -92,7 +92,7 @@ class RiskManager:
         sl_pts = int(sl_dist / tick_size) if tick_size > 0 else 100
 
         # Rule: Initial TP at 1:1 RR
-        tp_pts = sl_pts
+        tp_pts = sl_pts  # INITIAL 1:1 RR TARGET
 
         return {"lots": lots, "sl_pts": sl_pts, "tp_pts": tp_pts}
 

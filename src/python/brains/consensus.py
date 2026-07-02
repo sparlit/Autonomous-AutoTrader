@@ -121,7 +121,7 @@ class MetaBrain(BaseBrain):
         ledger = TradeLedger()
         await ledger.init_db()
 
-        while self.is_running:
+        while getattr(self, "is_running", True):
             try:
                 async with aiosqlite.connect(ledger.db_path) as db:
                     db.row_factory = aiosqlite.Row
@@ -151,7 +151,7 @@ class MetaBrain(BaseBrain):
                                 self.brain_reliability[src] = max(0.1, min(1.0, self.brain_reliability.get(src, 1.0) + adj))
 
                 self.ipc.set_state("brain_reliability", self.brain_reliability); self.ipc.set_state("last_decision", {"msg": "BRAIN: Reliability calibration cycle complete", "time": time.time()}); self.publish({"type": "RELIABILITY_REPORT", "scores": self.brain_reliability})
-                await asyncio.sleep(1800) # Every 30 mins
+                await asyncio.sleep(1800) # Calibration period # Every 30 mins
             except Exception as e:
                 logger.error(f"MetaBrain Learning Error: {e}")
                 await asyncio.sleep(60)

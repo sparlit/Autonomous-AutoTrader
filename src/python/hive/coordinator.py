@@ -195,10 +195,15 @@ class HiveOrchestrator:
                 if isinstance(event["ltf"][0], list): ltf_df.columns = ["o", "h", "l", "c", "t", "v"]
                 smc_data = self.smc.detect_market_structure(ltf_df, atr)
 
-            mtf_trends = self.ipc.get_state(f"trend_stats:{symbol}", {}); orders = await self.pos_manager.monitor_and_manage(symbol, bid, ask, atr, smc_data=smc_data, mtf_trends=mtf_trends)
+            mtf_trends = self.ipc.get_state(f"trend_stats:{symbol}", {})
+            orders = await self.pos_manager.monitor_and_manage(symbol, bid, ask, atr, smc_data=smc_data, mtf_trends=mtf_trends)
             for order in orders:
-                order["magic"] = self.config.system.global_magic
-                await self.server.broadcast(order)
+                if order.get("type") == "PROBABILISTIC_SIGNAL":
+                    # 10025: Scaling signals MUST be re-vetted by the RiskBrain (Zero-Tolerance)
+                    self.ipc.xadd("stream:orchestrator", order)
+                else:
+                    order["magic"] = self.config.system.global_magic
+                    await self.server.broadcast(order)
 
             # 2. Fan out to Strategy/Analyst Brains
             strategy_swarm = [
@@ -240,11 +245,14 @@ class HiveOrchestrator:
         elif e_type in ["REGIME_STATUS", "ANOMALY_STATUS", "STRUCTURE_STATUS"]:
             self.ipc.set_state("last_decision", {"msg": f"SYSTEM: {e_type} for {event.get("symbol")}", "time": time.time()})
         elif e_type == "TELEMETRY":
+            # 10026: Enrich telemetry with hardware health (Zero-Tolerance Witness)
+            hw = self.ipc.get_state("hardware_report", {})
             telemetry_msg = {
                 "t": "TLM", "s": event["symbol"], "st": "OPTIMAL" if self.server.clients else "WAITING",
                 "scr": event["scr"], "htf": event["htf"],
                 "dd": self.ipc.get_state("account_stats", {}).get("drawdown", 0.0),
-                "pc": self.ipc.get_state("account_stats", {}).get("pos_count", 0)
+                "pc": self.ipc.get_state("account_stats", {}).get("pos_count", 0),
+                "tier": hw.get("tier", "UNKNOWN")
             }
             await self.server.broadcast(telemetry_msg)
 
