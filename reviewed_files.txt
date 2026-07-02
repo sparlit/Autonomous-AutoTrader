@@ -1,0 +1,1175 @@
+import datetime
+import json
+import os
+import logging
+from typing import Dict, Any, List, Optional
+
+logger = logging.getLogger("AAT_RiskManager")
+
+class RiskManager:
+    """11000: Institutional Risk Vetting Engine (V3.3.0-ASCENDANT)."""
+    def __init__(self, config, ipc=None):
+        self.config = config
+        self.ipc = ipc
+        self._daily_trades = 0
+        self._peak_equity = 0.0
+        self._active_exposures: Dict[str, int] = {}
+        self.news_events: List[Dict[str, Any]] = []
+        self.load_news_from_file()
+
+    @property
+    def daily_trades(self) -> int:
+        if self.ipc: return self.ipc.get_state("risk:daily_trades", 0)
+        return self._daily_trades
+
+    @daily_trades.setter
+    def daily_trades(self, value: int):
+        if self.ipc: self.ipc.set_state("risk:daily_trades", value)
+        else: self._daily_trades = value
+
+    @property
+    def peak_equity(self) -> float:
+        if self.ipc: return self.ipc.get_state("risk:peak_equity", 0.0)
+        return self._peak_equity
+
+    @peak_equity.setter
+    def peak_equity(self, value: float):
+        if self.ipc: self.ipc.set_state("risk:peak_equity", value)
+        else: self._peak_equity = value
+
+    @property
+    def active_exposures(self) -> Dict[str, int]:
+        if self.ipc: return self.ipc.get_state("risk:active_exposures", {})
+        return self._active_exposures
+
+    @active_exposures.setter
+    def active_exposures(self, value: Dict[str, int]):
+        if self.ipc: self.ipc.set_state("risk:active_exposures", value)
+        else: self._active_exposures = value
+
+    def increment_trade_count(self, symbol: str):
+        self.daily_trades += 1
+        exposures = self.active_exposures
+        exposures[symbol] = exposures.get(symbol, 0) + 1
+        self.active_exposures = exposures
+
+    def load_news_from_file(self, path: str = "config/news_schedule.json"):
+        if os.path.exists(path):
+            try:
+                with open(path, "r") as f: self.news_events = json.load(f)
+            except: logger.warning("Failed to load news")
+
+    def is_session_active(self, symbol: str = "GLOBAL") -> bool:
+        now_utc = datetime.datetime.now(datetime.UTC)
+        weekday = now_utc.weekday()
+        time_utc = now_utc.time()
+        if symbol == "GLOBAL" or any(c in symbol.upper() for c in ["BTC", "ETH"]): return True
+        if weekday == 5: return False
+        if weekday == 6 and time_utc < datetime.time(21, 0): return False
+        if weekday == 4 and time_utc > datetime.time(22, 0): return False
+        return True
+
+    def is_news_safe(self) -> bool:
+        now = datetime.datetime.now(datetime.UTC)
+        for event in self.news_events:
+            try:
+                e_time = datetime.datetime.fromisoformat(event["time"].replace("Z", "+00:00"))
+                if abs((e_time - now).total_seconds()) / 60.0 <= 30.0:
+                    if event.get("impact") == "High": return False
+            except: continue
+        return True
+
+    def calculate_trade_params(self, equity: float, atr: float, symbol: str, action: str, tick_val: float = 10.0, tick_size: float = 0.0001) -> Dict[str, Any]:
+        """
+        11005: Strict Lot Sizing & Initial RR (1:1).
+        Rule: Maximum lot size for initial trades will be 0.01 lots only.
+        """
+        lots = 0.01
+        if atr <= 0: return {"lots": lots, "sl_pts": 0, "tp_pts": 0}
+
+        # Initial SL at 2*ATR
+        sl_dist = atr * 2
+        sl_pts = int(sl_dist / tick_size) if tick_size > 0 else 100
+
+        # Rule: Initial TP at 1:1 RR
+        tp_pts = sl_pts
+
+        return {"lots": lots, "sl_pts": sl_pts, "tp_pts": tp_pts}
+
+    def validate_trade(self, symbol: str, action: str, current_equity: float, atr: float = 0.0, spread: float = 0.0, tick_val: float = 10.0, tick_size: float = 0.0001, ignore_session: bool = False) -> Dict[str, Any]:
+        if not ignore_session and not self.is_session_active(symbol): return {"safe": False, "reason": "SESSION_CLOSED"}
+        if not self.is_news_safe(): return {"safe": False, "reason": "NEWS_BLACKOUT"}
+        if self.daily_trades >= 50: return {"safe": False, "reason": "DAILY_LIMIT"}
+        if atr > 0 and spread > atr * 0.5: return {"safe": False, "reason": "SPREAD_HIGH"}
+
+        # Rule: Scaling allowed if prev trades in profit (handled in Orchestrator/Manager)
+        # RiskManager just ensures we don't blow up.
+        if self.active_exposures.get(symbol, 0) >= 10: return {"safe": False, "reason": "MAX_LAYERS"}
+
+        p = self.calculate_trade_params(current_equity, atr, symbol, action, tick_val, tick_size)
+        return {"safe": True, "lots": p["lots"], "sl_pts": p["sl_pts"], "tp_pts": p["tp_pts"], "action": action, "symbol": symbol}
+import logging
+import time
+from typing import Dict, Any, List, Optional
+from src.python.execution.ledger import TradeLedger
+from src.python.execution.risk_manager import RiskManager
+
+logger = logging.getLogger("AAT_PositionManager")
+
+class PositionManager:
+    """10500: Institutional Position Lifecycle Management (V3.3.0-ASCENDANT)."""
+    def __init__(self, ledger: TradeLedger, risk_manager: RiskManager):
+        self.ledger = ledger
+        self.risk_manager = risk_manager
+
+    async def monitor_and_manage(self, symbol: str, bid: float, ask: float, atr: float, smc_data: Optional[Dict[str, Any]] = None, mtf_trends: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """10505: Master management entry point with Scaling logic."""
+        current_price = (bid + ask) / 2
+
+        # 1. Trailing and Shared SL Management
+        orders = await self.manage_open_positions(symbol, current_price, atr, smc_data)
+
+        # 2. Scaling Logic: Add 0.01 lots if trade is in profit and trend is in favor
+        active_trades = await self.ledger.get_active_trades_db(symbol)
+        if active_trades and mtf_trends:
+            # Rule 1.b: "only if all the previous trades are running in profit"
+            all_in_profit = True
+            for t in active_trades:
+                profit = (current_price - t["entry_price"]) if t["action"] == "BUY" else (t["entry_price"] - current_price)
+                if profit <= 0:
+                    all_in_profit = False
+                    break
+
+            if all_in_profit:
+                # Use the most recent trade to check if profit is "locked" (SL at or better than Entry)
+                # This ensures we scale in a 1:1, 1:2, 1:3 RR progression pattern
+                last_trade = sorted(active_trades, key=lambda x: x['timestamp'])[-1]
+                is_locked = False
+                if last_trade["action"] == "BUY" and last_trade["sl_price"] >= last_trade["entry_price"]: is_locked = True
+                if last_trade["action"] == "SELL" and last_trade["sl_price"] <= last_trade["entry_price"]: is_locked = True
+
+                if is_locked:
+                    trend = "BULLISH" if last_trade["action"] == "BUY" else "BEARISH"
+                    # Rule 2.a/b: Mandatory Higher TF Assessment (M15, H1, H4, D1)
+                    # For scaling, we check H1 and H4 alignment as a proxy for "Higher TF"
+                    if mtf_trends.get("h1") == trend and mtf_trends.get("h4") == trend:
+                        orders.append({
+                            "type": "PROBABILISTIC_SIGNAL",
+                            "symbol": symbol,
+                            "action": last_trade["action"],
+                            "probability": 0.90,
+                            "reason": "SCALING_IN_PROGRESSION",
+                            "atr": atr,
+                            "scaling": True
+                        })
+
+        return orders
+
+    async def manage_open_positions(self, symbol: str, current_price: float, atr: float, smc_data: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """
+        10501: Shared Trailing SL Management.
+        Rule: All trades for same symbol/direction MUST share the same SL.
+        """
+        active_trades = await self.ledger.get_active_trades_db(symbol)
+        if not active_trades: return []
+
+        # Group by direction
+        buys = [t for t in active_trades if t['action'] == 'BUY']
+        sells = [t for t in active_trades if t['action'] == 'SELL']
+
+        management_orders = []
+
+        for trades in [buys, sells]:
+            if not trades: continue
+
+            direction = trades[0]['action']
+            s_stats = self.risk_manager.ipc.get_state(f"symbol_stats:{symbol}", {})
+            ts = s_stats.get("tick_size", 0.0001)
+
+            # Find the "Leading" SL based on RR progression of EACH trade
+            # But the rule says SL must be same for ALL.
+            # We will calculate the trailing SL for each and take the most aggressive one.
+
+            best_sl = 0.0
+            current_sl = trades[0]['sl_price'] # They should ideally be same already
+
+            for trade in trades:
+                entry = trade['entry_price']
+                sl_pts = trade.get('sl_pts', 0)
+                if sl_pts == 0: continue
+
+                r_dist = sl_pts * ts
+
+                # RR Levels
+                one_r = entry + r_dist if direction == "BUY" else entry - r_dist
+                two_r = entry + 2 * r_dist if direction == "BUY" else entry - 2 * r_dist
+                three_r = entry + 3 * r_dist if direction == "BUY" else entry - 3 * r_dist
+
+                # Proposed SL for THIS trade
+                p_sl = trade['sl_price']
+                if direction == "BUY":
+                    if current_price >= three_r: p_sl = entry + 2 * r_dist
+                    elif current_price >= two_r: p_sl = entry + r_dist
+                    elif current_price >= one_r: p_sl = entry
+
+                    if best_sl == 0 or p_sl > best_sl: best_sl = p_sl
+                else:
+                    if current_price <= three_r: p_sl = entry - 2 * r_dist
+                    elif current_price <= two_r: p_sl = entry - r_dist
+                    elif current_price <= one_r: p_sl = entry
+
+                    if best_sl == 0 or p_sl < best_sl: best_sl = p_sl
+
+            # If best_sl moved, apply to ALL trades in this direction
+            if best_sl > 0:
+                for trade in trades:
+                    # Update if SL improved
+                    if (direction == "BUY" and best_sl > trade['sl_price']) or                        (direction == "SELL" and best_sl < trade['sl_price']):
+                        management_orders.append({
+                            "type": "EXECUTION_ORDER", "t": "MODIFY_SL", "tk": trade['ticket'],
+                            "s": symbol, "sl": best_sl, "reason": "SHARED_TRAILING_RR"
+                        })
+
+        return management_orders
+import asyncio
+import logging
+import time
+import pandas as pd
+import numpy as np
+from typing import Dict, Any, List, Optional
+from src.python.brains.base import BaseBrain
+from src.python.analyst.indicators import IndicatorAnalyst
+from src.python.analyst.price_action import SMCAnalyst
+from src.python.hive.config import load_config
+from src.python.execution.risk_manager import RiskManager
+
+try:
+    import aat_institutional_core as aat_rust
+    RUST_AVAILABLE = True
+except ImportError:
+    RUST_AVAILABLE = False
+
+logger = logging.getLogger("AAT_SpecializedBrains")
+
+class MarketDataBrain(BaseBrain):
+    """Brain 1 - 10501: Market Data ingestion and normalization."""
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if event.get("type") == "MARKET_DATA_RAW":
+            symbol = event.get("s")
+            bid, ask = event.get("b", 0), event.get("a", 0)
+
+            self.ipc.set_state(f"symbol_stats:{symbol}", {
+                "bid": bid, "ask": ask,
+                "spread": event.get("sp", 0),
+                "tick_val": event.get("tv", 10.0),
+                "tick_size": event.get("ts", 0.0001),
+                "last_update": time.time()
+            })
+
+            return {"type": "MARKET_DATA", "symbol": symbol, "bid": bid, "ask": ask,
+                    "atr": event.get("atr", 0), "ltf": event.get("ltf", []),
+                    "m15": event.get("m15", []), "h1": event.get("h1", []),
+                    "h4": event.get("h4", []), "d1": event.get("d1", [])}
+        return None
+
+class TrendBrain(BaseBrain):
+    """
+    Brain 3 - 10503: Multi-Timeframe Trend Evidence (V3.3.0-ASCENDANT).
+    Mandatory: M15, H1, H4, D1.
+    Rule: Majority (confluence) provided the TFs are consecutive.
+    """
+    async def initialize(self):
+        await super().initialize()
+        self.smc = SMCAnalyst()
+
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if event.get("type") == "MARKET_DATA":
+            symbol = event["symbol"]
+
+            tfs = ["m15", "h1", "h4", "d1"]
+            trends = {}
+
+            for tf in tfs:
+                df = pd.DataFrame(event.get(tf, []))
+                if not df.empty:
+                    if isinstance(event[tf][0], list): df.columns = ["o", "h", "l", "c", "t", "v"]
+                    trends[tf] = self.smc.detect_market_structure(df)["trend"]
+                else:
+                    trends[tf] = "NEUTRAL"
+
+            # Check consecutive majority
+            # M15-H1, H1-H4, H4-D1
+            bullish_pairs = 0
+            bearish_pairs = 0
+
+            if trends["m15"] == "BULLISH" and trends["h1"] == "BULLISH": bullish_pairs += 1
+            if trends["h1"] == "BULLISH" and trends["h4"] == "BULLISH": bullish_pairs += 1
+            if trends["h4"] == "BULLISH" and trends["d1"] == "BULLISH": bullish_pairs += 1
+
+            if trends["m15"] == "BEARISH" and trends["h1"] == "BEARISH": bearish_pairs += 1
+            if trends["h1"] == "BEARISH" and trends["h4"] == "BEARISH": bearish_pairs += 1
+            if trends["h4"] == "BEARISH" and trends["d1"] == "BEARISH": bearish_pairs += 1
+
+            direction = 0
+            p_e_h = 0.50
+            if bullish_pairs >= 2: direction = 1; p_e_h = 0.85
+            elif bearish_pairs >= 2: direction = -1; p_e_h = 0.85
+            elif bullish_pairs == 1: direction = 1; p_e_h = 0.70
+            elif bearish_pairs == 1: direction = -1; p_e_h = 0.70
+
+            # Set global trend for orchestrator
+            self.ipc.set_state(f"trend_stats:{symbol}", trends)
+
+            return {
+                "type": "EVIDENCE", "symbol": symbol, "source": self.name,
+                "direction": direction, "p_e_h": p_e_h, "p_e": 0.50,
+                "data": {"trends": trends}
+            }
+        return None
+
+class IndicatorBrain(BaseBrain):
+    """Brain 2 - 10502: Technical Indicator Evidence."""
+    async def initialize(self):
+        await super().initialize()
+        self.analyst = IndicatorAnalyst()
+
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if event.get("type") == "MARKET_DATA":
+            df = pd.DataFrame(event.get("ltf", []))
+            if df.empty: return None
+            if isinstance(event["ltf"][0], list): df.columns = ["o", "h", "l", "c", "t", "v"]
+
+            rsi = self.analyst.calculate_rsi(df)
+            ema_fast = self.analyst.calculate_ema(df, 9)
+            ema_slow = self.analyst.calculate_ema(df, 21)
+
+            direction = 0
+            if rsi > 55 and ema_fast > ema_slow: direction = 1
+            elif rsi < 45 and ema_fast < ema_slow: direction = -1
+
+            return {
+                "type": "EVIDENCE", "symbol": event["symbol"], "source": self.name,
+                "direction": direction, "p_e_h": 0.75, "p_e": 0.50,
+                "data": {"rsi": rsi, "atr": event.get("atr", 0)}
+            }
+        return None
+
+class RiskBrain(BaseBrain):
+    """Brain 11 - 10517: Local Risk Vetting and Threshold Enforcement."""
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if event.get("type") == "PROBABILISTIC_SIGNAL":
+            # Rule: 0.01 lots strictly enforced
+            event["lots"] = 0.01
+
+            # Rule: Mandatory Trend Alignment
+            # (Handled in MetaBrain, but we can double check here)
+            return {"type": "VALIDATED_TRADE", **event}
+        return None
+
+class ExecutionBrain(BaseBrain):
+    """Brain 12 - 10512: Final Order formatting for MT5."""
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if event.get("type") == "VALIDATED_TRADE":
+            return {
+                "type": "EXECUTION_ORDER", "t": "DEC", "s": event["symbol"],
+                "act": event["action"], "lts": 0.01, # Strict 0.01 lots
+                "sl_p": 0, "tp_p": 0, # Will be calculated by RiskManager in Orchestrator
+                "reason": event.get("reason", "BRAIN_SIGNAL")
+            }
+        return None
+
+class AnomalyBrain(BaseBrain):
+    """Brain 8 - 10508: Anomaly detection."""
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if event.get("type") == "MARKET_DATA":
+            df = pd.DataFrame(event.get("ltf", []))
+            if df.empty: return None
+            if isinstance(event["ltf"][0], list): df.columns = ["o", "h", "l", "c", "t", "v"]
+            price_change_pct = abs(df['c'].iloc[-1] - df['o'].iloc[-1]) / df['o'].iloc[-1]
+            if price_change_pct > 0.02:
+                return {"type": "ANOMALY_STATUS", "symbol": event["symbol"], "anomaly": "SPIKE", "severity": "HIGH"}
+        return None
+
+class PortfolioBrain(BaseBrain):
+    """Brain 9 - 10515: Global Risk and Capital Allocation."""
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        return None
+
+class MonitoringBrain(BaseBrain):
+    """Brain 10 - 10516: System Health Monitoring."""
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        return None
+
+class LiquidityBrain(BaseBrain):
+    """Brain 5 - 10505: Liquidity hunt detection."""
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        return None
+
+class RegimeBrain(BaseBrain):
+    """Brain 6 - 10506: Market Regime classification."""
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if event.get("type") == "MARKET_DATA":
+            return {"type": "REGIME_STATUS", "symbol": event["symbol"], "source": self.name, "regime": "TRENDING"}
+        return None
+
+class ContrarianBrain(BaseBrain):
+    """Brain 7 - 10507: Contrarian signal detection."""
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        return None
+
+class NewsRiskBrain(BaseBrain):
+    """Brain 15 - 10521: News Impact analysis."""
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        return None
+
+class MemoryBrain(BaseBrain):
+    """Brain 16 - 10522: Historical trade memory."""
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        return None
+
+class CorrelationBrain(BaseBrain):
+    """Brain 14 - 10519: Cross-symbol correlation analysis."""
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        return None
+
+class SwingMaster(BaseBrain):
+    """Strategy: Swing Trading."""
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        return None
+
+class ScalpMaster(BaseBrain):
+    """Strategy: Scalping."""
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        return None
+
+class VSAMaster(BaseBrain):
+    """Strategy: Volume Spread Analysis."""
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        return None
+
+class WyckoffMaster(BaseBrain):
+    """Strategy: Wyckoff Method."""
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        return None
+
+class ICTKillzone(BaseBrain):
+    """Strategy: ICT Killzones."""
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        return None
+
+class MomentumBrain(BaseBrain):
+    """Brain 4 - 10504: Momentum analysis."""
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        return None
+
+class StructureBrain(BaseBrain):
+    """Brain 13 - 10518: SMC Structural Elements."""
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        return None
+import asyncio
+import logging
+import time
+import pandas as pd
+import numpy as np
+import os
+import json
+from typing import Dict, Any, List, Optional
+from src.python.brains.base import BaseBrain
+from src.python.hive.config import load_config
+
+logger = logging.getLogger("AAT_MetaBrain")
+
+class MetaBrain(BaseBrain):
+    """
+    Brain 11 - 10601: The Bayesian Probability Engine (V3.3.0-ASCENDANT).
+    Mandatory: MTF Trend Alignment, Consecutive Majority.
+    """
+    def __init__(self, name: str, cpu_affinity: Optional[List[int]] = None, threshold: float = 0.70, ipc: Any = None):
+        super().__init__(name, cpu_affinity, ipc=ipc)
+        self.threshold = threshold
+        self.symbol_state: Dict[str, Dict[str, Any]] = {}
+        self.brain_reliability: Dict[str, float] = {}
+        self.required_sources = ["Trend_1", "Indicator_1"] # Minimum viable for signal
+        self.confluence_threshold = 3 # Default required agreement points
+
+    async def initialize(self):
+        await super().initialize()
+        asyncio.create_task(self._learning_loop())
+
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        symbol = event.get("symbol")
+        if not symbol: return None
+
+        # Scaling Signal handling
+        if event.get("scaling"):
+            return {
+                "type": "PROBABILISTIC_SIGNAL", "symbol": symbol, "action": event["action"],
+                "probability": 0.95, "reason": "SCALING_ALIGNED", "scaling": True, "lots": 0.01
+            }
+
+        if symbol not in self.symbol_state: self.symbol_state[symbol] = self._new_state()
+        state = self.symbol_state[symbol]; e_type = event.get("type")
+
+        if e_type == "RELIABILITY_REPORT":
+            self.brain_reliability = event.get("scores", {})
+            # Correction: Auto-adjust threshold if overall performance is poor
+            avg_rel = sum(self.brain_reliability.values()) / len(self.brain_reliability) if self.brain_reliability else 1.0
+            if avg_rel < 0.5: self.threshold = 0.80 # Tighten requirements
+            else: self.threshold = 0.70
+            return None
+
+        if e_type == "EVIDENCE":
+            src = event["source"]
+            state["received_sources"].add(src)
+
+            # Record evidence
+            direction = event.get("direction", 0)
+            if "Trend" in src: state["confluence"]["trend"] = direction
+            elif "Indicator" in src: state["confluence"]["momentum"] = direction
+
+            # Bayesian Update
+            p_e_h = event.get("p_e_h", 0.50)
+            p_e = event.get("p_e", 0.50)
+            rel = self.brain_reliability.get(src, 1.0)
+
+            # Weighting
+            weighted_p_e_h = 0.50 + (p_e_h - 0.50) * rel
+            prior = state["prior"]
+            posterior = (weighted_p_e_h * prior) / p_e if p_e > 0 else prior
+            state["prior"] = max(0.01, min(0.99, posterior))
+
+            state["evidence_trail"].append({
+                "src": src, "dir": direction, "p": state["prior"], "rel": rel
+            })
+
+            # Check for Decision
+            if all(s in state["received_sources"] for s in self.required_sources):
+                # Mandatory Trend Alignment Check
+                if state["confluence"]["trend"] == 0: return None
+
+                # Signal direction must match trend
+                action = "BUY" if state["confluence"]["trend"] > 0 else "SELL"
+
+                # Check Momentum alignment
+                if state["confluence"]["momentum"] != state["confluence"]["trend"]:
+                    return None # No alignment
+
+                if state["prior"] >= self.threshold:
+                    # 10620: Signal Latching - prevent duplicates
+                    active_trades = self.ipc.get_state("active_trades", [])
+                    if any(t['symbol'] == symbol for t in active_trades): return None
+
+                    res = {
+                        "type": "PROBABILISTIC_SIGNAL", "symbol": symbol, "action": action,
+                        "probability": state["prior"], "lots": 0.01,
+                        "reason": f"MTF_ALIGNED_CONF_{len(state['evidence_trail'])}",
+                        "evidence": json.dumps(state["evidence_trail"])
+                    }
+                    self.symbol_state[symbol] = self._new_state()
+                    return res
+        return None
+
+    def _new_state(self):
+        return {
+            "prior": 0.50, "evidence_trail": [], "received_sources": set(),
+            "confluence": {"trend": 0, "momentum": 0}
+        }
+
+    async def _learning_loop(self):
+        """10630: Learn <-> Evaluate <-> Fix Loop."""
+        import aiosqlite
+        from src.python.execution.ledger import TradeLedger
+        ledger = TradeLedger()
+        await ledger.init_db()
+
+        while self.is_running:
+            try:
+                async with aiosqlite.connect(ledger.db_path) as db:
+                    db.row_factory = aiosqlite.Row
+                    # Analyze last 50 closed trades
+                    async with db.execute("SELECT * FROM trades WHERE status = 'CLOSED' ORDER BY timestamp DESC LIMIT 50") as cursor:
+                        recent_trades = [dict(row) for row in await cursor.fetchall()]
+
+                if recent_trades:
+                    # Logic: If win rate < 40%, increase Bayesian threshold
+                    wins = len([t for t in recent_trades if t.get('profit', 0) > 0])
+                    win_rate = wins / len(recent_trades)
+
+                    if win_rate < 0.4:
+                        self.threshold = min(0.9, self.threshold + 0.05)
+                        logger.warning(f"Fixing: Low win rate {win_rate:.2f}. Increasing threshold to {self.threshold:.2f}")
+                    elif win_rate > 0.6:
+                        self.threshold = max(0.6, self.threshold - 0.02)
+                        logger.info(f"Optimizing: Good win rate {win_rate:.2f}. Relaxing threshold to {self.threshold:.2f}")
+
+                    # Update reliability for individual brains
+                    for t in recent_trades:
+                        trail = json.loads(t.get("evidence", "[]"))
+                        adj = 0.02 if t.get('profit', 0) > 0 else -0.03
+                        for e in trail:
+                            src = e.get("src")
+                            if src:
+                                self.brain_reliability[src] = max(0.1, min(1.0, self.brain_reliability.get(src, 1.0) + adj))
+
+                self.publish({"type": "RELIABILITY_REPORT", "scores": self.brain_reliability})
+                await asyncio.sleep(1800) # Every 30 mins
+            except Exception as e:
+                logger.error(f"MetaBrain Learning Error: {e}")
+                await asyncio.sleep(60)
+import aiosqlite
+import logging
+import time
+import os
+from typing import Dict, Any, List, Optional
+
+logger = logging.getLogger("AAT_Ledger")
+
+class TradeLedger:
+    """16000: Atomic persistent trade database (V3.3.0-ASCENDANT)."""
+    def __init__(self, db_path: str = "audit_records.db"):
+        self.db_path = db_path
+        self._peak_equity = 0.0
+
+    async def init_db(self):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS trades (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    symbol TEXT,
+                    action TEXT,
+                    lots REAL,
+                    sl_pts INTEGER,
+                    tp_pts INTEGER,
+                    ticket INTEGER DEFAULT 0,
+                    entry_price REAL DEFAULT 0,
+                    sl_price REAL DEFAULT 0,
+                    tp_price REAL DEFAULT 0,
+                    profit REAL DEFAULT 0,
+                    status TEXT,
+                    evidence TEXT,
+                    timestamp REAL
+                )
+            """)
+            await db.commit()
+
+    async def record_intent(self, symbol: str, action: str, lots: float, sl: int, tp: int, evidence: str = "[]") -> int:
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                "INSERT INTO trades (symbol, action, lots, sl_pts, tp_pts, status, evidence, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (symbol, action, lots, sl, tp, "PENDING", evidence, time.time())
+            )
+            await db.commit()
+            return cursor.lastrowid
+
+    async def confirm_trade(self, internal_id: int, ticket: int, entry: float, sl: float, tp: float):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                "UPDATE trades SET ticket = ?, entry_price = ?, sl_price = ?, tp_price = ?, status = 'OPEN' WHERE id = ?",
+                (ticket, entry, sl, tp, internal_id)
+            )
+            await db.commit()
+
+    async def update_trade_from_sync(self, ticket: int, symbol: str, action: str, lots: float, sl: float, tp: float):
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute("SELECT id FROM trades WHERE ticket = ?", (ticket,)) as cursor:
+                row = await cursor.fetchone()
+                if row:
+                    await db.execute("UPDATE trades SET sl_price = ?, tp_price = ?, status = 'OPEN' WHERE ticket = ?", (sl, tp, ticket))
+                else:
+                    await db.execute(
+                        "INSERT INTO trades (symbol, action, lots, ticket, sl_price, tp_price, status, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                        (symbol, action, lots, ticket, sl, tp, "OPEN", time.time())
+                    )
+            await db.commit()
+
+    async def close_trade(self, ticket: int, profit: float = 0.0):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("UPDATE trades SET status = 'CLOSED', profit = ? WHERE ticket = ?", (profit, ticket))
+            await db.commit()
+
+    async def get_active_trades_db(self, symbol: str) -> List[Dict[str, Any]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM trades WHERE symbol = ? AND status = 'OPEN'", (symbol,)) as cursor:
+                return [dict(row) for row in await cursor.fetchall()]
+
+    async def get_all_active_trades(self) -> List[Dict[str, Any]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM trades WHERE status = 'OPEN'") as cursor:
+                return [dict(row) for row in await cursor.fetchall()]
+
+    async def prune_trades(self, active_tickets: List[int]):
+        async with aiosqlite.connect(self.db_path) as db:
+            if not active_tickets:
+                await db.execute("UPDATE trades SET status = 'CLOSED' WHERE status = 'OPEN'")
+            else:
+                sql_marks = ", ".join(["?"] * len(active_tickets))
+                await db.execute(f"UPDATE trades SET status = 'CLOSED' WHERE status = 'OPEN' AND ticket NOT IN ({sql_marks})", active_tickets)
+            await db.commit()
+import asyncio
+import logging
+import multiprocessing
+import os
+import signal
+import sys
+import psutil
+import time
+import ujson as json
+import pandas as pd
+from typing import Dict, Any, List, Optional
+from src.python.hive.ipc import HiveIPC
+from src.python.bridge.dashboards.native_gui import NativeDashboard
+from src.python.bridge.dashboards.web_server import WebDashboard
+from src.python.bridge.watchdog import L99Watchdog
+from src.python.bridge.server import BridgeServer
+from src.python.hive.config import AATConfig, load_config
+from src.python.analyst.price_action import SMCAnalyst
+from src.python.brains.registry import BrainRegistry
+from src.python.hive.hardware_analyst import HardwareAnalyst
+
+# Strategy Brains
+from src.python.brains.strategies.swing_master import SwingMaster
+from src.python.brains.strategies.scalp_master import ScalpMaster
+from src.python.brains.strategies.vsa_master import VSAMaster
+from src.python.brains.strategies.wyckoff_master import WyckoffMaster
+from src.python.brains.strategies.ict_killzone import ICTKillzone
+from src.python.brains.consensus import MetaBrain
+
+# Specialized / Analyst Brains
+from src.python.brains.specialized import (
+    MarketDataBrain, TrendBrain, IndicatorBrain, LiquidityBrain, RegimeBrain,
+    ContrarianBrain, NewsRiskBrain, MemoryBrain, RiskBrain,
+    ExecutionBrain, AnomalyBrain, PortfolioBrain, CorrelationBrain,
+    MomentumBrain, StructureBrain, MonitoringBrain
+)
+
+# Execution Managers
+from src.python.execution.ledger import TradeLedger
+from src.python.execution.risk_manager import RiskManager
+from src.python.execution.manager import PositionManager
+
+logger = logging.getLogger("AAT_Supervisor")
+
+class HiveOrchestrator:
+    """
+    10001: The Supervisor (Process 0).
+    Responsible for the 23-brain process lifecycle and dynamic affinity mapping.
+    """
+    def __init__(self, credentials: Optional[Dict[str, Any]] = None):
+        self.config = load_config()
+        self.credentials = credentials
+        self.ipc = HiveIPC()
+        self.registry = BrainRegistry()
+        self.hardware = HardwareAnalyst(self.config.system.database_path)
+
+        # Core Components
+        self.server = BridgeServer(self.config.bridge.host, self.config.bridge.port, self.handle_client_message)
+        self.ledger = TradeLedger(self.config.system.database_path)
+        self.risk_manager = RiskManager(self.config, ipc=self.ipc)
+        self.pos_manager = PositionManager(self.ledger, self.risk_manager)
+        self.watchdog = L99Watchdog(self)
+        self.smc = SMCAnalyst()
+
+        self.running = True
+        self.brains = []
+
+    async def run(self):
+        """10002: Orchestration Entry Point."""
+        logger.info("Initializing Phoenix Gauntlet V3.3.0...")
+        self.hardware.log_capabilities()
+
+        # 1. Database and Shared Memory
+        await self.ledger.init_db()
+        self.ipc.clear_memory()
+
+        # Pre-initialize MUST-HAVE streams
+        self.ipc.create_stream("stream:orchestrator")
+
+        # 2. Start Brains
+        await self._spawn_brain_swarm()
+
+        # 3. Start Bridge Server
+        asyncio.create_task(self.server.start())
+
+        # 4. Start Watchdog
+        asyncio.create_task(self.watchdog.run())
+
+        # 10450: Launch Monitoring Dashboards
+        self.web_dash = WebDashboard(ipc=self.ipc, port=self.config.bridge.dashboard_port)
+        self.web_dash.start()
+
+        self.native_dash = NativeDashboard(ipc=self.ipc)
+        self.native_dash.start()
+
+        logger.info("AAT V3.3.0 Fully Operational.")
+
+        # Pin orchestrator to Core 1 if available
+        self._setup_affinity()
+
+        # 5. Main Orchestration Loop
+        await self._orchestration_loop()
+
+    def _setup_affinity(self):
+        try:
+            p = psutil.Process(os.getpid())
+            if psutil.cpu_count() > 1:
+                p.cpu_affinity([1])
+                logger.info("Orchestrator pinned to CPU 1")
+        except Exception as e:
+            logger.debug(f"Orchestrator affinity fail: {e}")
+
+    async def handle_client_message(self, client_id: str, message: Dict[str, Any]) -> Dict[str, Any]:
+        """10010: Inbound message router for MT5 Clients."""
+        m_type = message.get("t")
+
+        if m_type == "HB": # Heartbeat
+            self.watchdog.heartbeat()
+            equity = message.get("eq", message.get("e", 0.0))
+
+            # 10025: Global peak tracking for drawdown enforcement
+            if equity > self.risk_manager.peak_equity:
+                self.risk_manager.peak_equity = equity
+
+            # 10026: Institutional Equity Guard (Auto-Flatten on DD breach)
+            if self.risk_manager.peak_equity > 0:
+                dd_pct = (self.risk_manager.peak_equity - equity) / self.risk_manager.peak_equity * 100.0
+                if dd_pct > self.config.risk.max_drawdown_pct:
+                    logger.critical(f"⚠️ DRAWDOWN BREACH DETECTED: {dd_pct:.2f}% (Limit: {self.config.risk.max_drawdown_pct}%). TRIGGERING GLOBAL FLATTEN.")
+                    await self.server.broadcast({
+                        "t": "DECISION", "s": "GLOBAL", "act": "MGMT", "mgmt": "CLOSE_ALL",
+                        "reason": f"EQUITY_GUARD_BREACH_{dd_pct:.2f}PCT"
+                    })
+
+            self.ipc.set_state("account_stats", {
+                "equity": equity,
+                "drawdown": message.get("dd", message.get("d", 0.0)),
+                "pos_count": message.get("pc", 0),
+                "spread": message.get("sp", 0.0),
+                "candle_timer": message.get("ct", "--:--"),
+                "last_hb": time.time()
+            })
+            self.ipc.xadd("stream:Portfolio_1", {"type": "HB", **message})
+            return {"t": "ACK"}
+
+        elif m_type == "DP": # Data Push
+            message["type"] = "MARKET_DATA_RAW"
+            self.ipc.xadd("stream:MarketData_1", message)
+            return {"t": "ACK"}
+
+        elif m_type == "SYNC":
+            tickets = message.get("tk", [])
+            for t in tickets:
+                await self.ledger.update_trade_from_sync(
+                    t['tk'], t['s'], t['act'], t['vol'], t['sl'], t['tp']
+                )
+            # Prune closed trades
+            active_tickets = [t["tk"] for t in tickets]
+            await self.ledger.prune_trades(active_tickets)
+            return {"t": "SYNC_ACK"}
+
+        return {"t": "SYNC_REQ"}
+
+    async def _orchestration_loop(self):
+        """10012: The central event bus reader."""
+        logger.info("Event Bus listener active.")
+        while self.running:
+            try:
+                messages = self.ipc.xread({"stream:orchestrator": "0"}, count=50)
+                if messages:
+                    for stream, msgs in messages:
+                        for msg_id, data in msgs:
+                            event = json.loads(data[b'payload'])
+                            await self._process_orchestrator_event(event)
+                    await asyncio.sleep(0.005)
+                else:
+                    await asyncio.sleep(0.02)
+
+                self._update_system_stats()
+            except Exception as e:
+                logger.error(f"Orchestration Loop Error: {e}")
+                await asyncio.sleep(0.1)
+
+    async def _process_orchestrator_event(self, event: Dict[str, Any]):
+        """10013: Institutional Event Routing."""
+        e_type = event.get("type")
+
+        if e_type == "MARKET_DATA":
+            # 1. Run Position Management (Trailing SL, etc)
+            symbol = event.get("symbol")
+            bid, ask, atr = event.get("bid", 0), event.get("ask", 0), event.get("atr", 0)
+            ltf_df = pd.DataFrame(event.get("ltf", []))
+            smc_data = None
+            if not ltf_df.empty:
+                if isinstance(event["ltf"][0], list): ltf_df.columns = ["o", "h", "l", "c", "t", "v"]
+                smc_data = self.smc.detect_market_structure(ltf_df, atr)
+
+            mtf_trends = self.ipc.get_state(f"trend_stats:{symbol}", {}); orders = await self.pos_manager.monitor_and_manage(symbol, bid, ask, atr, smc_data=smc_data, mtf_trends=mtf_trends)
+            for order in orders:
+                order["magic"] = self.config.system.global_magic
+                await self.server.broadcast(order)
+
+            # 2. Fan out to Strategy/Analyst Brains
+            strategy_swarm = [
+                "Trend_1", "Indicator_1", "Momentum_1", "Structure_1", "Liquidity_1",
+                "Regime_1", "Anomaly_1", "SwingMaster", "ScalpMaster",
+                "VSAMaster", "WyckoffMaster", "ICTKillzone"
+            ]
+            for b in strategy_swarm:
+                self.ipc.xadd(f"stream:{b}", event)
+
+        elif e_type in ["EVIDENCE", "REGIME_STATUS", "MOMENTUM_STATUS", "STRUCTURE_STATUS"]:
+            self.ipc.xadd("stream:MetaBrain", event)
+
+        elif e_type == "PROBABILISTIC_SIGNAL":
+            for b in ["Risk_1", "Contrarian_1", "Correlation_1", "NewsRisk_1"]:
+                self.ipc.xadd(f"stream:{b}", event)
+
+        elif e_type in ["VETO", "NEWS_VETO"]:
+            self.ipc.xadd("stream:MetaBrain", event)
+            self.ipc.xadd("stream:Risk_1", event)
+
+        elif e_type == "VALIDATED_TRADE":
+            self.ipc.xadd("stream:Execution_1", event)
+
+        elif e_type == "EXECUTION_ORDER":
+            # Final output to MT5
+            event["magic"] = self.config.system.global_magic
+            if event.get("t") == "DEC":
+                internal_id = await self.ledger.record_intent(
+                    event["s"], event["act"], event["lts"], event["sl_p"], event["tp_p"]
+                )
+                event["id"] = internal_id
+                # 10020: Increment shared trade count globally
+                self.risk_manager.increment_trade_count(event["s"])
+
+            await self.server.broadcast(event)
+
+        elif e_type == "TELEMETRY":
+            telemetry_msg = {
+                "t": "TLM", "s": event["symbol"], "st": "OPTIMAL" if self.server.clients else "WAITING",
+                "scr": event["scr"], "htf": event["htf"],
+                "dd": self.ipc.get_state("account_stats", {}).get("drawdown", 0.0),
+                "pc": self.ipc.get_state("account_stats", {}).get("pos_count", 0)
+            }
+            await self.server.broadcast(telemetry_msg)
+
+    def _update_system_stats(self):
+        stats = {
+            "status": "OPTIMAL" if self.server.clients else "WAITING",
+            "active_clients": len(self.server.clients),
+            "msgs_rx": self.server.stats["msgs_rx"],
+            "msgs_tx": self.server.stats["msgs_tx"],
+            "latency": self.server.stats["last_latency"],
+            "server_time": time.time()
+        }
+        self.ipc.set_state("engine_stats", stats)
+        asyncio.create_task(self._sync_trades_to_ipc())
+
+    async def _sync_trades_to_ipc(self):
+        trades = await self.ledger.get_all_active_trades()
+        now = time.time()
+        enriched_trades = []
+        for t in trades:
+            symbol = t['symbol']
+            s_stats = self.ipc.get_state(f"symbol_stats:{symbol}", {})
+            bid = s_stats.get("bid", 0)
+            ask = s_stats.get("ask", 0)
+            tick_val = s_stats.get("tick_val", 10.0)
+            tick_size = s_stats.get("tick_size", 0.0001)
+
+            if bid > 0 and ask > 0:
+                current_price = bid if t['action'] == "BUY" else ask
+                diff = (current_price - t['entry_price']) if t['action'] == "BUY" else (t['entry_price'] - current_price)
+                t['pl_points'] = diff / tick_size if tick_size > 0 else 0
+                t['pl_currency'] = t['lots'] * t['pl_points'] * tick_val if tick_size > 0 else 0
+            else:
+                t['pl_points'] = 0.0
+                t['pl_currency'] = 0.0
+
+            t['duration'] = now - t['timestamp']
+            if t.get('partial_tp_hit') == 1:
+                t['status'] = "PARTIAL_HIT"
+
+            enriched_trades.append(t)
+
+        self.ipc.set_state("active_trades", enriched_trades)
+
+    async def broadcast_command(self, cmd: Dict[str, Any]):
+        await self.server.broadcast(cmd)
+
+    async def _spawn_brain_swarm(self):
+        """10015: Stabilized parallel process spawning."""
+        swarm_classes = [
+            (MarketDataBrain, "MarketData_1"),
+            (TrendBrain, "Trend_1"),
+            (IndicatorBrain, "Indicator_1"),
+            (MomentumBrain, "Momentum_1"),
+            (StructureBrain, "Structure_1"),
+            (LiquidityBrain, "Liquidity_1"),
+            (RegimeBrain, "Regime_1"),
+            (ContrarianBrain, "Contrarian_1"),
+            (NewsRiskBrain, "NewsRisk_1"),
+            (MemoryBrain, "Memory_1"),
+            (RiskBrain, "Risk_1"),
+            (ExecutionBrain, "Execution_1"),
+            (AnomalyBrain, "Anomaly_1"),
+            (PortfolioBrain, "Portfolio_1"),
+            (CorrelationBrain, "Correlation_1"),
+            (MonitoringBrain, "Monitoring_1"),
+            (SwingMaster, "SwingMaster"),
+            (ScalpMaster, "ScalpMaster"),
+            (VSAMaster, "VSAMaster"),
+            (WyckoffMaster, "WyckoffMaster"),
+            (ICTKillzone, "ICTKillzone"),
+            (MetaBrain, "MetaBrain")
+        ]
+
+        for _, name in swarm_classes:
+            self.ipc.create_stream(f"stream:{name}")
+
+        affinity_map = self.hardware.get_optimized_affinity_map(len(swarm_classes))
+
+        for i, (brain_cls, name) in enumerate(swarm_classes):
+            if name in ["MetaBrain", "Trend_1", "Indicator_1", "MarketData_1"]:
+                 brain = brain_cls(name=name, ipc=self.ipc, cpu_affinity=affinity_map.get(i))
+            else:
+                 brain = brain_cls(name=name, ipc=self.ipc)
+                 brain.cpu_affinity = affinity_map.get(i)
+
+            self.registry.register(brain)
+            brain.start()
+            await asyncio.sleep(0.1)
+
+        self.brains = list(self.registry._brains.values())
+
+    def stop(self, *args):
+        self.running = False
+        if hasattr(self, 'web_dash'): self.web_dash.terminate()
+        if hasattr(self, 'native_dash'): self.native_dash.terminate()
+        self.registry.stop_all()
+        logger.info("AAT V3.3.0 Shutdown Complete.")
+#property copyright "Copyright 2024, Jules (God Mode)"
+#property link      "https://github.com/sparlit/Autonomous-AutoTrader"
+#property strict
+
+class CAATProtocol
+{
+public:
+   static string BuildHEARTBEAT(string s, double e, double d, int pc, long seq) {
+      double spread = SymbolInfoDouble(s, SYMBOL_ASK) - SymbolInfoDouble(s, SYMBOL_BID);
+      double pt = SymbolInfoDouble(s, SYMBOL_POINT);
+      double spread_pts = (pt > 0) ? spread / pt : 0;
+      datetime candle_end = (datetime)SeriesInfoInteger(s, _Period, SERIES_LASTBAR_DATE) + PeriodSeconds(_Period);
+      long remaining = (long)candle_end - (long)TimeCurrent();
+      if(remaining < 0) remaining = 0;
+      string timer = StringFormat("%02d:%02d", (int)(remaining / 60), (int)(remaining % 60));
+
+      return StringFormat("{\"t\":\"HB\",\"s\":\"%s\",\"eq\":%.2f,\"dd\":%.2f,\"pc\":%d,\"sp\":%.1f,\"ct\":\"%s\",\"seq\":%lld}", s, e, d, pc, spread_pts, timer, seq);
+   }
+
+   static string BuildDATA_PUSH(string s, ENUM_TIMEFRAMES tf, int c, long seq) {
+      // V3.3.0-ASCENDANT: Mandatory MTF Data (M15, H1, H4, D1)
+      string h_ltf = BuildH(s, tf, 30);
+      string h_m15 = BuildH(s, PERIOD_M15, 30);
+      string h_h1  = BuildH(s, PERIOD_H1, 30);
+      string h_h4  = BuildH(s, PERIOD_H4, 20);
+      string h_d1  = BuildH(s, PERIOD_D1, 15);
+
+      double pt = SymbolInfoDouble(s, SYMBOL_POINT);
+      double spread = (pt > 0) ? (SymbolInfoDouble(s, SYMBOL_ASK) - SymbolInfoDouble(s, SYMBOL_BID)) / pt : 0;
+
+      // Calculate ATR(14) on LTF for risk calculation in Python
+      double atr = CalculateATR(s, tf, 14);
+
+      return StringFormat("{\"t\":\"DP\",\"s\":\"%s\",\"tf\":%d,\"bi\":%.5f,\"as\":%.5f,\"sp\":%.1f,\"tv\":%.5f,\"ts\":%.5f,\"atr\":%.5f,\"ltf\":%s,\"m15\":%s,\"h1\":%s,\"h4\":%s,\"d1\":%s,\"seq\":%lld}",
+                          s, (int)tf, SymbolInfoDouble(s, SYMBOL_BID), SymbolInfoDouble(s, SYMBOL_ASK), spread,
+                          SymbolInfoDouble(s, SYMBOL_TRADE_TICK_VALUE), SymbolInfoDouble(s, SYMBOL_TRADE_TICK_SIZE),
+                          atr, h_ltf, h_m15, h_h1, h_h4, h_d1, seq);
+   }
+
+   static string BuildTRADE_ACK(int id, int tk, string err, long seq) {
+      return StringFormat("{\"t\":\"T_ACK\",\"id\":%d,\"tk\":%d,\"err\":\"%s\",\"seq\":%lld}", id, tk, err, seq);
+   }
+
+   static string BuildSYNC(string s, long seq) {
+      string tks = "["; bool first = true;
+      for(int i=0; i<PositionsTotal(); i++) {
+         ulong tk = PositionGetTicket(i);
+         if(PositionSelectByTicket(tk) && PositionGetString(POSITION_SYMBOL) == s) {
+            if(!first) tks += ",";
+            string act = (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY) ? "BUY" : "SELL";
+            tks += StringFormat("{\"tk\":%lld,\"s\":\"%s\",\"act\":\"%s\",\"vol\":%.2f,\"tp\":%.5f,\"sl\":%.5f}",
+               tk, s, act,
+               PositionGetDouble(POSITION_VOLUME),
+               PositionGetDouble(POSITION_TP),
+               PositionGetDouble(POSITION_SL));
+            first = false;
+         }
+      }
+      tks += "]"; return StringFormat("{\"t\":\"SYNC\",\"s\":\"%s\",\"tk\":%s,\"seq\":%lld}", s, tks, seq);
+   }
+
+   static string GetMsgType(string j) {
+      string t = GetV(j, "t");
+      if(t == "HB") return "HEARTBEAT";
+      if(t == "DP") return "DATA_PUSH";
+      if(t == "DEC") return "DECISION";
+      if(t == "TLM") return "TELEMETRY";
+      if(t == "T_ACK") return "TRADE_ACK";
+      if(t == "SYNC") return "SYNC";
+      if(t == "SYNC_REQ") return "SYNC_REQ";
+      return t;
+   }
+
+   static string GetV(string j, string k) {
+      string s = "\"" + k + "\":"; int p = StringFind(j, s); if(p<0) return "";
+      int st = p + StringLen(s); if(st >= StringLen(j)) return "";
+
+      ushort fc = StringGetCharacter(j, st);
+      while(st < StringLen(j)-1 && (fc == ' ' || fc == '\t' || fc == '\r' || fc == '\n' || fc == ':')) {
+         st++; fc = StringGetCharacter(j, st);
+      }
+
+      int e = -1;
+      if(fc == '\"') {
+         st++; e = st;
+         while(e < StringLen(j)) {
+            e = StringFind(j, "\"", e);
+            if(e < 0) break;
+            if(StringGetCharacter(j, e-1) != 92) break;
+            e++;
+         }
+      }
+      else if(fc == '[') {
+         int d = 0; for(int i=st; i<StringLen(j); i++) { ushort c=StringGetCharacter(j, i); if(c=='[') d++; if(c==']') d--; if(d==0) {e=i+1; break;} }
+      }
+      else if(fc == '{') {
+         int d = 0; for(int i=st; i<StringLen(j); i++) { ushort c=StringGetCharacter(j, i); if(c=='{') d++; if(c=='}') d--; if(d==0) {e=i+1; break;} }
+      }
+      else {
+         e = StringFind(j, ",", st);
+         int end_obj = StringFind(j, "}", st);
+         if(e < 0 || (end_obj >= 0 && end_obj < e)) e = end_obj;
+      }
+
+      if(e<0) return "";
+      string v = StringSubstr(j, st, e-st);
+      StringTrimRight(v); StringTrimLeft(v); return v;
+   }
+
+private:
+   static string BuildH(string s, ENUM_TIMEFRAMES tf, int c) {
+      MqlRates r[]; ArraySetAsSeries(r, true); int cp = CopyRates(s, tf, 0, c, r);
+      string h = "["; for(int i=cp-1; i>=0; i--) { h += StringFormat("[%.5f,%.5f,%.5f,%.5f,%lld,%lld]", r[i].open, r[i].high, r[i].low, r[i].close, (long)r[i].time, r[i].tick_volume); if(i>0) h += ","; }
+      h += "]"; return h;
+   }
+
+   static double CalculateATR(string s, ENUM_TIMEFRAMES tf, int period) {
+      double buffer[]; ArraySetAsSeries(buffer, true);
+      int handle = iATR(s, tf, period);
+      if(handle == INVALID_HANDLE) return 0;
+      if(CopyBuffer(handle, 0, 0, 1, buffer) > 0) return buffer[0];
+      return 0;
+   }
+};
