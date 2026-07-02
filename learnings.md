@@ -11,3 +11,11 @@
 
 ## MQL5-Python Sync
 - **Enriched Telemetry:** Streaming MTF data and ATR on every tick is essential for high-fidelity risk calculation in Python. The sequence numbering (seq) ensures data integrity across the socket bridge.
+
+## Stability & Migration
+- **Self-Healing Schema:** Implementing automated migration in  (using ) is critical for preventing runtime "no such column" errors when the logic evolves faster than the database file.
+- **DPAPI Resilience:** In institutional Windows environments,  is mandatory for DPAPI security. Added logic to detect platform-specific mismatches and provide logged warnings.
+
+## Stability & Migration
+- **Self-Healing Schema:** Implementing automated migration in `init_db` (using `PRAGMA table_info`) is critical for preventing runtime "no such column" errors when the logic evolves faster than the database file.
+- **DPAPI Resilience:** In institutional Windows environments, `pywin32` is mandatory for DPAPI security. Added logic to detect platform-specific mismatches and provide logged warnings.

@@ -32,6 +32,23 @@ class TradeLedger:
                     timestamp REAL
                 )
             """)
+
+            # 16005: Schema Migration - ensure columns exist for older databases
+            async with db.execute("PRAGMA table_info(trades)") as cursor:
+                columns = [row[1] for row in await cursor.fetchall()]
+
+            if "evidence" not in columns:
+                await db.execute("ALTER TABLE trades ADD COLUMN evidence TEXT DEFAULT '[]'")
+                logger.info("Migrated schema: Added 'evidence' column to trades table")
+
+            if "sl_pts" not in columns:
+                await db.execute("ALTER TABLE trades ADD COLUMN sl_pts INTEGER DEFAULT 0")
+                logger.info("Migrated schema: Added 'sl_pts' column to trades table")
+
+            if "tp_pts" not in columns:
+                await db.execute("ALTER TABLE trades ADD COLUMN tp_pts INTEGER DEFAULT 0")
+                logger.info("Migrated schema: Added 'tp_pts' column to trades table")
+
             await db.commit()
 
     async def record_intent(self, symbol: str, action: str, lots: float, sl: int, tp: int, evidence: str = "[]") -> int:
