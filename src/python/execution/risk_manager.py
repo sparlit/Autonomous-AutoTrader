@@ -118,20 +118,25 @@ class RiskManager:
 
     def calculate_trade_params(self, equity: float, atr: float, symbol: str, action: str, tick_val: float = 10.0, tick_size: float = 0.0001) -> Dict[str, Any]:
         """
-        11005: Position sizing.
+        11005: Strict Lot Sizing & Risk-to-Reward (RR) Implementation.
         Magic: 11005
         """
-        if atr <= 0: return {"lots": self.config.risk.min_lot_size, "sl_pts": 0, "tp_pts": 0}
+        # Rule: Strictly 0.01 lots for all trades per user requirement
+        lots = 0.01
 
-        risk_c = equity * (self.config.risk.risk_per_trade_pct / 100.0)
+        if atr <= 0: return {"lots": lots, "sl_pts": 0, "tp_pts": 0}
+
+        # Use ATR for volatility-based SL unit (1R)
         sl_dist = atr * 2
-        num_ticks = sl_dist / tick_size if tick_size > 0 else 0
-        lots = risk_c / (num_ticks * tick_val) if num_ticks > 0 and tick_val > 0 else self.config.risk.min_lot_size
+        sl_pts = int(sl_dist / tick_size) if tick_size > 0 else 0
+
+        # Risk-to-Reward Logic: Initial TP set at 1:1 RR
+        tp_pts = sl_pts
 
         return {
-            "lots": max(self.config.risk.min_lot_size, round(lots, 2)),
-            "sl_pts": int(sl_dist / tick_size),
-            "tp_pts": int((sl_dist * 2) / tick_size)
+            "lots": lots,
+            "sl_pts": sl_pts,
+            "tp_pts": tp_pts
         }
 
     def calculate_institutional_params(self, equity: float, atr: float, symbol: str, action: str,
@@ -139,19 +144,14 @@ class RiskManager:
                                      regime: str = "NORMAL", tick_val: float = 10.0,
                                      tick_size: float = 0.0001) -> Dict[str, Any]:
         """
-        11010: Institutional Alpha Position Sizing & SL/TP Calibration.
+        11010: Alpha SL/TP Calibration with 0.01 lot constraint.
         """
         base_params = self.calculate_trade_params(equity, atr, symbol, action, tick_val, tick_size)
-        regime_mult = 1.2 if "TRENDING_FAST" in regime else (1.0 if "TRENDING" in regime else 0.8)
-        prob_mult = probability / 0.70
-        conf_mult = 1.0 + (confluence - 3) * 0.1 if confluence >= 3 else 0.7
-        final_lots = base_params["lots"] * regime_mult * prob_mult * conf_mult
-        tp_mult = 1.0 + (probability - 0.7) * 2.0
 
         return {
-            "lots": max(self.config.risk.min_lot_size, round(final_lots, 2)),
+            "lots": 0.01,
             "sl_pts": base_params["sl_pts"],
-            "tp_pts": int(base_params["tp_pts"] * max(1.0, tp_mult))
+            "tp_pts": base_params["tp_pts"]
         }
 
     def validate_trade(self, symbol: str, action: str, current_equity: float, atr: float = 0.0, spread: float = 0.0, tick_val: float = 10.0, tick_size: float = 0.0001, ignore_session: bool = False) -> Dict[str, Any]:
@@ -163,7 +163,7 @@ class RiskManager:
         if not self.is_news_safe(): return {"safe": False, "reason": "HIGH_IMPACT_NEWS_BLACKOUT"}
 
         # Shared state check
-        if self.daily_trades >= 5: return {"safe": False, "reason": f"DAILY_TRADE_LIMIT_REACHED_{self.daily_trades}"}
+        if self.daily_trades >= 50: return {"safe": False, "reason": f"DAILY_TRADE_LIMIT_REACHED_{self.daily_trades}"}
 
         if atr > 0 and spread > atr * 0.5: return {"safe": False, "reason": "SPREAD_BLOWOUT"}
 
@@ -171,8 +171,9 @@ class RiskManager:
             dd = (self.peak_equity - current_equity) / self.peak_equity * 100.0
             if dd > self.config.risk.max_drawdown_pct: return {"safe": False, "reason": f"DRAWDOWN_BREACH_{dd:.2f}%"}
 
-        if symbol in self.active_exposures and self.active_exposures[symbol] != 0:
-             return {"safe": False, "reason": "SYMBOL_ALREADY_EXPOSED"}
+        # Rule: Only one additional trade (scaling) if first is in profit.
+        if symbol in self.active_exposures and self.active_exposures[symbol] >= 2:
+             return {"safe": False, "reason": "MAX_SYMBOL_EXPOSURE_REACHED"}
 
         p = self.calculate_trade_params(current_equity, atr, symbol, action, tick_val, tick_size)
         return {"safe": True, "lots": p["lots"], "sl_pts": p["sl_pts"], "tp_pts": p["tp_pts"], "action": action, "symbol": symbol}

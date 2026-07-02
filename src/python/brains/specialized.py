@@ -258,6 +258,17 @@ class RiskBrain(BaseBrain):
             v = self.risk_manager.validate_trade(symbol, event["action"], current_equity, atr=event["atr"], tick_val=tick_val, tick_size=tick_size)
 
             if v["safe"]:
+                if event.get("scaling"):
+                    # Scaling is always 0.01 lots
+                    lots = 0.01
+                    sl_pts = int((event["atr"] * 2) / tick_size) if tick_size > 0 else 0
+                    tp_pts = sl_pts # 1:1 RR for scaling
+                    return {
+                        "type": "VALIDATED_TRADE", "symbol": symbol, "action": event["action"],
+                        "lots": lots, "sl_pts": sl_pts, "tp_pts": tp_pts,
+                        "probability": prob, "scaling": True
+                    }
+
                 inst_params = self.risk_manager.calculate_institutional_params(
                     equity=current_equity,
                     atr=event["atr"],
@@ -288,9 +299,11 @@ class ExecutionBrain(BaseBrain):
     """Brain 7 - 10513: Actuation."""
     async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         if event.get("type") == "VALIDATED_TRADE":
+            reason = "SCALING_IN" if event.get("scaling") else "INITIAL_ENTRY"
             return {
                 "type": "EXECUTION_ORDER", "t": "DEC", "id": int(time.time()), "s": event["symbol"],
                 "act": event["action"], "lts": event["lots"], "sl_p": event["sl_pts"], "tp_p": event["tp_pts"],
+                "reason": reason,
                 "evidence_trail": event.get("evidence_trail")
             }
         return None
