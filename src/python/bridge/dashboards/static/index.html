@@ -4,133 +4,236 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>web_ui</title>
-    <script type="module" crossorigin src="/assets/index-BUhHbpgt.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-BuJbl4m4.css">
-
+    <title>AAT V3.3.0 | ASCENDANT - Glass Box Terminal</title>
     <style>
-      .trades-panel {
-        margin-top: 2rem;
-        padding: 1.5rem;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(0, 242, 255, 0.2);
-        border-radius: 8px;
-        color: white;
-        font-family: 'Inter', sans-serif;
+      :root {
+        --neon-cyan: #00F2FF;
+        --neon-green: #39FF14;
+        --neon-red: #FF3131;
+        --bg-dark: #0a0a0c;
+        --panel-bg: rgba(20, 20, 25, 0.9);
       }
-      .trades-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 1rem;
-        font-size: 0.85rem;
-      }
-      .trades-table th {
-        text-align: left;
-        padding: 8px;
-        color: #888;
-        border-bottom: 1px solid #333;
-      }
-      .trades-table td {
-        padding: 8px;
-        border-bottom: 1px solid #222;
-      }
-      .text-buy { color: #39FF14; }
-      .text-sell { color: #FF3131; }
-      .text-cyan { color: #00F2FF; }
-      .text-profit { color: #39FF14; font-weight: bold; }
-      .text-loss { color: #FF3131; font-weight: bold; }
+      body { background-color: var(--bg-dark); color: #e0e0e0; font-family: 'JetBrains Mono', monospace; margin: 0; padding: 20px; overflow-x: hidden; }
+      .glass-container { max-width: 1600px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1.5fr 1fr; gap: 15px; }
+      .panel { background: var(--panel-bg); border: 1px solid rgba(0, 242, 255, 0.15); border-radius: 8px; padding: 15px; backdrop-filter: blur(15px); box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5); position: relative; overflow: hidden; }
+      .panel-header { display: flex; align-items: center; gap: 10px; color: var(--neon-cyan); margin-bottom: 12px; border-bottom: 1px solid rgba(0, 242, 255, 0.1); padding-bottom: 8px; font-size: 0.8rem; letter-spacing: 1px; }
+      .full-width { grid-column: span 3; }
+      .span-2 { grid-column: span 2; }
+
+      .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+      .stat-card { background: rgba(0,0,0,0.4); padding: 12px; border-radius: 4px; border-left: 2px solid var(--neon-cyan); }
+      .stat-label { font-size: 0.6rem; color: #777; text-transform: uppercase; }
+      .stat-value { font-size: 1.1rem; font-weight: bold; margin-top: 4px; color: #fff; }
+
+      .brain-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+      .brain-pill { background: rgba(255,255,255,0.02); padding: 6px; border-radius: 4px; text-align: center; border: 1px solid rgba(255,255,255,0.05); }
+      .brain-name { font-size: 0.6rem; color: #666; margin-bottom: 2px; white-space: nowrap; overflow: hidden; }
+      .brain-score { font-size: 0.85rem; color: var(--neon-green); font-weight: bold; }
+
+      .trades-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+      .trades-table th { text-align: left; color: #555; padding: 8px; border-bottom: 1px solid #333; }
+      .trades-table td { padding: 8px; border-bottom: 1px solid #1a1a1a; }
+
+      .trend-tag { padding: 2px 5px; border-radius: 3px; font-size: 0.65rem; font-weight: bold; }
+      .trend-bullish { background: rgba(57, 255, 20, 0.1); color: var(--neon-green); }
+      .trend-bearish { background: rgba(255, 49, 49, 0.1); color: var(--neon-red); }
+      .trend-neutral { background: rgba(255, 255, 255, 0.05); color: #888; }
+
+      .log-area { height: 300px; overflow-y: auto; font-size: 0.7rem; background: #050505; padding: 10px; border-radius: 4px; border: 1px solid #1a1a1a; display: flex; flex-direction: column-reverse; }
+      .log-entry { margin-bottom: 3px; border-left: 2px solid #333; padding-left: 8px; line-height: 1.2; }
+      .log-time { color: #555; font-size: 0.65rem; }
+      .log-msg-decision { color: var(--neon-cyan); border-left-color: var(--neon-cyan); }
+      .log-msg-veto { color: #ffae00; border-left-color: #ffae00; }
+      .log-msg-info { color: #aaa; }
+
+      .prob-bar { height: 4px; background: #222; border-radius: 2px; margin-top: 5px; overflow: hidden; }
+      .prob-fill { height: 100%; background: var(--neon-cyan); transition: width 0.3s ease; }
+
+      .hardware-spec { font-size: 0.65rem; color: #666; margin-bottom: 5px; display: flex; justify-content: space-between; border-bottom: 1px solid #1a1a1a; padding-bottom: 2px; }
+      .hardware-val { color: var(--neon-cyan); }
     </style>
-</head>
+  </head>
   <body>
-    <div id="root"></div>
+    <div class="glass-container">
+      <!-- SYSTEM VITALS -->
+      <div class="panel full-width">
+        <div class="panel-header">
+          <strong>[01] SYSTEM VITALS // BRIDGE_LATENCY_MONITOR</strong>
+        </div>
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-label">Total Equity</div>
+            <div class="stat-value" id="val-equity">$0.00</div>
+          </div>
+          <div class="stat-card" style="border-left-color: var(--neon-red)">
+            <div class="stat-label">Global Drawdown</div>
+            <div class="stat-value" id="val-drawdown">0.00%</div>
+          </div>
+          <div class="stat-card" style="border-left-color: var(--neon-green)">
+            <div class="stat-label">Active Orders</div>
+            <div class="stat-value" id="val-pos-count">0 Swarm Units</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">IPC Heartbeat</div>
+            <div class="stat-value" id="val-latency">0ms</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- HARDWARE & ENV -->
+      <div class="panel">
+        <div class="panel-header">
+          <strong>[02] HARDWARE ENVIRONMENT // PHYSICAL_WITNESS</strong>
+        </div>
+        <div id="hardware-container">
+          <div class="hardware-spec"><span>LOGICAL CORES</span><span class="hardware-val" id="hw-cores">--</span></div>
+          <div class="hardware-spec"><span>PHYSICAL CORES</span><span class="hardware-val" id="hw-phys">--</span></div>
+          <div class="hardware-spec"><span>TOTAL RAM</span><span class="hardware-val" id="hw-ram">-- GB</span></div>
+          <div class="hardware-spec"><span>SYSTEM TIER</span><span class="hardware-val" id="hw-tier">--</span></div>
+          <div class="hardware-spec"><span>CPU FREQ</span><span class="hardware-val" id="hw-freq">-- MHz</span></div>
+        </div>
+        <div class="panel-header" style="margin-top: 15px;">
+          <strong>BRAIN RELIABILITY SCORES</strong>
+        </div>
+        <div class="brain-grid" id="brain-swarm-container"></div>
+      </div>
+
+      <!-- MARKET INTEL -->
+      <div class="panel">
+        <div class="panel-header">
+          <strong>[03] MARKET INTEL // MULTI_TIMEFRAME_CONFLUENCE</strong>
+        </div>
+        <div id="market-intel-list"></div>
+      </div>
+
+      <!-- KERNEL LOG -->
+      <div class="panel">
+        <div class="panel-header">
+          <strong>[04] KERNEL LOG // INTERNAL_PROCESS_WITNESS</strong>
+        </div>
+        <div class="log-area" id="event-log"></div>
+      </div>
+
+      <!-- POSITIONS -->
+      <div class="panel full-width">
+        <div class="panel-header">
+          <strong>[05] ACTIVE POSITIONS // REAL_TIME_EXECUTION_STATE</strong>
+        </div>
+        <table class="trades-table">
+          <thead>
+            <tr>
+              <th>SYM</th>
+              <th>SIDE</th>
+              <th>LOTS</th>
+              <th>ENTRY</th>
+              <th>SL</th>
+              <th>P/L ($)</th>
+              <th>TIME</th>
+              <th>LOGIC_REASON</th>
+            </tr>
+          </thead>
+          <tbody id="trades-tbody"></tbody>
+        </table>
+      </div>
+    </div>
 
     <script>
-      // 10460: Dynamic Trade Overseer - Injected to bypass compiled React limitations
       (function() {
-        const checkExist = setInterval(function() {
-          const root = document.getElementById('root');
-          if (root && root.children.length > 0) {
-            clearInterval(checkExist);
-            initTradeOverlay();
-          }
-        }, 100);
+        const ws = new WebSocket(`ws://${window.location.hostname}:8009/ws`);
+        const eventLog = document.getElementById('event-log');
+        let lastLoggedDecision = null;
 
-        function initTradeOverlay() {
-          const container = document.createElement('div');
-          container.className = 'trades-panel neo-border';
-          container.style.maxWidth = '1200px';
-          container.style.margin = '20px auto';
-          container.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 10px; color: #00F2FF; margin-bottom: 15px;">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
-              <h2 style="font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Live Institutional Trades</h2>
-            </div>
-            <div id="trades-list-container" style="overflow-x: auto;">
-              <table class="trades-table">
-                <thead>
-                  <tr>
-                    <th>SYMBOL</th>
-                    <th>TICKET</th>
-                    <th>ACTION</th>
-                    <th>LOTS</th>
-                    <th>ENTRY</th>
-                    <th>SL</th>
-                    <th>TP</th>
-                    <th>PL ($)</th>
-                    <th>PL (PTS)</th>
-                    <th>DURATION</th>
-                    <th>STATUS</th>
-                  </tr>
-                </thead>
-                <tbody id="trades-tbody">
-                  <tr><td colspan="11" style="text-align: center; color: #555; padding: 20px;">Waiting for trade telemetry...</td></tr>
-                </tbody>
-              </table>
-            </div>
-          `;
-          document.body.appendChild(container);
-
-          // Connect to the same websocket
-          const ws = new WebSocket(`ws://${window.location.hostname}:8009/ws`);
-          ws.onmessage = (event) => {
-            try {
-              const data = JSON.parse(event.data);
-              const trades = data.active_trades || [];
-              const tbody = document.getElementById('trades-tbody');
-
-              if (trades.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: #555; padding: 20px;">No active trades found.</td></tr>';
-                return;
-              }
-
-              tbody.innerHTML = trades.map(t => {
-                const plColor = t.pl_currency >= 0 ? 'text-profit' : 'text-loss';
-                const actionClass = t.action === 'BUY' ? 'text-buy' : 'text-sell';
-                const durMin = Math.floor(t.duration / 60);
-                const durSec = Math.floor(t.duration % 60);
-
-                return `
-                  <tr>
-                    <td><strong>${t.symbol}</strong></td>
-                    <td style="color: #888;">${t.ticket}</td>
-                    <td class="${actionClass}">${t.action}</td>
-                    <td>${t.lots.toFixed(2)}</td>
-                    <td>${t.entry_price.toFixed(5)}</td>
-                    <td style="color: #FF7171;">${t.sl_price.toFixed(5)}</td>
-                    <td style="color: #71FF71;">${t.tp_price.toFixed(5)}</td>
-                    <td class="${plColor}">$${t.pl_currency.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                    <td class="${plColor}">${t.pl_points.toFixed(1)}</td>
-                    <td>${durMin}m ${durSec}s</td>
-                    <td class="text-cyan">${t.status || 'OPEN'}</td>
-                  </tr>
-                `;
-              }).join('');
-            } catch (e) {
-              console.error("Trade Overlay WS Error:", e);
-            }
-          };
+        function addLog(msg, type = 'info') {
+          const div = document.createElement('div');
+          div.className = `log-entry log-msg-${type}`;
+          const time = new Date().toLocaleTimeString();
+          div.innerHTML = `<span class="log-time">[${time}]</span> ${msg}`;
+          eventLog.prepend(div);
+          if (eventLog.children.length > 150) eventLog.lastChild.remove();
         }
+
+        ws.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+
+          // 1. Vitals
+          const stats = data.account_stats || {};
+          const engine = data.engine_stats || {};
+          document.getElementById('val-equity').innerText = `$${(stats.equity || 0).toLocaleString(undefined, {minimumFractionDigits:2})}`;
+          document.getElementById('val-drawdown').innerText = `${(stats.drawdown || 0).toFixed(2)}%`;
+          document.getElementById('val-pos-count').innerText = `${stats.pos_count || 0} Units`;
+          document.getElementById('val-latency').innerText = `${(engine.latency || 0).toFixed(0)}ms`;
+
+          // 2. Hardware
+          const hw = data.hardware_report || {};
+          if (hw.logical_cores) {
+            document.getElementById('hw-cores').innerText = hw.logical_cores;
+            document.getElementById('hw-phys').innerText = hw.physical_cores;
+            document.getElementById('hw-ram').innerText = hw.ram_gb + ' GB';
+            document.getElementById('hw-tier').innerText = hw.tier;
+            document.getElementById('hw-freq').innerText = Math.round(hw.cpu_max_freq) + ' MHz';
+          }
+
+          // 3. Brains
+          const rel = data.brain_reliability || {};
+          const swarmContainer = document.getElementById('brain-swarm-container');
+          swarmContainer.innerHTML = Object.entries(rel).sort((a,b) => b[1]-a[1]).map(([name, score]) => `
+            <div class="brain-pill">
+              <div class="brain-name">${name.replace('_1','')}</div>
+              <div class="brain-score">${(score * 100).toFixed(0)}%</div>
+            </div>
+          `).join('');
+
+          // 4. Market Intel
+          const intelContainer = document.getElementById('market-intel-list');
+          const trends = Object.entries(data).filter(([k]) => k.startsWith('trend_stats:'));
+          intelContainer.innerHTML = trends.map(([key, val]) => {
+            const sym = key.split(':')[1];
+            const intel = data[`intel:${sym}`] || {prob: 0.5, regime: 'NORMAL'};
+            return `
+              <div style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 8px;">
+                <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                  <span style="color: var(--neon-cyan); font-weight: bold; font-size: 0.8rem;">${sym}</span>
+                  <span style="font-size: 0.6rem; color: #666;">${intel.regime}</span>
+                </div>
+                <div style="display:flex; gap: 4px; margin-bottom: 8px;">
+                  ${Object.entries(val).map(([tf, dir]) => `
+                    <span class="trend-tag trend-${dir.toLowerCase()}">${tf.toUpperCase()}</span>
+                  `).join('')}
+                </div>
+                <div style="font-size: 0.6rem; color: #aaa; display:flex; justify-content: space-between">
+                  <span>BAYESIAN CONFIDENCE</span>
+                  <span>${(intel.prob * 100).toFixed(1)}%</span>
+                </div>
+                <div class="prob-bar"><div class="prob-fill" style="width: ${intel.prob * 100}%"></div></div>
+              </div>
+            `;
+          }).join('');
+
+          // 5. Trades
+          const trades = data.active_trades || [];
+          document.getElementById('trades-tbody').innerHTML = trades.map(t => `
+            <tr>
+              <td><strong>${t.symbol}</strong></td>
+              <td style="color: ${t.action === 'BUY' ? 'var(--neon-green)' : 'var(--neon-red)'}">${t.action}</td>
+              <td>${t.lots.toFixed(2)}</td>
+              <td>${t.entry_price.toFixed(5)}</td>
+              <td>${(t.sl_price || 0).toFixed(5)}</td>
+              <td style="color: ${t.pl_currency >= 0 ? 'var(--neon-green)' : 'var(--neon-red)'}">$${(t.pl_currency || 0).toFixed(2)}</td>
+              <td>${Math.floor(t.duration / 60)}m</td>
+              <td style="color: #888; font-size: 0.65rem;">${t.reason || 'AUTO'}</td>
+            </tr>
+          `).join('');
+
+          // 6. Live Log
+          if (data.last_decision && data.last_decision.time !== lastLoggedDecision) {
+            const isVeto = data.last_decision.msg.includes('VETO');
+            addLog(data.last_decision.msg, isVeto ? 'veto' : 'decision');
+            lastLoggedDecision = data.last_decision.time;
+          }
+        };
+
+        addLog("ASCENDANT GLASS-BOX TERMINAL ONLINE. AWAITING BRIDGE...", 'info');
       })();
     </script>
-</body>
+  </body>
 </html>

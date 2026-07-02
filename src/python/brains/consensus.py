@@ -75,7 +75,7 @@ class MetaBrain(BaseBrain):
             weighted_p_e_h = 0.50 + (p_e_h - 0.50) * rel
             prior = state["prior"]
             posterior = (weighted_p_e_h * prior) / p_e if p_e > 0 else prior
-            state["prior"] = max(0.01, min(0.99, posterior))
+            state["prior"] = max(0.01, min(0.99, posterior)); self.ipc.set_state(f"intel:{symbol}", {"prob": state["prior"], "regime": state.get("regime", "NORMAL")})
 
             state["evidence_trail"].append({
                 "src": src, "dir": direction, "p": state["prior"], "rel": rel
@@ -150,7 +150,7 @@ class MetaBrain(BaseBrain):
                             if src:
                                 self.brain_reliability[src] = max(0.1, min(1.0, self.brain_reliability.get(src, 1.0) + adj))
 
-                self.publish({"type": "RELIABILITY_REPORT", "scores": self.brain_reliability})
+                self.ipc.set_state("brain_reliability", self.brain_reliability); self.ipc.set_state("last_decision", {"msg": "BRAIN: Reliability calibration cycle complete", "time": time.time()}); self.publish({"type": "RELIABILITY_REPORT", "scores": self.brain_reliability})
                 await asyncio.sleep(1800) # Every 30 mins
             except Exception as e:
                 logger.error(f"MetaBrain Learning Error: {e}")
