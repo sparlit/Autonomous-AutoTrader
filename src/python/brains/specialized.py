@@ -106,9 +106,10 @@ class IndicatorBrain(BaseBrain):
             if df.empty: return None
             if isinstance(event["ltf"][0], list): df.columns = ["o", "h", "l", "c", "t", "v"]
 
-            rsi = self.analyst.calculate_rsi(df)
-            ema_fast = self.analyst.calculate_ema(df, 9)
-            ema_slow = self.analyst.calculate_ema(df, 21)
+            close = df['c']
+            rsi = self.analyst.rsi(close)
+            ema_fast = self.analyst.ema(close, 9)
+            ema_slow = self.analyst.ema(close, 21)
 
             direction = 0
             if rsi > 55 and ema_fast > ema_slow: direction = 1
