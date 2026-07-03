@@ -30,6 +30,13 @@ class MetaBrain(BaseBrain):
 
     async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         symbol = event.get("symbol")
+        if event.get("scaling"):
+            # 10615: High-Confidence Scaling Signal
+            return {
+                "type": "PROBABILISTIC_SIGNAL", "symbol": symbol, "action": event["action"],
+                "probability": event.get("probability", 0.90), "regime": "TRENDING",
+                "atr": event.get("atr", 0), "rsi": 50, "confluence": 4, "scaling": True
+            }
         if not symbol: return None
 
         # Scaling Signal handling
