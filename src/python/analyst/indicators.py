@@ -9,8 +9,8 @@ class IndicatorAnalyst:
         Compute technical indicators from OHLC market data.
         """
         c = df['c']
-        ema100 = c.ewm(span=100, adjust=False).mean().iloc[-1]
-        ema200 = c.ewm(span=200, adjust=False).mean().iloc[-1]
+        ema100 = self.ema(c, 100)
+        ema200 = self.ema(c, 200)
         macd_line, signal_line, hist = self.macd(c)
         adx = self.adx(df)
         atr = self.atr(df)
@@ -23,7 +23,7 @@ class IndicatorAnalyst:
         return {
             "rsi": self.rsi(c),
             "atr": atr,
-            "ema_fast": c.ewm(span=50, adjust=False).mean().iloc[-1],
+            "ema_fast": self.ema(c, 50),
             "ema_slow": ema200,
             "ema_100": ema100,
             "macd": macd_line,
@@ -41,6 +41,9 @@ class IndicatorAnalyst:
         ma_down = down.rolling(window=period).mean()
         rs = ma_up / ma_down
         return (100 - (100 / (1 + rs))).iloc[-1]
+
+    def ema(self, series: pd.Series, period: int) -> float:
+        return series.ewm(span=period, adjust=False).mean().iloc[-1]
 
     def atr(self, df: pd.DataFrame, period: int = 14) -> float:
         high = df['h']; low = df['l']; cp = df['c'].shift(1)
