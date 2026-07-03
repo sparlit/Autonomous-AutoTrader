@@ -26,7 +26,7 @@ def generate_tick_data(symbol="EURUSD", count=100):
     current_time = time.time()
     for i in range(count):
         ticks.append([base_price, base_price + 0.0001, base_price - 0.0001, base_price, current_time + i, 10])
-    return {"type": "MARKET_DATA_RAW", "s": symbol, "b": base_price, "a": base_price + 0.0001, "tf": 1, "ltf": ticks, "h1": ticks, "h4": ticks, "atr": 0.0010}
+    return {"t": "DP", "type": "MARKET_DATA_RAW", "s": symbol, "b": base_price, "a": base_price + 0.0001, "tf": 1, "ltf": ticks, "h1": ticks, "h4": ticks, "atr": 0.0010}
 
 @pytest.mark.asyncio
 async def test_brain_v1_deep_flow():

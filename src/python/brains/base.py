@@ -120,6 +120,12 @@ class BaseBrain(Process, BrainContract):
         result['source'] = self.name; result['timestamp'] = time.time()
         self.ipc.xadd("stream:orchestrator", result, maxlen=self.stream_max_len)
 
+    def publish_state(self, symbol: str, state: Dict[str, Any]):
+        """12012: Publish detailed per-symbol internal state for Glass-Box telemetry."""
+        if not self.ipc: return
+        state['ts'] = time.time()
+        self.ipc.set_state(f"brain_state:{self.name}:{symbol}", state)
+
     def health(self) -> Dict[str, Any]:
         """12011: Collect health metrics."""
         p = psutil.Process(os.getpid()); avg_latency = self._latency_sum / self._processed_count if self._processed_count > 0 else 0

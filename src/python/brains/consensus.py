@@ -37,10 +37,12 @@ class MetaBrain(BaseBrain):
 
             # Scaling Signal handling
             if event.get("scaling"):
-                return {
+                res = {
                     "type": "PROBABILISTIC_SIGNAL", "symbol": symbol, "action": event.get("action", "BUY"),
                     "probability": 0.95, "reason": "SCALING_ALIGNED", "scaling": True, "lots": 0.01
                 }
+                self.publish_state(symbol, {"mode": "SCALING", "action": res["action"], "prob": 0.95})
+                return res
 
             if symbol not in self.symbol_state: self.symbol_state[symbol] = self._new_state()
             state = self.symbol_state[symbol]; e_type = event.get("type")
@@ -76,11 +78,17 @@ class MetaBrain(BaseBrain):
                 state["prior"] = max(0.01, min(0.99, posterior))
 
                 # Update intel for dashboard
-                self.ipc.set_state(f"intel:{symbol}", {
+                intel_data = {
                     "prob": state["prior"],
                     "regime": state.get("regime", "NORMAL"),
-                    "sources": list(state["received_sources"])
-                })
+                    "sources": list(state["received_sources"]),
+                    "last_source": src,
+                    "last_p_e_h": p_e_h,
+                    "weighted_p_e_h": weighted_p_e_h,
+                    "prior_was": prior
+                }
+                self.ipc.set_state(f"intel:{symbol}", intel_data)
+                self.publish_state(symbol, intel_data)
 
                 state["evidence_trail"].append({
                     "src": src, "dir": direction, "p": state["prior"], "rel": rel
@@ -147,11 +155,17 @@ class MetaBrain(BaseBrain):
                     win_rate = wins / len(recent_trades)
 
                     if win_rate < 0.4:
+                        old_t = self.threshold
                         self.threshold = min(0.9, self.threshold + 0.05)
-                        logger.warning(f"Fixing: Low win rate {win_rate:.2f}. Increasing threshold to {self.threshold:.2f}")
+                        msg = f"Fixing: Low win rate {win_rate:.2f}. Increasing threshold {old_t:.2f} -> {self.threshold:.2f}"
+                        logger.warning(msg)
+                        self.ipc.xadd("stream:learning_events", {"type": "THRESHOLD_ADJ", "msg": msg, "win_rate": win_rate})
                     elif win_rate > 0.6:
+                        old_t = self.threshold
                         self.threshold = max(0.6, self.threshold - 0.02)
-                        logger.info(f"Optimizing: Good win rate {win_rate:.2f}. Relaxing threshold to {self.threshold:.2f}")
+                        msg = f"Optimizing: Good win rate {win_rate:.2f}. Relaxing threshold {old_t:.2f} -> {self.threshold:.2f}"
+                        logger.info(msg)
+                        self.ipc.xadd("stream:learning_events", {"type": "THRESHOLD_ADJ", "msg": msg, "win_rate": win_rate})
 
                     # Update reliability for individual brains
                     for t in recent_trades:
@@ -164,7 +178,10 @@ class MetaBrain(BaseBrain):
                             for e in trail:
                                 src = e.get("src")
                                 if src:
+                                    old_r = self.brain_reliability.get(src, 1.0)
                                     self.brain_reliability[src] = max(0.1, min(1.0, self.brain_reliability.get(src, 1.0) + adj))
+                                    if abs(self.brain_reliability[src] - old_r) > 0.01:
+                                         self.ipc.xadd("stream:learning_events", {"type": "RELIABILITY_ADJ", "brain": src, "score": self.brain_reliability[src]})
                         except Exception:
                             continue
 

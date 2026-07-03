@@ -1,239 +1,309 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AAT V3.3.0 | ASCENDANT - Glass Box Terminal</title>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AAT V3.3.0 // ASCENDANT GLASS-BOX</title>
     <style>
-      :root {
-        --neon-cyan: #00F2FF;
-        --neon-green: #39FF14;
-        --neon-red: #FF3131;
-        --bg-dark: #0a0a0c;
-        --panel-bg: rgba(20, 20, 25, 0.9);
-      }
-      body { background-color: var(--bg-dark); color: #e0e0e0; font-family: 'JetBrains Mono', monospace; margin: 0; padding: 20px; overflow-x: hidden; }
-      .glass-container { max-width: 1600px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1.5fr 1fr; gap: 15px; }
-      .panel { background: var(--panel-bg); border: 1px solid rgba(0, 242, 255, 0.15); border-radius: 8px; padding: 15px; backdrop-filter: blur(15px); box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5); position: relative; overflow: hidden; }
-      .panel-header { display: flex; align-items: center; gap: 10px; color: var(--neon-cyan); margin-bottom: 12px; border-bottom: 1px solid rgba(0, 242, 255, 0.1); padding-bottom: 8px; font-size: 0.8rem; letter-spacing: 1px; }
-      .full-width { grid-column: span 3; }
-      .span-2 { grid-column: span 2; }
+        :root {
+            --neon-cyan: #00f3ff;
+            --neon-green: #39ff14;
+            --neon-red: #ff3131;
+            --neon-purple: #bc13fe;
+            --bg-deep: #050505;
+            --panel-bg: rgba(15, 15, 15, 0.95);
+            --border: 1px solid #1a1a1a;
+        }
 
-      .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-      .stat-card { background: rgba(0,0,0,0.4); padding: 12px; border-radius: 4px; border-left: 2px solid var(--neon-cyan); }
-      .stat-label { font-size: 0.6rem; color: #777; text-transform: uppercase; }
-      .stat-value { font-size: 1.1rem; font-weight: bold; margin-top: 4px; color: #fff; }
+        * { box-sizing: border-box; font-family: 'Inter', 'Segoe UI', monospace; }
+        body { background: var(--bg-deep); color: #e0e0e0; margin: 0; padding: 0; overflow-x: hidden; }
 
-      .brain-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
-      .brain-pill { background: rgba(255,255,255,0.02); padding: 6px; border-radius: 4px; text-align: center; border: 1px solid rgba(255,255,255,0.05); }
-      .brain-name { font-size: 0.6rem; color: #666; margin-bottom: 2px; white-space: nowrap; overflow: hidden; }
-      .brain-score { font-size: 0.85rem; color: var(--neon-green); font-weight: bold; }
+        .header {
+            height: 60px; background: #000; border-bottom: var(--border);
+            display: flex; align-items: center; justify-content: space-between; padding: 0 20px;
+            position: sticky; top: 0; z-index: 100;
+        }
 
-      .trades-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
-      .trades-table th { text-align: left; color: #555; padding: 8px; border-bottom: 1px solid #333; }
-      .trades-table td { padding: 8px; border-bottom: 1px solid #1a1a1a; }
+        .brand { color: var(--neon-cyan); font-weight: 900; letter-spacing: 2px; font-size: 1.2rem; }
+        .vitals { display: flex; gap: 25px; }
+        .vital-item { font-size: 0.75rem; display: flex; flex-direction: column; }
+        .vital-val { font-weight: bold; color: var(--neon-cyan); font-size: 1rem; }
 
-      .trend-tag { padding: 2px 5px; border-radius: 3px; font-size: 0.65rem; font-weight: bold; }
-      .trend-bullish { background: rgba(57, 255, 20, 0.1); color: var(--neon-green); }
-      .trend-bearish { background: rgba(255, 49, 49, 0.1); color: var(--neon-red); }
-      .trend-neutral { background: rgba(255, 255, 255, 0.05); color: #888; }
+        .kanban-board {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 15px;
+            padding: 20px;
+            min-height: calc(100vh - 200px);
+        }
 
-      .log-area { height: 300px; overflow-y: auto; font-size: 0.7rem; background: #050505; padding: 10px; border-radius: 4px; border: 1px solid #1a1a1a; display: flex; flex-direction: column-reverse; }
-      .log-entry { margin-bottom: 3px; border-left: 2px solid #333; padding-left: 8px; line-height: 1.2; }
-      .log-time { color: #555; font-size: 0.65rem; }
-      .log-msg-decision { color: var(--neon-cyan); border-left-color: var(--neon-cyan); }
-      .log-msg-veto { color: #ffae00; border-left-color: #ffae00; }
-      .log-msg-info { color: #aaa; }
+        .column {
+            background: var(--panel-bg);
+            border-radius: 6px;
+            border: var(--border);
+            display: flex;
+            flex-direction: column;
+            max-height: 80vh;
+        }
 
-      .prob-bar { height: 4px; background: #222; border-radius: 2px; margin-top: 5px; overflow: hidden; }
-      .prob-fill { height: 100%; background: var(--neon-cyan); transition: width 0.3s ease; }
+        .column-header {
+            padding: 12px;
+            background: #111;
+            border-bottom: var(--border);
+            font-size: 0.7rem;
+            font-weight: bold;
+            color: #888;
+            display: flex;
+            justify-content: space-between;
+        }
 
-      .hardware-spec { font-size: 0.65rem; color: #666; margin-bottom: 5px; display: flex; justify-content: space-between; border-bottom: 1px solid #1a1a1a; padding-bottom: 2px; }
-      .hardware-val { color: var(--neon-cyan); }
+        .card-list {
+            padding: 10px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .card {
+            background: #1a1a1a;
+            border: 1px solid #222;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 10px;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .card:hover { border-color: var(--neon-cyan); box-shadow: 0 0 10px rgba(0, 243, 255, 0.1); }
+        .card-symbol { color: var(--neon-cyan); font-weight: bold; font-size: 0.85rem; margin-bottom: 5px; }
+        .card-info { font-size: 0.65rem; color: #aaa; margin-top: 4px; }
+
+        .glow-buy { border-left: 3px solid var(--neon-green); box-shadow: 0 0 15px rgba(57, 255, 20, 0.1); }
+        .glow-sell { border-left: 3px solid var(--neon-red); box-shadow: 0 0 15px rgba(255, 49, 49, 0.1); }
+
+        .logic-witness {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px dashed #333;
+            font-family: monospace;
+            font-size: 0.6rem;
+            color: #666;
+            display: none;
+        }
+
+        .card.expanded .logic-witness { display: block; }
+
+        .learning-panel {
+            grid-column: span 5;
+            background: #0a0a0a;
+            border: var(--border);
+            margin: 0 20px 20px 20px;
+            padding: 15px;
+            border-radius: 6px;
+        }
+
+        .learning-grid { display: flex; gap: 20px; overflow-x: auto; padding-bottom: 10px; }
+        .learning-entry {
+            min-width: 300px; padding: 10px; background: #111; border-radius: 4px; font-size: 0.7rem;
+            border-left: 2px solid var(--neon-purple);
+        }
+
+        .tag { font-size: 0.55rem; padding: 1px 4px; border-radius: 2px; margin-right: 4px; background: #333; }
+        .tag-bull { color: var(--neon-green); }
+        .tag-bear { color: var(--neon-red); }
+
+        .stats-footer {
+            position: fixed; bottom: 0; width: 100%; height: 30px; background: #000;
+            border-top: var(--border); display: flex; align-items: center; padding: 0 20px;
+            font-size: 0.65rem; color: #555; gap: 30px;
+        }
+        .stat-dot { color: var(--neon-cyan); margin-right: 5px; }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
     </style>
-  </head>
-  <body>
-    <div class="glass-container">
-      <!-- SYSTEM VITALS -->
-      <div class="panel full-width">
-        <div class="panel-header">
-          <strong>[01] SYSTEM VITALS // BRIDGE_LATENCY_MONITOR</strong>
+</head>
+<body>
+    <div class="header">
+        <div class="brand">AAT // ASCENDANT V3.3.0</div>
+        <div class="vitals">
+            <div class="vital-item"><span>EQUITY</span><span class="vital-val" id="v-equity">-bash.00</span></div>
+            <div class="vital-item"><span>DRAWDOWN</span><span class="vital-val" id="v-dd" style="color:var(--neon-red)">0.00%</span></div>
+            <div class="vital-item"><span>ACTIVE</span><span class="vital-val" id="v-pos">0 UNITS</span></div>
+            <div class="vital-item"><span>LATENCY</span><span class="vital-val" id="v-lat">0ms</span></div>
         </div>
-        <div class="stat-grid">
-          <div class="stat-card">
-            <div class="stat-label">Total Equity</div>
-            <div class="stat-value" id="val-equity">$0.00</div>
-          </div>
-          <div class="stat-card" style="border-left-color: var(--neon-red)">
-            <div class="stat-label">Global Drawdown</div>
-            <div class="stat-value" id="val-drawdown">0.00%</div>
-          </div>
-          <div class="stat-card" style="border-left-color: var(--neon-green)">
-            <div class="stat-label">Active Orders</div>
-            <div class="stat-value" id="val-pos-count">0 Swarm Units</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">IPC Heartbeat</div>
-            <div class="stat-value" id="val-latency">0ms</div>
-          </div>
-        </div>
-      </div>
+    </div>
 
-      <!-- HARDWARE & ENV -->
-      <div class="panel">
-        <div class="panel-header">
-          <strong>[02] HARDWARE ENVIRONMENT // PHYSICAL_WITNESS</strong>
+    <div class="kanban-board">
+        <!-- Market Data -->
+        <div class="column">
+            <div class="column-header"><span>[01] MARKET DATA</span> <span id="count-1">0</span></div>
+            <div class="card-list" id="col-1"></div>
         </div>
-        <div id="hardware-container">
-          <div class="hardware-spec"><span>LOGICAL CORES</span><span class="hardware-val" id="hw-cores">--</span></div>
-          <div class="hardware-spec"><span>PHYSICAL CORES</span><span class="hardware-val" id="hw-phys">--</span></div>
-          <div class="hardware-spec"><span>TOTAL RAM</span><span class="hardware-val" id="hw-ram">-- GB</span></div>
-          <div class="hardware-spec"><span>SYSTEM TIER</span><span class="hardware-val" id="hw-tier">--</span></div>
-          <div class="hardware-spec"><span>CPU FREQ</span><span class="hardware-val" id="hw-freq">-- MHz</span></div>
+        <!-- Strategy Brains -->
+        <div class="column">
+            <div class="column-header"><span>[02] STRATEGY BRAINS</span> <span id="count-2">0</span></div>
+            <div class="card-list" id="col-2"></div>
         </div>
-        <div class="panel-header" style="margin-top: 15px;">
-          <strong>BRAIN RELIABILITY SCORES</strong>
+        <!-- Meta Consensus -->
+        <div class="column">
+            <div class="column-header"><span>[03] META CONSENSUS</span> <span id="count-3">0</span></div>
+            <div class="card-list" id="col-3"></div>
         </div>
-        <div class="brain-grid" id="brain-swarm-container"></div>
-      </div>
+        <!-- Risk Vetting -->
+        <div class="column">
+            <div class="column-header"><span>[04] RISK VETTING</span> <span id="count-4">0</span></div>
+            <div class="card-list" id="col-4"></div>
+        </div>
+        <!-- MT5 Execution -->
+        <div class="column">
+            <div class="column-header"><span>[05] MT5 EXECUTION</span> <span id="count-5">0</span></div>
+            <div class="card-list" id="col-5"></div>
+        </div>
+    </div>
 
-      <!-- MARKET INTEL -->
-      <div class="panel">
-        <div class="panel-header">
-          <strong>[03] MARKET INTEL // MULTI_TIMEFRAME_CONFLUENCE</strong>
-        </div>
-        <div id="market-intel-list"></div>
-      </div>
+    <div class="learning-panel">
+        <div style="font-size: 0.7rem; color: #888; margin-bottom: 10px; font-weight: bold;">[06] INSTITUTIONAL LEARNING LOG</div>
+        <div class="learning-grid" id="learning-log"></div>
+    </div>
 
-      <!-- KERNEL LOG -->
-      <div class="panel">
-        <div class="panel-header">
-          <strong>[04] KERNEL LOG // INTERNAL_PROCESS_WITNESS</strong>
-        </div>
-        <div class="log-area" id="event-log"></div>
-      </div>
-
-      <!-- POSITIONS -->
-      <div class="panel full-width">
-        <div class="panel-header">
-          <strong>[05] ACTIVE POSITIONS // REAL_TIME_EXECUTION_STATE</strong>
-        </div>
-        <table class="trades-table">
-          <thead>
-            <tr>
-              <th>SYM</th>
-              <th>SIDE</th>
-              <th>LOTS</th>
-              <th>ENTRY</th>
-              <th>SL</th>
-              <th>P/L ($)</th>
-              <th>TIME</th>
-              <th>LOGIC_REASON</th>
-            </tr>
-          </thead>
-          <tbody id="trades-tbody"></tbody>
-        </table>
-      </div>
+    <div class="stats-footer">
+        <div><span class="stat-dot">●</span>ORCHESTRATOR: <span id="f-status">ONLINE</span></div>
+        <div><span class="stat-dot">●</span>THROUGHPUT: <span id="f-tps">0</span> msg/s</div>
+        <div><span class="stat-dot">●</span>QUEUE DEPTH: <span id="f-depth">0</span></div>
+        <div><span class="stat-dot">●</span>BRIDGE CLIENTS: <span id="f-clients">0</span></div>
     </div>
 
     <script>
-      (function() {
         const ws = new WebSocket(`ws://${window.location.hostname}:8009/ws`);
-        const eventLog = document.getElementById('event-log');
-        let lastLoggedDecision = null;
 
-        function addLog(msg, type = 'info') {
-          const div = document.createElement('div');
-          div.className = `log-entry log-msg-${type}`;
-          const time = new Date().toLocaleTimeString();
-          div.innerHTML = `<span class="log-time">[${time}]</span> ${msg}`;
-          eventLog.prepend(div);
-          if (eventLog.children.length > 150) eventLog.lastChild.remove();
+        function toggleCard(el) {
+            el.classList.toggle('expanded');
         }
 
         ws.onmessage = (event) => {
-          const data = JSON.parse(event.data);
+            const data = JSON.parse(event.data);
 
-          // 1. Vitals
-          const stats = data.account_stats || {};
-          const engine = data.engine_stats || {};
-          document.getElementById('val-equity').innerText = `$${(stats.equity || 0).toLocaleString(undefined, {minimumFractionDigits:2})}`;
-          document.getElementById('val-drawdown').innerText = `${(stats.drawdown || 0).toFixed(2)}%`;
-          document.getElementById('val-pos-count').innerText = `${stats.pos_count || 0} Units`;
-          document.getElementById('val-latency').innerText = `${(engine.latency || 0).toFixed(0)}ms`;
+            // 1. Update Header Vitals
+            const stats = data.account_stats || {};
+            const engine = data.engine_stats || {};
+            document.getElementById('v-equity').innerText = `$${(stats.equity || 0).toLocaleString(undefined, {minimumFractionDigits:2})}`;
+            document.getElementById('v-dd').innerText = `${(stats.drawdown || 0).toFixed(2)}%`;
+            document.getElementById('v-pos').innerText = `${stats.pos_count || 0} UNITS`;
+            document.getElementById('v-lat').innerText = `${(engine.latency || 0).toFixed(0)}ms`;
 
-          // 2. Hardware
-          const hw = data.hardware_report || {};
-          if (hw.logical_cores) {
-            document.getElementById('hw-cores').innerText = hw.logical_cores;
-            document.getElementById('hw-phys').innerText = hw.physical_cores;
-            document.getElementById('hw-ram').innerText = hw.ram_gb + ' GB';
-            document.getElementById('hw-tier').innerText = hw.tier;
-            document.getElementById('hw-freq').innerText = Math.round(hw.cpu_max_freq) + ' MHz';
-          }
+            // 2. Footer Stats
+            document.getElementById('f-status').innerText = engine.status || 'WAITING';
+            document.getElementById('f-tps').innerText = (engine.throughput || 0).toFixed(1);
+            document.getElementById('f-depth').innerText = engine.q_depth || 0;
+            document.getElementById('f-clients').innerText = engine.active_clients || 0;
 
-          // 3. Brains
-          const rel = data.brain_reliability || {};
-          const swarmContainer = document.getElementById('brain-swarm-container');
-          swarmContainer.innerHTML = Object.entries(rel).sort((a,b) => b[1]-a[1]).map(([name, score]) => `
-            <div class="brain-pill">
-              <div class="brain-name">${name.replace('_1','')}</div>
-              <div class="brain-score">${(score * 100).toFixed(0)}%</div>
-            </div>
-          `).join('');
-
-          // 4. Market Intel
-          const intelContainer = document.getElementById('market-intel-list');
-          const trends = Object.entries(data).filter(([k]) => k.startsWith('trend_stats:'));
-          intelContainer.innerHTML = trends.map(([key, val]) => {
-            const sym = key.split(':')[1];
-            const intel = data[`intel:${sym}`] || {prob: 0.5, regime: 'NORMAL'};
-            return `
-              <div style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 8px;">
-                <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                  <span style="color: var(--neon-cyan); font-weight: bold; font-size: 0.8rem;">${sym}</span>
-                  <span style="font-size: 0.6rem; color: #666;">${intel.regime}</span>
+            // 3. Learning Log
+            const log = data.learning_history || [];
+            document.getElementById('learning-log').innerHTML = log.map(e => `
+                <div class="learning-entry">
+                    <div style="color:var(--neon-purple); margin-bottom: 4px;">${e.type}</div>
+                    <div style="color:#888">${e.msg || `Brain ${e.brain} reliability now ${(e.score*100).toFixed(1)}%`}</div>
                 </div>
-                <div style="display:flex; gap: 4px; margin-bottom: 8px;">
-                  ${Object.entries(val).map(([tf, dir]) => `
-                    <span class="trend-tag trend-${dir.toLowerCase()}">${tf.toUpperCase()}</span>
-                  `).join('')}
-                </div>
-                <div style="font-size: 0.6rem; color: #aaa; display:flex; justify-content: space-between">
-                  <span>BAYESIAN CONFIDENCE</span>
-                  <span>${(intel.prob * 100).toFixed(1)}%</span>
-                </div>
-                <div class="prob-bar"><div class="prob-fill" style="width: ${intel.prob * 100}%"></div></div>
-              </div>
-            `;
-          }).join('');
+            `).join('');
 
-          // 5. Trades
-          const trades = data.active_trades || [];
-          document.getElementById('trades-tbody').innerHTML = trades.map(t => `
-            <tr>
-              <td><strong>${t.symbol}</strong></td>
-              <td style="color: ${t.action === 'BUY' ? 'var(--neon-green)' : 'var(--neon-red)'}">${t.action}</td>
-              <td>${t.lots.toFixed(2)}</td>
-              <td>${t.entry_price.toFixed(5)}</td>
-              <td>${(t.sl_price || 0).toFixed(5)}</td>
-              <td style="color: ${t.pl_currency >= 0 ? 'var(--neon-green)' : 'var(--neon-red)'}">$${(t.pl_currency || 0).toFixed(2)}</td>
-              <td>${Math.floor(t.duration / 60)}m</td>
-              <td style="color: #888; font-size: 0.65rem;">${t.reason || 'AUTO'}</td>
-            </tr>
-          `).join('');
+            // 4. Kanban Logic (Process all symbols seen in IPC)
+            const symbols = new Set();
+            Object.keys(data).forEach(k => {
+                if (k.startsWith('symbol_stats:')) symbols.add(k.split(':')[1]);
+            });
 
-          // 6. Live Log
-          if (data.last_decision && data.last_decision.time !== lastLoggedDecision) {
-            const isVeto = data.last_decision.msg.includes('VETO');
-            addLog(data.last_decision.msg, isVeto ? 'veto' : 'decision');
-            lastLoggedDecision = data.last_decision.time;
-          }
+            const columns = [[], [], [], [], []];
+            symbols.forEach(sym => {
+                const s_stats = data[`symbol_stats:${sym}`] || {};
+                const t_state = data[`brain_state:Trend_1:${sym}`] || {};
+                const i_state = data[`brain_state:Indicator_1:${sym}`] || {};
+                const m_state = data[`brain_state:MetaBrain:${sym}`] || {};
+                const r_state = data[`brain_state:Risk_1:${sym}`] || {};
+                const e_state = data[`brain_state:Execution_1:${sym}`] || {};
+
+                // Col 1: Market Data
+                columns[0].push(`
+                    <div class="card" onclick="toggleCard(this)">
+                        <div class="card-symbol">${sym}</div>
+                        <div class="card-info">BID: ${s_stats.bid} | ASK: ${s_stats.ask}</div>
+                        <div class="card-info">ATR: ${(s_stats.atr || 0).toFixed(5)}</div>
+                        <div class="logic-witness">TICK_VAL: ${s_stats.tick_val} | SIZE: ${s_stats.tick_size}</div>
+                    </div>
+                `);
+
+                // Col 2: Strategy Brains
+                if (t_state.ts || i_state.ts) {
+                    columns[1].push(`
+                        <div class="card ${t_state.dir > 0 ? 'glow-buy' : (t_state.dir < 0 ? 'glow-sell' : '')}" onclick="toggleCard(this)">
+                            <div class="card-symbol">${sym}</div>
+                            <div style="display:flex; flex-wrap:wrap; gap:4px">
+                                ${Object.entries(t_state.trends || {}).map(([tf, v]) => `<span class="tag ${v === 'BULLISH' ? 'tag-bull' : (v === 'BEARISH' ? 'tag-bear' : '')}">${tf.toUpperCase()}</span>`).join('')}
+                            </div>
+                            <div class="card-info">RSI: ${(i_state.rsi || 0).toFixed(1)} | EMA: ${i_state.dir !== 0 ? 'ALIGNED' : 'WAITING'}</div>
+                            <div class="logic-witness">
+                                Trend Prob: ${t_state.p_e_h} <br/>
+                                EMA9: ${(i_state.ema9 || 0).toFixed(5)} <br/>
+                                EMA21: ${(i_state.ema21 || 0).toFixed(5)}
+                            </div>
+                        </div>
+                    `);
+                }
+
+                // Col 3: Meta Consensus
+                if (m_state.ts) {
+                    columns[2].push(`
+                        <div class="card ${m_state.action === 'BUY' ? 'glow-buy' : (m_state.action === 'SELL' ? 'glow-sell' : '')}" onclick="toggleCard(this)">
+                            <div class="card-symbol">${sym}</div>
+                            <div class="card-info">PROB: ${(m_state.prob * 100).toFixed(1)}%</div>
+                            <div class="card-info">SOURCES: ${(m_state.sources || []).join(', ')}</div>
+                            <div class="logic-witness">
+                                PRIOR: ${(m_state.prior_was || 0).toFixed(3)} <br/>
+                                P(E|H): ${(m_state.last_p_e_h || 0).toFixed(2)} <br/>
+                                WEIGHTED: ${(m_state.weighted_p_e_h || 0).toFixed(3)} <br/>
+                                MODE: ${m_state.mode || 'INITIAL'}
+                            </div>
+                        </div>
+                    `);
+                }
+
+                // Col 4: Risk Vetting
+                if (r_state.ts) {
+                    columns[3].push(`
+                        <div class="card ${r_state.validated ? 'glow-buy' : (r_state.veto ? 'glow-sell' : '')}" onclick="toggleCard(this)">
+                            <div class="card-symbol">${sym}</div>
+                            <div class="card-info">STATUS: ${r_state.validated ? 'VALIDATED' : (r_state.veto ? 'VETOED' : 'PENDING')}</div>
+                            ${r_state.veto ? `<div class="card-info" style="color:var(--neon-red)">REASON: ${r_state.reason}</div>` : ''}
+                            <div class="logic-witness">
+                                SL_PTS: ${r_state.sl} <br/>
+                                TP_PTS: ${r_state.tp} <br/>
+                                PROB_FINAL: ${(r_state.prob || 0).toFixed(2)}
+                            </div>
+                        </div>
+                    `);
+                }
+
+                // Col 5: Execution
+                if (e_state.ts) {
+                    columns[4].push(`
+                        <div class="card" onclick="toggleCard(this)">
+                            <div class="card-symbol">${sym}</div>
+                            <div class="card-info">ORDER: ${e_state.executed ? 'SENT TO MT5' : 'WAITING'}</div>
+                            <div class="logic-witness">
+                                ACTION: ${e_state.order ? e_state.order.act : '--'} <br/>
+                                LOTS: ${e_state.order ? e_state.order.lts : '--'} <br/>
+                                REASON: ${e_state.order ? e_state.order.reason : '--'}
+                            </div>
+                        </div>
+                    `);
+                }
+            });
+
+            for(let i=0; i<5; i++) {
+                document.getElementById(`col-${i+1}`).innerHTML = columns[i].join('');
+                document.getElementById(`count-${i+1}`).innerText = columns[i].length;
+            }
         };
-
-        addLog("ASCENDANT GLASS-BOX TERMINAL ONLINE. AWAITING BRIDGE...", 'info');
-      })();
     </script>
   </body>
 </html>
