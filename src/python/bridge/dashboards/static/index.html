@@ -1,136 +1,309 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>web_ui</title>
-    <script type="module" crossorigin src="/assets/index-BUhHbpgt.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-BuJbl4m4.css">
-
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AAT V3.3.0 // ASCENDANT GLASS-BOX</title>
     <style>
-      .trades-panel {
-        margin-top: 2rem;
-        padding: 1.5rem;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(0, 242, 255, 0.2);
-        border-radius: 8px;
-        color: white;
-        font-family: 'Inter', sans-serif;
-      }
-      .trades-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 1rem;
-        font-size: 0.85rem;
-      }
-      .trades-table th {
-        text-align: left;
-        padding: 8px;
-        color: #888;
-        border-bottom: 1px solid #333;
-      }
-      .trades-table td {
-        padding: 8px;
-        border-bottom: 1px solid #222;
-      }
-      .text-buy { color: #39FF14; }
-      .text-sell { color: #FF3131; }
-      .text-cyan { color: #00F2FF; }
-      .text-profit { color: #39FF14; font-weight: bold; }
-      .text-loss { color: #FF3131; font-weight: bold; }
+        :root {
+            --neon-cyan: #00f3ff;
+            --neon-green: #39ff14;
+            --neon-red: #ff3131;
+            --neon-purple: #bc13fe;
+            --bg-deep: #050505;
+            --panel-bg: rgba(15, 15, 15, 0.95);
+            --border: 1px solid #1a1a1a;
+        }
+
+        * { box-sizing: border-box; font-family: 'Inter', 'Segoe UI', monospace; }
+        body { background: var(--bg-deep); color: #e0e0e0; margin: 0; padding: 0; overflow-x: hidden; }
+
+        .header {
+            height: 60px; background: #000; border-bottom: var(--border);
+            display: flex; align-items: center; justify-content: space-between; padding: 0 20px;
+            position: sticky; top: 0; z-index: 100;
+        }
+
+        .brand { color: var(--neon-cyan); font-weight: 900; letter-spacing: 2px; font-size: 1.2rem; }
+        .vitals { display: flex; gap: 25px; }
+        .vital-item { font-size: 0.75rem; display: flex; flex-direction: column; }
+        .vital-val { font-weight: bold; color: var(--neon-cyan); font-size: 1rem; }
+
+        .kanban-board {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 15px;
+            padding: 20px;
+            min-height: calc(100vh - 200px);
+        }
+
+        .column {
+            background: var(--panel-bg);
+            border-radius: 6px;
+            border: var(--border);
+            display: flex;
+            flex-direction: column;
+            max-height: 80vh;
+        }
+
+        .column-header {
+            padding: 12px;
+            background: #111;
+            border-bottom: var(--border);
+            font-size: 0.7rem;
+            font-weight: bold;
+            color: #888;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .card-list {
+            padding: 10px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .card {
+            background: #1a1a1a;
+            border: 1px solid #222;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 10px;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .card:hover { border-color: var(--neon-cyan); box-shadow: 0 0 10px rgba(0, 243, 255, 0.1); }
+        .card-symbol { color: var(--neon-cyan); font-weight: bold; font-size: 0.85rem; margin-bottom: 5px; }
+        .card-info { font-size: 0.65rem; color: #aaa; margin-top: 4px; }
+
+        .glow-buy { border-left: 3px solid var(--neon-green); box-shadow: 0 0 15px rgba(57, 255, 20, 0.1); }
+        .glow-sell { border-left: 3px solid var(--neon-red); box-shadow: 0 0 15px rgba(255, 49, 49, 0.1); }
+
+        .logic-witness {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px dashed #333;
+            font-family: monospace;
+            font-size: 0.6rem;
+            color: #666;
+            display: none;
+        }
+
+        .card.expanded .logic-witness { display: block; }
+
+        .learning-panel {
+            grid-column: span 5;
+            background: #0a0a0a;
+            border: var(--border);
+            margin: 0 20px 20px 20px;
+            padding: 15px;
+            border-radius: 6px;
+        }
+
+        .learning-grid { display: flex; gap: 20px; overflow-x: auto; padding-bottom: 10px; }
+        .learning-entry {
+            min-width: 300px; padding: 10px; background: #111; border-radius: 4px; font-size: 0.7rem;
+            border-left: 2px solid var(--neon-purple);
+        }
+
+        .tag { font-size: 0.55rem; padding: 1px 4px; border-radius: 2px; margin-right: 4px; background: #333; }
+        .tag-bull { color: var(--neon-green); }
+        .tag-bear { color: var(--neon-red); }
+
+        .stats-footer {
+            position: fixed; bottom: 0; width: 100%; height: 30px; background: #000;
+            border-top: var(--border); display: flex; align-items: center; padding: 0 20px;
+            font-size: 0.65rem; color: #555; gap: 30px;
+        }
+        .stat-dot { color: var(--neon-cyan); margin-right: 5px; }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
     </style>
 </head>
-  <body>
-    <div id="root"></div>
+<body>
+    <div class="header">
+        <div class="brand">AAT // ASCENDANT V3.3.0</div>
+        <div class="vitals">
+            <div class="vital-item"><span>EQUITY</span><span class="vital-val" id="v-equity">-bash.00</span></div>
+            <div class="vital-item"><span>DRAWDOWN</span><span class="vital-val" id="v-dd" style="color:var(--neon-red)">0.00%</span></div>
+            <div class="vital-item"><span>ACTIVE</span><span class="vital-val" id="v-pos">0 UNITS</span></div>
+            <div class="vital-item"><span>LATENCY</span><span class="vital-val" id="v-lat">0ms</span></div>
+        </div>
+    </div>
+
+    <div class="kanban-board">
+        <!-- Market Data -->
+        <div class="column">
+            <div class="column-header"><span>[01] MARKET DATA</span> <span id="count-1">0</span></div>
+            <div class="card-list" id="col-1"></div>
+        </div>
+        <!-- Strategy Brains -->
+        <div class="column">
+            <div class="column-header"><span>[02] STRATEGY BRAINS</span> <span id="count-2">0</span></div>
+            <div class="card-list" id="col-2"></div>
+        </div>
+        <!-- Meta Consensus -->
+        <div class="column">
+            <div class="column-header"><span>[03] META CONSENSUS</span> <span id="count-3">0</span></div>
+            <div class="card-list" id="col-3"></div>
+        </div>
+        <!-- Risk Vetting -->
+        <div class="column">
+            <div class="column-header"><span>[04] RISK VETTING</span> <span id="count-4">0</span></div>
+            <div class="card-list" id="col-4"></div>
+        </div>
+        <!-- MT5 Execution -->
+        <div class="column">
+            <div class="column-header"><span>[05] MT5 EXECUTION</span> <span id="count-5">0</span></div>
+            <div class="card-list" id="col-5"></div>
+        </div>
+    </div>
+
+    <div class="learning-panel">
+        <div style="font-size: 0.7rem; color: #888; margin-bottom: 10px; font-weight: bold;">[06] INSTITUTIONAL LEARNING LOG</div>
+        <div class="learning-grid" id="learning-log"></div>
+    </div>
+
+    <div class="stats-footer">
+        <div><span class="stat-dot">●</span>ORCHESTRATOR: <span id="f-status">ONLINE</span></div>
+        <div><span class="stat-dot">●</span>THROUGHPUT: <span id="f-tps">0</span> msg/s</div>
+        <div><span class="stat-dot">●</span>QUEUE DEPTH: <span id="f-depth">0</span></div>
+        <div><span class="stat-dot">●</span>BRIDGE CLIENTS: <span id="f-clients">0</span></div>
+    </div>
 
     <script>
-      // 10460: Dynamic Trade Overseer - Injected to bypass compiled React limitations
-      (function() {
-        const checkExist = setInterval(function() {
-          const root = document.getElementById('root');
-          if (root && root.children.length > 0) {
-            clearInterval(checkExist);
-            initTradeOverlay();
-          }
-        }, 100);
+        const ws = new WebSocket(`ws://${window.location.hostname}:8009/ws`);
 
-        function initTradeOverlay() {
-          const container = document.createElement('div');
-          container.className = 'trades-panel neo-border';
-          container.style.maxWidth = '1200px';
-          container.style.margin = '20px auto';
-          container.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 10px; color: #00F2FF; margin-bottom: 15px;">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
-              <h2 style="font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Live Institutional Trades</h2>
-            </div>
-            <div id="trades-list-container" style="overflow-x: auto;">
-              <table class="trades-table">
-                <thead>
-                  <tr>
-                    <th>SYMBOL</th>
-                    <th>TICKET</th>
-                    <th>ACTION</th>
-                    <th>LOTS</th>
-                    <th>ENTRY</th>
-                    <th>SL</th>
-                    <th>TP</th>
-                    <th>PL ($)</th>
-                    <th>PL (PTS)</th>
-                    <th>DURATION</th>
-                    <th>STATUS</th>
-                  </tr>
-                </thead>
-                <tbody id="trades-tbody">
-                  <tr><td colspan="11" style="text-align: center; color: #555; padding: 20px;">Waiting for trade telemetry...</td></tr>
-                </tbody>
-              </table>
-            </div>
-          `;
-          document.body.appendChild(container);
-
-          // Connect to the same websocket
-          const ws = new WebSocket(`ws://${window.location.hostname}:8009/ws`);
-          ws.onmessage = (event) => {
-            try {
-              const data = JSON.parse(event.data);
-              const trades = data.active_trades || [];
-              const tbody = document.getElementById('trades-tbody');
-
-              if (trades.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: #555; padding: 20px;">No active trades found.</td></tr>';
-                return;
-              }
-
-              tbody.innerHTML = trades.map(t => {
-                const plColor = t.pl_currency >= 0 ? 'text-profit' : 'text-loss';
-                const actionClass = t.action === 'BUY' ? 'text-buy' : 'text-sell';
-                const durMin = Math.floor(t.duration / 60);
-                const durSec = Math.floor(t.duration % 60);
-
-                return `
-                  <tr>
-                    <td><strong>${t.symbol}</strong></td>
-                    <td style="color: #888;">${t.ticket}</td>
-                    <td class="${actionClass}">${t.action}</td>
-                    <td>${t.lots.toFixed(2)}</td>
-                    <td>${t.entry_price.toFixed(5)}</td>
-                    <td style="color: #FF7171;">${t.sl_price.toFixed(5)}</td>
-                    <td style="color: #71FF71;">${t.tp_price.toFixed(5)}</td>
-                    <td class="${plColor}">$${t.pl_currency.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                    <td class="${plColor}">${t.pl_points.toFixed(1)}</td>
-                    <td>${durMin}m ${durSec}s</td>
-                    <td class="text-cyan">${t.status || 'OPEN'}</td>
-                  </tr>
-                `;
-              }).join('');
-            } catch (e) {
-              console.error("Trade Overlay WS Error:", e);
-            }
-          };
+        function toggleCard(el) {
+            el.classList.toggle('expanded');
         }
-      })();
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            // 1. Update Header Vitals
+            const stats = data.account_stats || {};
+            const engine = data.engine_stats || {};
+            document.getElementById('v-equity').innerText = `$${(stats.equity || 0).toLocaleString(undefined, {minimumFractionDigits:2})}`;
+            document.getElementById('v-dd').innerText = `${(stats.drawdown || 0).toFixed(2)}%`;
+            document.getElementById('v-pos').innerText = `${stats.pos_count || 0} UNITS`;
+            document.getElementById('v-lat').innerText = `${(engine.latency || 0).toFixed(0)}ms`;
+
+            // 2. Footer Stats
+            document.getElementById('f-status').innerText = engine.status || 'WAITING';
+            document.getElementById('f-tps').innerText = (engine.throughput || 0).toFixed(1);
+            document.getElementById('f-depth').innerText = engine.q_depth || 0;
+            document.getElementById('f-clients').innerText = engine.active_clients || 0;
+
+            // 3. Learning Log
+            const log = data.learning_history || [];
+            document.getElementById('learning-log').innerHTML = log.map(e => `
+                <div class="learning-entry">
+                    <div style="color:var(--neon-purple); margin-bottom: 4px;">${e.type}</div>
+                    <div style="color:#888">${e.msg || `Brain ${e.brain} reliability now ${(e.score*100).toFixed(1)}%`}</div>
+                </div>
+            `).join('');
+
+            // 4. Kanban Logic (Process all symbols seen in IPC)
+            const symbols = new Set();
+            Object.keys(data).forEach(k => {
+                if (k.startsWith('symbol_stats:')) symbols.add(k.split(':')[1]);
+            });
+
+            const columns = [[], [], [], [], []];
+            symbols.forEach(sym => {
+                const s_stats = data[`symbol_stats:${sym}`] || {};
+                const t_state = data[`brain_state:Trend_1:${sym}`] || {};
+                const i_state = data[`brain_state:Indicator_1:${sym}`] || {};
+                const m_state = data[`brain_state:MetaBrain:${sym}`] || {};
+                const r_state = data[`brain_state:Risk_1:${sym}`] || {};
+                const e_state = data[`brain_state:Execution_1:${sym}`] || {};
+
+                // Col 1: Market Data
+                columns[0].push(`
+                    <div class="card" onclick="toggleCard(this)">
+                        <div class="card-symbol">${sym}</div>
+                        <div class="card-info">BID: ${s_stats.bid} | ASK: ${s_stats.ask}</div>
+                        <div class="card-info">ATR: ${(s_stats.atr || 0).toFixed(5)}</div>
+                        <div class="logic-witness">TICK_VAL: ${s_stats.tick_val} | SIZE: ${s_stats.tick_size}</div>
+                    </div>
+                `);
+
+                // Col 2: Strategy Brains
+                if (t_state.ts || i_state.ts) {
+                    columns[1].push(`
+                        <div class="card ${t_state.dir > 0 ? 'glow-buy' : (t_state.dir < 0 ? 'glow-sell' : '')}" onclick="toggleCard(this)">
+                            <div class="card-symbol">${sym}</div>
+                            <div style="display:flex; flex-wrap:wrap; gap:4px">
+                                ${Object.entries(t_state.trends || {}).map(([tf, v]) => `<span class="tag ${v === 'BULLISH' ? 'tag-bull' : (v === 'BEARISH' ? 'tag-bear' : '')}">${tf.toUpperCase()}</span>`).join('')}
+                            </div>
+                            <div class="card-info">RSI: ${(i_state.rsi || 0).toFixed(1)} | EMA: ${i_state.dir !== 0 ? 'ALIGNED' : 'WAITING'}</div>
+                            <div class="logic-witness">
+                                Trend Prob: ${t_state.p_e_h} <br/>
+                                EMA9: ${(i_state.ema9 || 0).toFixed(5)} <br/>
+                                EMA21: ${(i_state.ema21 || 0).toFixed(5)}
+                            </div>
+                        </div>
+                    `);
+                }
+
+                // Col 3: Meta Consensus
+                if (m_state.ts) {
+                    columns[2].push(`
+                        <div class="card ${m_state.action === 'BUY' ? 'glow-buy' : (m_state.action === 'SELL' ? 'glow-sell' : '')}" onclick="toggleCard(this)">
+                            <div class="card-symbol">${sym}</div>
+                            <div class="card-info">PROB: ${(m_state.prob * 100).toFixed(1)}%</div>
+                            <div class="card-info">SOURCES: ${(m_state.sources || []).join(', ')}</div>
+                            <div class="logic-witness">
+                                PRIOR: ${(m_state.prior_was || 0).toFixed(3)} <br/>
+                                P(E|H): ${(m_state.last_p_e_h || 0).toFixed(2)} <br/>
+                                WEIGHTED: ${(m_state.weighted_p_e_h || 0).toFixed(3)} <br/>
+                                MODE: ${m_state.mode || 'INITIAL'}
+                            </div>
+                        </div>
+                    `);
+                }
+
+                // Col 4: Risk Vetting
+                if (r_state.ts) {
+                    columns[3].push(`
+                        <div class="card ${r_state.validated ? 'glow-buy' : (r_state.veto ? 'glow-sell' : '')}" onclick="toggleCard(this)">
+                            <div class="card-symbol">${sym}</div>
+                            <div class="card-info">STATUS: ${r_state.validated ? 'VALIDATED' : (r_state.veto ? 'VETOED' : 'PENDING')}</div>
+                            ${r_state.veto ? `<div class="card-info" style="color:var(--neon-red)">REASON: ${r_state.reason}</div>` : ''}
+                            <div class="logic-witness">
+                                SL_PTS: ${r_state.sl} <br/>
+                                TP_PTS: ${r_state.tp} <br/>
+                                PROB_FINAL: ${(r_state.prob || 0).toFixed(2)}
+                            </div>
+                        </div>
+                    `);
+                }
+
+                // Col 5: Execution
+                if (e_state.ts) {
+                    columns[4].push(`
+                        <div class="card" onclick="toggleCard(this)">
+                            <div class="card-symbol">${sym}</div>
+                            <div class="card-info">ORDER: ${e_state.executed ? 'SENT TO MT5' : 'WAITING'}</div>
+                            <div class="logic-witness">
+                                ACTION: ${e_state.order ? e_state.order.act : '--'} <br/>
+                                LOTS: ${e_state.order ? e_state.order.lts : '--'} <br/>
+                                REASON: ${e_state.order ? e_state.order.reason : '--'}
+                            </div>
+                        </div>
+                    `);
+                }
+            });
+
+            for(let i=0; i<5; i++) {
+                document.getElementById(`col-${i+1}`).innerHTML = columns[i].join('');
+                document.getElementById(`count-${i+1}`).innerText = columns[i].length;
+            }
+        };
     </script>
 </body>
 </html>
