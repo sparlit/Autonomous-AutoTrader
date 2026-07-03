@@ -36,3 +36,6 @@
 - **Problem:** multiprocessing.Lock and other manager proxies are often lost or set to None during pickling if they are explicitly deleted in `__getstate__`.
 - **Solution:** Preserving these proxies in `__getstate__` allows the child process to reconstruct them successfully.
 - **Pattern:** Parent processes should explicitly initialize MUST-HAVE streams (like `stream:orchestrator`) before spawning children to ensure proxies are valid in the swarm.
+### CLI Signature Stability (V3.3.0)
+- **Problem:** Updating the Orchestrator's internal logic can lead to signature mismatches with the supervisor CLI (`aat.py`) if optional arguments are not handled correctly.
+- **Solution:** Always ensure that core orchestrator classes support optional `credentials` or `config` injections to maintain backward compatibility with the bootloader.

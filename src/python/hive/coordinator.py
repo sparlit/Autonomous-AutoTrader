@@ -23,8 +23,8 @@ class HiveOrchestrator:
     10000: The Institutional Core (V3.3.0-ASCENDANT).
     Central event loop for cross-process brain coordination and bridge management.
     """
-    def __init__(self):
-        self.config = load_config()
+    def __init__(self, credentials: Optional[Dict[str, Any]] = None):
+        self.config = load_config(); self.credentials = credentials
         self.ipc = get_ipc()
         self.server = BridgeServer(
             host=self.config.bridge.host,
@@ -227,7 +227,7 @@ class HiveOrchestrator:
                         history = self.ipc.get_state("learning_history", [])
                         history.append({**event, "ts": time.time()})
                         self.ipc.set_state("learning_history", history[-50:])
-        except: pass
+        except: logger.debug("Learning history sync skipped")
 
     async def _sync_trades_to_ipc(self):
         trades = await self.ledger.get_all_active_trades()
