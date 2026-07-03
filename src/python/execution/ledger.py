@@ -89,20 +89,20 @@ class TradeLedger:
     async def get_active_trades_db(self, symbol: str) -> List[Dict[str, Any]]:
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
-            async with db.execute("SELECT * FROM trades WHERE symbol = ? AND status = 'OPEN'", (symbol,)) as cursor:
+            async with db.execute("SELECT * FROM trades WHERE symbol = ? AND status IN ('OPEN', 'PENDING')", (symbol,)) as cursor:
                 return [dict(row) for row in await cursor.fetchall()]
 
     async def get_all_active_trades(self) -> List[Dict[str, Any]]:
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
-            async with db.execute("SELECT * FROM trades WHERE status = 'OPEN'") as cursor:
+            async with db.execute("SELECT * FROM trades WHERE status IN ('OPEN', 'PENDING')") as cursor:
                 return [dict(row) for row in await cursor.fetchall()]
 
     async def prune_trades(self, active_tickets: List[int]):
         async with aiosqlite.connect(self.db_path) as db:
             if not active_tickets:
-                await db.execute("UPDATE trades SET status = 'CLOSED' WHERE status = 'OPEN'")
+                await db.execute("UPDATE trades SET status = 'CLOSED' WHERE status IN ('OPEN', 'PENDING')")
             else:
                 sql_marks = ", ".join(["?"] * len(active_tickets))
-                await db.execute(f"UPDATE trades SET status = 'CLOSED' WHERE status = 'OPEN' AND ticket NOT IN ({sql_marks})", active_tickets)
+                await db.execute(f"UPDATE trades SET status = 'CLOSED' WHERE status IN ('OPEN', 'PENDING') AND ticket NOT IN ({sql_marks})", active_tickets)
             await db.commit()

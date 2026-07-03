@@ -23,13 +23,17 @@ class MarketDataBrain(BaseBrain):
     async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         if event.get("type") == "MARKET_DATA_RAW":
             symbol = event.get("s")
-            bid, ask = event.get("b", 0), event.get("a", 0)
+            # V3.3.1: Correct key mapping from MT5 DP message
+            bid, ask = event.get("bi", 0), event.get("as", 0)
+            atr = event.get("atr", 0)
+            ts = event.get("ts", 0.0001)
 
             self.ipc.set_state(f"symbol_stats:{symbol}", {
                 "bid": bid, "ask": ask,
+                "atr": atr,
                 "spread": event.get("sp", 0),
                 "tick_val": event.get("tv", 10.0),
-                "tick_size": event.get("ts", 0.0001),
+                "tick_size": ts,
                 "last_update": time.time()
             })
 
@@ -139,9 +143,25 @@ class RiskBrain(BaseBrain):
             alignment = sum(1 for tf in ["m15", "h1", "h4", "d1"] if trends.get(tf) == required)
 
             if alignment < 3: # MANDATORY 3 OUT OF 4 ALIGNMENT
-                return {"type": "VETO", "symbol": symbol, "reason": f"STRICT_GUARD: TREND MISALIGNMENT ({alignment}/4)"}
+                return {"type": "VETO", "symbol": symbol, "reason": f"STRICT_GUARD: TREND MISALIGNED ({alignment}/4)"}
 
-            # 10520: Ensure event is updated with VALIDATED_TRADE type for execution routing
+            # 3. Mandatory SL/TP Calculation (Zero-Tolerance)
+            s_stats = self.ipc.get_state(f"symbol_stats:{symbol}", {})
+            atr = event.get("atr") or s_stats.get("atr", 0)
+            ts = s_stats.get("tick_size", 0.0001)
+
+            if atr > 0 and ts > 0:
+                sl_pts = int((atr * 2) / ts)
+                tp_pts = sl_pts # 1:1 RR Unit Unit
+            else:
+                # Institutional Fallback (100 pips)
+                sl_pts = 1000 if any(x in symbol for x in ["JPY", "XAU", "GOLD"]) else 100
+                tp_pts = sl_pts
+
+            event["sl_pts"] = max(10, sl_pts)
+            event["tp_pts"] = max(10, tp_pts)
+
+            # 10520: Ensure event is updated with VALIDATED_TRADE type
             return {**event, "type": "VALIDATED_TRADE"}
         return None
 
@@ -152,7 +172,7 @@ class ExecutionBrain(BaseBrain):
             return {
                 "type": "EXECUTION_ORDER", "t": "DEC", "s": event["symbol"],
                 "act": event["action"], "lts": 0.01,
-                "sl_p": 0, "tp_p": 0,
+                "sl_p": event.get("sl_pts", 0), "tp_p": event.get("tp_pts", 0),
                 "reason": event.get("reason", "BRAIN_SIGNAL")
             }
         return None
