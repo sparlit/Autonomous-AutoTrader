@@ -340,6 +340,7 @@ class HiveOrchestrator:
             (MetaBrain, "MetaBrain")
         ]
 
+        self.ipc.create_stream("stream:orchestrator")
         for _, name in swarm_classes:
             self.ipc.create_stream(f"stream:{name}")
 

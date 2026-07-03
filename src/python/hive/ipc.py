@@ -36,14 +36,13 @@ class HiveIPC:
         """Prepare state for pickling (Windows compatibility)."""
         state = self.__dict__.copy()
         if 'manager' in state: del state['manager']
-        if '_lock' in state: del state['_lock']
+        # 10258: Preserve _lock and proxy containers.
         return state
 
     def __setstate__(self, state):
         """Restore state after pickling."""
         self.__dict__.update(state)
         self.manager = None
-        self._lock = None
 
     def get_queue(self, name: str) -> multiprocessing.Queue:
         """Fetch a specific queue. Optimized with local caching."""
@@ -51,13 +50,14 @@ class HiveIPC:
             return self._local_queues[name]
 
         if name not in self._queues:
-            if self.manager:
+            if self.manager: # In parent process
                 with self._lock:
                    if name not in self._queues:
                        logger.debug(f"Initializing IPC stream: {name}")
                        self._queues[name] = self.manager.Queue(maxsize=1000)
             else:
-                raise RuntimeError(f"IPC Error: Stream {name} missing in child process.")
+                # In child process: cannot create new queues.
+                raise RuntimeError(f"IPC Error: Stream {name} missing in child. Parent must create it first.")
 
         self._local_queues[name] = self._queues[name]
         return self._local_queues[name]
@@ -65,9 +65,12 @@ class HiveIPC:
     def create_stream(self, name: str, maxlen: int = 1000):
         """Pre-initialize a stream (Call from parent only)."""
         if name not in self._queues:
-            with self._lock:
-                if name not in self._queues:
-                    self._queues[name] = self.manager.Queue(maxsize=maxlen)
+            if self.manager:
+                with self._lock:
+                    if name not in self._queues:
+                        self._queues[name] = self.manager.Queue(maxsize=maxlen)
+            else:
+                logger.error(f"Cannot create stream {name} from child process.")
 
     def xadd(self, stream: str, data: Dict[str, Any], maxlen: int = 1000):
         """Emulate Redis XADD with improved throughput."""
@@ -110,6 +113,9 @@ class HiveIPC:
 
     def acquire_trading_lock(self, symbol: str, cooldown: int = 30) -> bool:
         """10260: Atomically acquire a trading lock for a symbol."""
+        if not self._lock:
+            logger.error("IPC Lock is None in acquire_trading_lock")
+            return False
         with self._lock:
             now = time.time()
             last_trade = self._shared_state.get(f"trade_lock:{symbol}", 0)

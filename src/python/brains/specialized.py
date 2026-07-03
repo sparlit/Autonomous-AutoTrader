@@ -191,7 +191,7 @@ class RiskBrain(BaseBrain):
                 if not os.path.exists("logs"): os.makedirs("logs")
                 with open("logs/brain_decisions.log", "a") as f:
                     f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - VETTED: {symbol} {action} L:{event['lots']} P:{prob:.2f} SL:{event['sl_pts']}\n")
-            except: pass
+            except: logger.debug("IPC cleanup skipped")
 
             return {**event, "type": "VALIDATED_TRADE"}
         return None

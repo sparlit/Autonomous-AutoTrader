@@ -32,3 +32,7 @@
 - **Atomic Trading Locks:** Using an IPC-level atomic lock (`acquire_trading_lock`) is the most reliable way to prevent race conditions and duplicate orders in a high-concurrency multi-process brain architecture.
 - **Multi-Layer Vetting:** Implementing vetting checks at three distinct levels (Generation, Risk-Vetting, and MQL5-Bridge) creates a "Zero-Tolerance" environment where technical glitches (like 0 SL/TP) cannot result in invalid market orders.
 - **Profit-Relative Scaling:** Calculating profit in USD using TickValue and TickSize before scaling ensures that the system only adds risk to positions that have established a meaningful profit margin, adhering to institutional capital preservation rules.
+### IPC State Preservation (V3.3.0)
+- **Problem:** multiprocessing.Lock and other manager proxies are often lost or set to None during pickling if they are explicitly deleted in `__getstate__`.
+- **Solution:** Preserving these proxies in `__getstate__` allows the child process to reconstruct them successfully.
+- **Pattern:** Parent processes should explicitly initialize MUST-HAVE streams (like `stream:orchestrator`) before spawning children to ensure proxies are valid in the swarm.

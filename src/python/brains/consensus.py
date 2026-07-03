@@ -26,91 +26,99 @@ class MetaBrain(BaseBrain):
 
     async def initialize(self):
         await super().initialize()
+        # 10610: Seed reliability from IPC if available
+        self.brain_reliability = self.ipc.get_state("brain_reliability", {})
         asyncio.create_task(self._learning_loop())
 
     async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        symbol = event.get("symbol")
-        if event.get("scaling"):
-            # 10615: High-Confidence Scaling Signal
-            return {
-                "type": "PROBABILISTIC_SIGNAL", "symbol": symbol, "action": event["action"],
-                "probability": event.get("probability", 0.90), "regime": "TRENDING",
-                "atr": event.get("atr", 0), "rsi": 50, "confluence": 4, "scaling": True
-            }
-        if not symbol: return None
+        try:
+            symbol = event.get("symbol")
+            if not symbol: return None
 
-        # Scaling Signal handling
-        if event.get("scaling"):
-            return {
-                "type": "PROBABILISTIC_SIGNAL", "symbol": symbol, "action": event["action"],
-                "probability": 0.95, "reason": "SCALING_ALIGNED", "scaling": True, "lots": 0.01
-            }
+            # Scaling Signal handling
+            if event.get("scaling"):
+                return {
+                    "type": "PROBABILISTIC_SIGNAL", "symbol": symbol, "action": event.get("action", "BUY"),
+                    "probability": 0.95, "reason": "SCALING_ALIGNED", "scaling": True, "lots": 0.01
+                }
 
-        if symbol not in self.symbol_state: self.symbol_state[symbol] = self._new_state()
-        state = self.symbol_state[symbol]; e_type = event.get("type")
+            if symbol not in self.symbol_state: self.symbol_state[symbol] = self._new_state()
+            state = self.symbol_state[symbol]; e_type = event.get("type")
 
-        if e_type == "RELIABILITY_REPORT":
-            self.brain_reliability = event.get("scores", {})
-            # Correction: Auto-adjust threshold if overall performance is poor
-            avg_rel = sum(self.brain_reliability.values()) / len(self.brain_reliability) if self.brain_reliability else 1.0
-            if avg_rel < 0.5: self.threshold = 0.80 # Tighten requirements
-            else: self.threshold = 0.70
+            if e_type == "RELIABILITY_REPORT":
+                self.brain_reliability = event.get("scores", {})
+                if self.brain_reliability:
+                    avg_rel = sum(self.brain_reliability.values()) / len(self.brain_reliability)
+                    if avg_rel < 0.5: self.threshold = 0.80 # Tighten requirements
+                    else: self.threshold = 0.70
+                return None
+
+            if e_type == "EVIDENCE":
+                src = event.get("source")
+                if not src: return None
+
+                state["received_sources"].add(src)
+
+                # Record evidence
+                direction = event.get("direction", 0)
+                if "Trend" in src: state["confluence"]["trend"] = direction
+                elif "Indicator" in src: state["confluence"]["momentum"] = direction
+
+                # Bayesian Update
+                p_e_h = event.get("p_e_h", 0.50)
+                p_e = event.get("p_e", 0.50)
+                rel = self.brain_reliability.get(src, 1.0)
+
+                # Weighting
+                weighted_p_e_h = 0.50 + (p_e_h - 0.50) * rel
+                prior = state["prior"]
+                posterior = (weighted_p_e_h * prior) / p_e if p_e > 0 else prior
+                state["prior"] = max(0.01, min(0.99, posterior))
+
+                # Update intel for dashboard
+                self.ipc.set_state(f"intel:{symbol}", {
+                    "prob": state["prior"],
+                    "regime": state.get("regime", "NORMAL"),
+                    "sources": list(state["received_sources"])
+                })
+
+                state["evidence_trail"].append({
+                    "src": src, "dir": direction, "p": state["prior"], "rel": rel
+                })
+
+                # Check for Decision
+                if all(s in state["received_sources"] for s in self.required_sources):
+                    # Mandatory Trend Alignment Check
+                    if state["confluence"]["trend"] == 0: return None
+
+                    # Signal direction must match trend
+                    action = "BUY" if state["confluence"]["trend"] > 0 else "SELL"
+
+                    # Check Momentum alignment
+                    if state["confluence"]["momentum"] != state["confluence"]["trend"]:
+                        return None # No alignment
+
+                    if state["prior"] >= self.threshold:
+                        # 10620: Acquire Trading Lock (Zero-Tolerance)
+                        active_trades = self.ipc.get_state("active_trades", [])
+                        if any(t['symbol'] == symbol for t in active_trades):
+                            return None # Rule 1.a: No duplicate initial trades
+
+                        if not self.ipc.acquire_trading_lock(symbol):
+                            return None
+
+                        res = {
+                            "type": "PROBABILISTIC_SIGNAL", "symbol": symbol, "action": action,
+                            "probability": state["prior"], "lots": 0.01,
+                            "reason": f"MTF_ALIGNED_CONF_{len(state['evidence_trail'])}",
+                            "evidence": json.dumps(state["evidence_trail"])
+                        }
+                        self.symbol_state[symbol] = self._new_state()
+                        return res
             return None
-
-        if e_type == "EVIDENCE":
-            src = event["source"]
-            state["received_sources"].add(src)
-
-            # Record evidence
-            direction = event.get("direction", 0)
-            if "Trend" in src: state["confluence"]["trend"] = direction
-            elif "Indicator" in src: state["confluence"]["momentum"] = direction
-
-            # Bayesian Update
-            p_e_h = event.get("p_e_h", 0.50)
-            p_e = event.get("p_e", 0.50)
-            rel = self.brain_reliability.get(src, 1.0)
-
-            # Weighting
-            weighted_p_e_h = 0.50 + (p_e_h - 0.50) * rel
-            prior = state["prior"]
-            posterior = (weighted_p_e_h * prior) / p_e if p_e > 0 else prior
-            state["prior"] = max(0.01, min(0.99, posterior)); self.ipc.set_state(f"intel:{symbol}", {"prob": state["prior"], "regime": state.get("regime", "NORMAL")})
-
-            state["evidence_trail"].append({
-                "src": src, "dir": direction, "p": state["prior"], "rel": rel
-            })
-
-            # Check for Decision
-            if all(s in state["received_sources"] for s in self.required_sources):
-                # Mandatory Trend Alignment Check
-                if state["confluence"]["trend"] == 0: return None
-
-                # Signal direction must match trend
-                action = "BUY" if state["confluence"]["trend"] > 0 else "SELL"
-
-                # Check Momentum alignment
-                if state["confluence"]["momentum"] != state["confluence"]["trend"]:
-                    return None # No alignment
-
-                if state["prior"] >= self.threshold:
-                    # 10620: Acquire Trading Lock (Zero-Tolerance)
-                    active_trades = self.ipc.get_state("active_trades", [])
-                    if any(t['symbol'] == symbol for t in active_trades):
-                        return None # Rule 1.a: No duplicate initial trades
-
-                    if not self.ipc.acquire_trading_lock(symbol):
-                        return None
-
-                    res = {
-                        "type": "PROBABILISTIC_SIGNAL", "symbol": symbol, "action": action,
-                        "probability": state["prior"], "lots": 0.01,
-                        "reason": f"MTF_ALIGNED_CONF_{len(state['evidence_trail'])}",
-                        "evidence": json.dumps(state["evidence_trail"])
-                    }
-                    self.symbol_state[symbol] = self._new_state()
-                    return res
-        return None
+        except Exception as e:
+            logger.error(f"MetaBrain Process Error for {event.get('symbol')}: {e}")
+            return None
 
     def _new_state(self):
         return {
@@ -147,14 +155,22 @@ class MetaBrain(BaseBrain):
 
                     # Update reliability for individual brains
                     for t in recent_trades:
-                        trail = json.loads(t.get("evidence", "[]"))
-                        adj = 0.02 if t.get('profit', 0) > 0 else -0.03
-                        for e in trail:
-                            src = e.get("src")
-                            if src:
-                                self.brain_reliability[src] = max(0.1, min(1.0, self.brain_reliability.get(src, 1.0) + adj))
+                        trail_str = t.get("evidence")
+                        if not trail_str: continue
 
-                self.ipc.set_state("brain_reliability", self.brain_reliability); self.ipc.set_state("last_decision", {"msg": "BRAIN: Reliability calibration cycle complete", "time": time.time()}); self.publish({"type": "RELIABILITY_REPORT", "scores": self.brain_reliability})
+                        try:
+                            trail = json.loads(trail_str)
+                            adj = 0.02 if t.get('profit', 0) > 0 else -0.03
+                            for e in trail:
+                                src = e.get("src")
+                                if src:
+                                    self.brain_reliability[src] = max(0.1, min(1.0, self.brain_reliability.get(src, 1.0) + adj))
+                        except Exception:
+                            continue
+
+                self.ipc.set_state("brain_reliability", self.brain_reliability)
+                self.ipc.set_state("last_decision", {"msg": "BRAIN: Reliability calibration cycle complete", "time": time.time()})
+                self.publish({"type": "RELIABILITY_REPORT", "scores": self.brain_reliability})
                 await asyncio.sleep(1800) # Calibration period # Every 30 mins
             except Exception as e:
                 logger.error(f"MetaBrain Learning Error: {e}")
