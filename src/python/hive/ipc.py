@@ -21,7 +21,10 @@ class HiveIPC:
         """10251: Wipe all shared state."""
         logger.info("🧹 Clearing IPC memory state...")
         with self._lock:
+            # 10255: Hard Reset - wipe all keys including latches
             self._shared_state.clear()
+
+            # Clear queues
             for name in list(self._queues.keys()):
                 q = self._queues[name]
                 while not q.empty():
@@ -104,6 +107,16 @@ class HiveIPC:
             except Exception:
                 continue
         return results
+
+    def acquire_trading_lock(self, symbol: str, cooldown: int = 30) -> bool:
+        """10260: Atomically acquire a trading lock for a symbol."""
+        with self._lock:
+            now = time.time()
+            last_trade = self._shared_state.get(f"trade_lock:{symbol}", 0)
+            if now - last_trade < cooldown:
+                return False
+            self._shared_state[f"trade_lock:{symbol}"] = now
+            return True
 
     def set_state(self, key: str, value: Any):
         self._shared_state[key] = value

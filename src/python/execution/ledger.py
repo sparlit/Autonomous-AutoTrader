@@ -7,30 +7,12 @@ from typing import Dict, Any, List, Optional
 logger = logging.getLogger("AAT_Ledger")
 
 class TradeLedger:
-    """16000: Atomic persistent trade database."""
+    """16000: Atomic persistent trade database (V3.3.0-ASCENDANT)."""
     def __init__(self, db_path: str = "audit_records.db"):
         self.db_path = db_path
         self._peak_equity = 0.0
 
-    async def clear_ledger(self):
-        """
-        16001: Wipe the persistent database for a clean start.
-        Magic: 16001
-        """
-        logger.info(f"🧹 Clearing Trade Ledger database: {self.db_path}")
-        if os.path.exists(self.db_path):
-            try:
-                os.remove(self.db_path)
-                logger.info("✅ Database file removed.")
-            except Exception as e:
-                logger.error(f"❌ Failed to remove database file: {e}")
-        await self.init_db()
-
     async def init_db(self):
-        """
-        16002: Schema initialization.
-        Magic: 16002
-        """
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS trades (
@@ -44,32 +26,41 @@ class TradeLedger:
                     entry_price REAL DEFAULT 0,
                     sl_price REAL DEFAULT 0,
                     tp_price REAL DEFAULT 0,
+                    profit REAL DEFAULT 0,
                     status TEXT,
-                    partial_tp_hit INTEGER DEFAULT 0,
-                    is_managed INTEGER DEFAULT 1,
+                    evidence TEXT,
                     timestamp REAL
                 )
             """)
+
+            # 16005: Schema Migration - ensure columns exist for older databases
+            async with db.execute("PRAGMA table_info(trades)") as cursor:
+                columns = [row[1] for row in await cursor.fetchall()]
+
+            if "evidence" not in columns:
+                await db.execute("ALTER TABLE trades ADD COLUMN evidence TEXT DEFAULT '[]'")
+                logger.info("Migrated schema: Added 'evidence' column to trades table")
+
+            if "sl_pts" not in columns:
+                await db.execute("ALTER TABLE trades ADD COLUMN sl_pts INTEGER DEFAULT 0")
+                logger.info("Migrated schema: Added 'sl_pts' column to trades table")
+
+            if "tp_pts" not in columns:
+                await db.execute("ALTER TABLE trades ADD COLUMN tp_pts INTEGER DEFAULT 0")
+                logger.info("Migrated schema: Added 'tp_pts' column to trades table")
+
             await db.commit()
 
-    async def record_intent(self, symbol: str, action: str, lots: float, sl: int, tp: int) -> int:
-        """
-        16003: Store trade intent.
-        Magic: 16003
-        """
+    async def record_intent(self, symbol: str, action: str, lots: float, sl: int, tp: int, evidence: str = "[]") -> int:
         async with aiosqlite.connect(self.db_path) as db:
             cursor = await db.execute(
-                "INSERT INTO trades (symbol, action, lots, sl_pts, tp_pts, status, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (symbol, action, lots, sl, tp, "PENDING", time.time())
+                "INSERT INTO trades (symbol, action, lots, sl_pts, tp_pts, status, evidence, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (symbol, action, lots, sl, tp, "PENDING", evidence, time.time())
             )
             await db.commit()
             return cursor.lastrowid
 
     async def confirm_trade(self, internal_id: int, ticket: int, entry: float, sl: float, tp: float):
-        """
-        16007: Confirm MT5 execution success.
-        Magic: 16007
-        """
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
                 "UPDATE trades SET ticket = ?, entry_price = ?, sl_price = ?, tp_price = ?, status = 'OPEN' WHERE id = ?",
@@ -77,101 +68,41 @@ class TradeLedger:
             )
             await db.commit()
 
-    async def update_trade_from_sync(self, ticket: int, symbol: str, action: str, lots: float, sl: float, tp: float):
-        """
-        16008: Upsert trade from MT5 SYNC pulse.
-        Magic: 16008
-        """
+    async def update_trade_from_sync(self, ticket: int, symbol: str, action: str, lots: float, entry: float, sl: float, tp: float):
         async with aiosqlite.connect(self.db_path) as db:
             async with db.execute("SELECT id FROM trades WHERE ticket = ?", (ticket,)) as cursor:
                 row = await cursor.fetchone()
                 if row:
-                    await db.execute(
-                        "UPDATE trades SET sl_price = ?, tp_price = ?, status = 'OPEN' WHERE ticket = ?",
-                        (sl, tp, ticket)
-                    )
+                    await db.execute("UPDATE trades SET entry_price = ?, sl_price = ?, tp_price = ?, status = 'OPEN' WHERE ticket = ?", (entry, sl, tp, ticket))
                 else:
                     await db.execute(
-                        "INSERT INTO trades (symbol, action, lots, ticket, sl_price, tp_price, status, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                        (symbol, action, lots, ticket, sl, tp, "OPEN", time.time())
+                        "INSERT INTO trades (symbol, action, lots, ticket, entry_price, sl_price, tp_price, status, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (symbol, action, lots, ticket, entry, sl, tp, "OPEN", time.time())
                     )
             await db.commit()
 
-    async def set_partial_hit(self, ticket: int):
-        """
-        16009: Record partial TP fulfillment.
-        Magic: 16009
-        """
+    async def close_trade(self, ticket: int, profit: float = 0.0):
         async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("UPDATE trades SET partial_tp_hit = 1 WHERE ticket = ?", (ticket,))
-            await db.commit()
-
-    async def close_trade(self, ticket: int):
-        """
-        16010: Mark trade as closed.
-        Magic: 16010
-        """
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("UPDATE trades SET status = 'CLOSED' WHERE ticket = ?", (ticket,))
-            await db.commit()
-
-    async def close_all_active_trades(self):
-        """
-        16011: Mark all active trades as closed.
-        Magic: 16011
-        """
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("UPDATE trades SET status = 'CLOSED' WHERE status = 'OPEN'")
+            await db.execute("UPDATE trades SET status = 'CLOSED', profit = ? WHERE ticket = ?", (profit, ticket))
             await db.commit()
 
     async def get_active_trades_db(self, symbol: str) -> List[Dict[str, Any]]:
-        """
-        16004: Retrieve open tickets.
-        Magic: 16004
-        """
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
-            async with db.execute("SELECT * FROM trades WHERE symbol = ? AND status = 'OPEN'", (symbol,)) as cursor:
+            async with db.execute("SELECT * FROM trades WHERE symbol = ? AND status IN ('OPEN', 'PENDING')", (symbol,)) as cursor:
                 return [dict(row) for row in await cursor.fetchall()]
 
     async def get_all_active_trades(self) -> List[Dict[str, Any]]:
-        """
-        16016: Retrieve all open tickets.
-        Magic: 16016
-        """
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
-            async with db.execute("SELECT * FROM trades WHERE status = 'OPEN'") as cursor:
+            async with db.execute("SELECT * FROM trades WHERE status IN ('OPEN', 'PENDING')") as cursor:
                 return [dict(row) for row in await cursor.fetchall()]
 
-    async def update_peak_equity(self, equity: float):
-        """
-        16005: Peak tracking.
-        Magic: 16005
-        """
-        if equity > self._peak_equity:
-            self._peak_equity = equity
-
-    def get_cached_peak_equity(self) -> float:
-        """
-        16006: Thread-safe peak retrieval.
-        Magic: 16006
-        """
-        return self._peak_equity
-
     async def prune_trades(self, active_tickets: List[int]):
-        """
-        16017: Prune trades that are no longer active in MT5.
-        Magic: 16017
-        """
-        if not active_tickets:
-            await self.close_all_active_trades()
-            return
-
         async with aiosqlite.connect(self.db_path) as db:
-            sql_marks = ", ".join(["?"] * len(active_tickets))
-            await db.execute(
-                f"UPDATE trades SET status = 'CLOSED' WHERE status = 'OPEN' AND ticket NOT IN ({sql_marks})",
-                active_tickets
-            )
+            if not active_tickets:
+                await db.execute("UPDATE trades SET status = 'CLOSED' WHERE status IN ('OPEN', 'PENDING')")
+            else:
+                sql_marks = ", ".join(["?"] * len(active_tickets))
+                await db.execute(f"UPDATE trades SET status = 'CLOSED' WHERE status IN ('OPEN', 'PENDING') AND ticket NOT IN ({sql_marks})", active_tickets)
             await db.commit()
