@@ -27,3 +27,8 @@
 ## Indentation and Syntax Resilience
 - **Indentation Sensitivity:** Python is extremely sensitive to indentation. When programmatically editing files (e.g., using `sed` or `cat <<EOF`), it is safer to rewrite entire methods or classes to ensure consistent spacing, rather than replacing single lines which might introduce mismatches.
 - **Verification via Compilation:** Running 'python3 -m compileall <file>' is a quick way to catch syntax/indentation errors without having to run the entire system.
+
+## Zero-Tolerance Execution Resilience
+- **Atomic Trading Locks:** Using an IPC-level atomic lock (`acquire_trading_lock`) is the most reliable way to prevent race conditions and duplicate orders in a high-concurrency multi-process brain architecture.
+- **Multi-Layer Vetting:** Implementing vetting checks at three distinct levels (Generation, Risk-Vetting, and MQL5-Bridge) creates a "Zero-Tolerance" environment where technical glitches (like 0 SL/TP) cannot result in invalid market orders.
+- **Profit-Relative Scaling:** Calculating profit in USD using TickValue and TickSize before scaling ensures that the system only adds risk to positions that have established a meaningful profit margin, adhering to institutional capital preservation rules.

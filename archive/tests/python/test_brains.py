@@ -17,6 +17,8 @@ class MockIPC:
         return self.state
     def xadd(self, stream, data, maxlen=None):
         pass
+    def acquire_trading_lock(self, symbol, cooldown=30):
+        return True
 
 def generate_tick_data(symbol="EURUSD", count=100):
     ticks = []

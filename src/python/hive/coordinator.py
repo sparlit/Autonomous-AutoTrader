@@ -64,6 +64,10 @@ class HiveOrchestrator:
 
         self.running = True
         self.brains = []
+        self.ipc.set_state("sys_params", {
+            "max_drawdown": self.config.risk.max_drawdown_pct,
+            "consensus_threshold": self.config.brains.consensus_threshold
+        })
 
     async def run(self):
         """10002: Orchestration Entry Point."""
@@ -133,6 +137,7 @@ class HiveOrchestrator:
                     })
 
             self.ipc.set_state("account_stats", {
+                "balance": message.get("ba", equity),
                 "equity": equity,
                 "drawdown": message.get("dd", message.get("d", 0.0)),
                 "pos_count": message.get("pc", 0),
@@ -149,15 +154,18 @@ class HiveOrchestrator:
             return {"t": "ACK"}
 
         elif m_type == "T_ACK":
-            # 10030: Clear signal latch and confirm trade
-            await self.ledger.confirm_trade(message.get("id"), message.get("tk"), 0, 0, 0)
+            # 10030: Clear signal latch and confirm trade (Robust V3.3.3)
+            internal_id = message.get("id")
+            ticket = message.get("tk")
+            if ticket and ticket > 0:
+                await self.ledger.confirm_trade(internal_id, ticket, 0, 0, 0)
             return {"t": "ACK"}
 
         elif m_type == "SYNC":
             tickets = message.get("tk", [])
             for t in tickets:
                 await self.ledger.update_trade_from_sync(
-                    t['tk'], t['s'], t['act'], t['vol'], t['sl'], t['tp']
+                    t['tk'], t['s'], t['act'], t['vol'], t.get('en', 0), t['sl'], t['tp']
                 )
             # Prune closed trades
             active_tickets = [t["tk"] for t in tickets]

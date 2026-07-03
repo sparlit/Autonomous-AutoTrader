@@ -1,3 +1,4 @@
+import os
 import asyncio
 import logging
 import time
@@ -126,16 +127,15 @@ class IndicatorBrain(BaseBrain):
         return None
 
 class RiskBrain(BaseBrain):
-    """Brain 11 - 10517: Mandatory Vetting & Scaling Guard."""
+    """Brain 11 - 10517: Mandatory Vetting & Scaling Guard (V3.3.3 Assessment)."""
     async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         if event.get("type") == "PROBABILISTIC_SIGNAL":
             symbol = event["symbol"]
             action = event["action"]
 
-            # 1. Strict Lot Enforcement
-            event["lots"] = 0.01
+            # 1. Trading Lock Handled at Source (MetaBrain / PositionManager)
 
-            # 2. Mandatory MTF Trend Alignment (Zero-Tolerance)
+            # 2. Multi-Timeframe Assessment (Rule 1.b.i / 1.c.iii)
             trends = self.ipc.get_state(f"trend_stats:{symbol}", {})
             if not trends:
                 return {"type": "VETO", "symbol": symbol, "reason": "STRICT_GUARD: NO TREND DATA"}
@@ -146,41 +146,55 @@ class RiskBrain(BaseBrain):
             if alignment < 3: # MANDATORY 3 OUT OF 4 ALIGNMENT
                 return {"type": "VETO", "symbol": symbol, "reason": f"STRICT_GUARD: TREND MISALIGNED ({alignment}/4)"}
 
-            # 3. Mandatory SL/TP Calculation (V3.3.2 Robustness)
+            # 3. Drawdown & Win Rate Assessment (Rule 1.b.iv/v/vi)
+            stats = self.ipc.get_state("account_stats", {})
+            reliability = self.ipc.get_state("brain_reliability", {})
+
+            # Max Drawdown Assessment
+            dd = stats.get("drawdown", 0)
+            if dd > 5.0:
+                return {"type": "VETO", "symbol": symbol, "reason": f"MAX_DRAWDOWN_BREACH: {dd:.2f}%"}
+
+            # Bayesian Winning % Assessment
+            avg_win_rate = sum(reliability.values()) / len(reliability) if reliability else 1.0
+            if avg_win_rate < 0.40:
+                 return {"type": "VETO", "symbol": symbol, "reason": f"LOW_SYSTEM_RELIABILITY: {avg_win_rate:.2f}"}
+
+            # 4. Mandatory Risk & Probability Assessment (Rule 1.b.ii/iii)
+            prob = event.get("probability", 0.5)
+            if prob < 0.70: # Institutional Probability Floor
+                 return {"type": "VETO", "symbol": symbol, "reason": f"INSUFFICIENT_PROBABILITY: {prob:.2f}"}
+
+            # 5. Position & SL/TP Calculation (Rule 1.b.vii/viii/ix)
+            event["lots"] = 0.01 # Always stable 0.01 lots
             s_stats = self.ipc.get_state(f"symbol_stats:{symbol}", {})
             atr = event.get("atr") or s_stats.get("atr", 0)
             ts = s_stats.get("tick_size", 0.0001)
-
-            is_crypto = any(x in symbol for x in ["BTC", "ETH", "SOL", "COIN"])
 
             if atr > 0 and ts > 0:
                 sl_pts = int((atr * 2) / ts)
                 tp_pts = sl_pts # 1:1 RR Unit
             else:
-                # Institutional Fallback (Robust V3.3.2)
-                if is_crypto:
-                    sl_pts = 1000 # ~10 points on ETH if tick is 0.01
-                    if "ETH" in symbol: sl_pts = 5000 # ~50 points
-                elif any(x in symbol for x in ["JPY", "XAU", "GOLD"]):
-                    sl_pts = 1000
-                else:
-                    sl_pts = 200 # 20 pips
+                # Institutional Fallback
+                sl_pts = 5000 if "ETH" in symbol else (1000 if "JPY" in symbol or "XAU" in symbol else 200)
                 tp_pts = sl_pts
 
-            event["sl_pts"] = max(50, sl_pts) # Hard minimum 50 points
+            # Possibility of Loss Assessment (Noise vs SL)
+            if atr > 0 and sl_pts * ts < atr * 1.5:
+                return {"type": "VETO", "symbol": symbol, "reason": f"HIGH_POSSIBILITY_OF_LOSS: Noise risk"}
+
+            event["sl_pts"] = max(50, sl_pts)
             event["tp_pts"] = max(50, tp_pts)
 
-            # Debug Logging
+            # Debug Logging for Institutional Review
             try:
                 if not os.path.exists("logs"): os.makedirs("logs")
                 with open("logs/brain_decisions.log", "a") as f:
-                    f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - SIGNAL VALIDATED: {symbol} {action} SL:{event['sl_pts']} TP:{event['tp_pts']} ATR:{atr}\n")
+                    f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - VETTED: {symbol} {action} L:{event['lots']} P:{prob:.2f} SL:{event['sl_pts']}\n")
             except: pass
 
-            # 10520: Ensure event is updated with VALIDATED_TRADE type
             return {**event, "type": "VALIDATED_TRADE"}
         return None
-
 
 class ExecutionBrain(BaseBrain):
     """Brain 12 - 10512: Final Order formatting for MT5."""

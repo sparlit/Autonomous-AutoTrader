@@ -14,7 +14,7 @@ public:
       if(remaining < 0) remaining = 0;
       string timer = StringFormat("%02d:%02d", (int)(remaining / 60), (int)(remaining % 60));
 
-      return StringFormat("{\"t\":\"HB\",\"s\":\"%s\",\"eq\":%.2f,\"dd\":%.2f,\"pc\":%d,\"sp\":%.1f,\"ct\":\"%s\",\"seq\":%lld}", s, e, d, pc, spread_pts, timer, seq);
+      return StringFormat("{\"t\":\"HB\",\"s\":\"%s\",\"eq\":%.2f,\"ba\":%.2f,\"dd\":%.2f,\"pc\":%d,\"sp\":%.1f,\"ct\":\"%s\",\"seq\":%lld}", s, e, AccountInfoDouble(ACCOUNT_BALANCE), d, pc, spread_pts, timer, seq);
    }
 
    static string BuildDATA_PUSH(string s, ENUM_TIMEFRAMES tf, int c, long seq) {
@@ -48,9 +48,10 @@ public:
          if(PositionSelectByTicket(tk) && PositionGetString(POSITION_SYMBOL) == s) {
             if(!first) tks += ",";
             string act = (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY) ? "BUY" : "SELL";
-            tks += StringFormat("{\"tk\":%lld,\"s\":\"%s\",\"act\":\"%s\",\"vol\":%.2f,\"tp\":%.5f,\"sl\":%.5f}",
+            tks += StringFormat("{\"tk\":%lld,\"s\":\"%s\",\"act\":\"%s\",\"vol\":%.2f,\"en\":%.5f,\"tp\":%.5f,\"sl\":%.5f}",
                tk, s, act,
                PositionGetDouble(POSITION_VOLUME),
+               PositionGetDouble(POSITION_PRICE_OPEN),
                PositionGetDouble(POSITION_TP),
                PositionGetDouble(POSITION_SL));
             first = false;

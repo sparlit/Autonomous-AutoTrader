@@ -13,24 +13,46 @@ class PositionManager:
         self.risk_manager = risk_manager
 
     async def monitor_and_manage(self, symbol: str, bid: float, ask: float, atr: float, smc_data: Optional[Dict[str, Any]] = None, mtf_trends: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-        """10505: Master management entry point with Scaling logic."""
+        """10505: Master management entry point with Scaling logic (V3.3.3 Rules)."""
         current_price = (bid + ask) / 2
 
-        # 1. Trailing and Shared SL Management
+        # 1. Trailing and Shared SL Management (Rule 1.d)
         orders = await self.manage_open_positions(symbol, current_price, atr, smc_data)
 
-        # 2. Scaling Logic: Add 0.01 lots if trade is in profit and trend is in favor
-        active_trades = await self.ledger.get_active_trades_db(symbol)
-        if active_trades and mtf_trends:
-            # Rule 1.b: "only if all the previous trades are running in profit"
-            all_in_profit = True
-            for t in active_trades:
-                profit = (current_price - t["entry_price"]) if t["action"] == "BUY" else (t["entry_price"] - current_price)
-                if profit <= 0:
-                    all_in_profit = False
-                    break
+        # 2. Scaling Logic: Add 0.01 lots if trade is in profit and trend is in favor (Rule 1.c)
+        all_trades = await self.ledger.get_all_active_trades()
+        sym_trades = [t for t in all_trades if t['symbol'] == symbol]
 
-            if all_in_profit:
+        # Rule 1.c: Block if there are ANY pending trades for this symbol
+        if any(t['status'] == 'PENDING' for t in sym_trades):
+            return orders
+
+        active_trades = [t for t in sym_trades if t['status'] == 'OPEN']
+
+        if active_trades and mtf_trends:
+            # Rule 1.c.ii: if the existing trade is in loss or profit less than 1 USD, no trade
+            all_qualified = True
+            s_stats = self.risk_manager.ipc.get_state(f"symbol_stats:{symbol}", {})
+            tick_val = s_stats.get("tick_val", 10.0)
+            tick_size = s_stats.get("tick_size", 0.0001)
+
+            for t in active_trades:
+                entry = t.get("entry_price", 0)
+                if entry == 0:
+                    all_qualified = False; break
+
+                diff = (current_price - entry) if t["action"] == "BUY" else (entry - current_price)
+                pips = diff / tick_size if tick_size > 0 else 0
+                profit_usd = t["lots"] * pips * tick_val if tick_size > 0 else 0
+
+                if profit_usd < 1.0: # Rule 1.c.ii
+                    all_qualified = False; break
+
+            if all_qualified:
+                # Rule 1.c: Acquire Trading Lock for Scaling (Zero-Tolerance)
+                if not self.risk_manager.ipc.acquire_trading_lock(symbol, cooldown=60):
+                    return orders
+
                 # Use the most recent trade to check if profit is "locked" (SL at or better than Entry)
                 last_trade = sorted(active_trades, key=lambda x: x['timestamp'])[-1]
                 is_locked = False
@@ -53,11 +75,11 @@ class PositionManager:
 
     async def manage_open_positions(self, symbol: str, current_price: float, atr: float, smc_data: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """
-        10501: Shared Trailing SL Management.
+        10501: Shared Trailing SL Management (Rule 1.c.xiii / 1.d).
         Rule: All trades for same symbol/direction MUST share the same SL.
         """
-        active_trades = await self.ledger.get_all_active_trades()
-        active_trades = [t for t in active_trades if t['symbol'] == symbol]
+        all_trades = await self.ledger.get_all_active_trades()
+        active_trades = [t for t in all_trades if t['symbol'] == symbol and t['status'] == 'OPEN']
         if not active_trades: return []
 
         # Group by direction

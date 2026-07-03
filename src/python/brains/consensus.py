@@ -94,19 +94,13 @@ class MetaBrain(BaseBrain):
                     return None # No alignment
 
                 if state["prior"] >= self.threshold:
-                    # 10620: Signal Latching - prevent duplicates (V3.3.2 Robustness)
-                    latch = self.ipc.get_state(f"signal_latch:{symbol}", 0)
-                    if time.time() - latch < 20: # 30s hard lock for signals
-                        return None
-
+                    # 10620: Acquire Trading Lock (Zero-Tolerance)
                     active_trades = self.ipc.get_state("active_trades", [])
                     if any(t['symbol'] == symbol for t in active_trades):
-                        # Reset latch if trade is already confirmed in ledger
-                        self.ipc.set_state(f"signal_latch:{symbol}", time.time())
-                        return None
+                        return None # Rule 1.a: No duplicate initial trades
 
-                    # Set Latch immediately
-                    self.ipc.set_state(f"signal_latch:{symbol}", time.time())
+                    if not self.ipc.acquire_trading_lock(symbol):
+                        return None
 
                     res = {
                         "type": "PROBABILISTIC_SIGNAL", "symbol": symbol, "action": action,

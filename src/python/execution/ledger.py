@@ -68,16 +68,16 @@ class TradeLedger:
             )
             await db.commit()
 
-    async def update_trade_from_sync(self, ticket: int, symbol: str, action: str, lots: float, sl: float, tp: float):
+    async def update_trade_from_sync(self, ticket: int, symbol: str, action: str, lots: float, entry: float, sl: float, tp: float):
         async with aiosqlite.connect(self.db_path) as db:
             async with db.execute("SELECT id FROM trades WHERE ticket = ?", (ticket,)) as cursor:
                 row = await cursor.fetchone()
                 if row:
-                    await db.execute("UPDATE trades SET sl_price = ?, tp_price = ?, status = 'OPEN' WHERE ticket = ?", (sl, tp, ticket))
+                    await db.execute("UPDATE trades SET entry_price = ?, sl_price = ?, tp_price = ?, status = 'OPEN' WHERE ticket = ?", (entry, sl, tp, ticket))
                 else:
                     await db.execute(
-                        "INSERT INTO trades (symbol, action, lots, ticket, sl_price, tp_price, status, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                        (symbol, action, lots, ticket, sl, tp, "OPEN", time.time())
+                        "INSERT INTO trades (symbol, action, lots, ticket, entry_price, sl_price, tp_price, status, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (symbol, action, lots, ticket, entry, sl, tp, "OPEN", time.time())
                     )
             await db.commit()
 
