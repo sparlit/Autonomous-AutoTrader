@@ -23,10 +23,11 @@ class MarketDataBrain(BaseBrain):
     async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         if event.get("type") == "MARKET_DATA_RAW":
             symbol = event.get("s")
-            # V3.3.1: Correct key mapping from MT5 DP message
-            bid, ask = event.get("bi", 0), event.get("as", 0)
+            # V3.3.2: Precision key mapping with fallbacks
+            bid = event.get("bi", event.get("b", 0))
+            ask = event.get("as", event.get("a", 0))
             atr = event.get("atr", 0)
-            ts = event.get("ts", 0.0001)
+            ts = event.get("ts", event.get("tick_size", 0.0001))
 
             self.ipc.set_state(f"symbol_stats:{symbol}", {
                 "bid": bid, "ask": ask,
@@ -145,25 +146,41 @@ class RiskBrain(BaseBrain):
             if alignment < 3: # MANDATORY 3 OUT OF 4 ALIGNMENT
                 return {"type": "VETO", "symbol": symbol, "reason": f"STRICT_GUARD: TREND MISALIGNED ({alignment}/4)"}
 
-            # 3. Mandatory SL/TP Calculation (Zero-Tolerance)
+            # 3. Mandatory SL/TP Calculation (V3.3.2 Robustness)
             s_stats = self.ipc.get_state(f"symbol_stats:{symbol}", {})
             atr = event.get("atr") or s_stats.get("atr", 0)
             ts = s_stats.get("tick_size", 0.0001)
 
+            is_crypto = any(x in symbol for x in ["BTC", "ETH", "SOL", "COIN"])
+
             if atr > 0 and ts > 0:
                 sl_pts = int((atr * 2) / ts)
-                tp_pts = sl_pts # 1:1 RR Unit Unit
+                tp_pts = sl_pts # 1:1 RR Unit
             else:
-                # Institutional Fallback (100 pips)
-                sl_pts = 1000 if any(x in symbol for x in ["JPY", "XAU", "GOLD"]) else 100
+                # Institutional Fallback (Robust V3.3.2)
+                if is_crypto:
+                    sl_pts = 1000 # ~10 points on ETH if tick is 0.01
+                    if "ETH" in symbol: sl_pts = 5000 # ~50 points
+                elif any(x in symbol for x in ["JPY", "XAU", "GOLD"]):
+                    sl_pts = 1000
+                else:
+                    sl_pts = 200 # 20 pips
                 tp_pts = sl_pts
 
-            event["sl_pts"] = max(10, sl_pts)
-            event["tp_pts"] = max(10, tp_pts)
+            event["sl_pts"] = max(50, sl_pts) # Hard minimum 50 points
+            event["tp_pts"] = max(50, tp_pts)
+
+            # Debug Logging
+            try:
+                if not os.path.exists("logs"): os.makedirs("logs")
+                with open("logs/brain_decisions.log", "a") as f:
+                    f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - SIGNAL VALIDATED: {symbol} {action} SL:{event['sl_pts']} TP:{event['tp_pts']} ATR:{atr}\n")
+            except: pass
 
             # 10520: Ensure event is updated with VALIDATED_TRADE type
             return {**event, "type": "VALIDATED_TRADE"}
         return None
+
 
 class ExecutionBrain(BaseBrain):
     """Brain 12 - 10512: Final Order formatting for MT5."""
@@ -172,7 +189,7 @@ class ExecutionBrain(BaseBrain):
             return {
                 "type": "EXECUTION_ORDER", "t": "DEC", "s": event["symbol"],
                 "act": event["action"], "lts": 0.01,
-                "sl_p": event.get("sl_pts", 0), "tp_p": event.get("tp_pts", 0),
+                "sl_p": event.get("sl_pts", 100), "tp_p": event.get("tp_pts", 100),
                 "reason": event.get("reason", "BRAIN_SIGNAL")
             }
         return None

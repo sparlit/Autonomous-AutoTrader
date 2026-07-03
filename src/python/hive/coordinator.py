@@ -148,15 +148,12 @@ class HiveOrchestrator:
             self.ipc.xadd("stream:MarketData_1", message)
             return {"t": "ACK"}
 
-                elif m_type == "T_ACK":
+        elif m_type == "T_ACK":
             # 10030: Clear signal latch and confirm trade
-            internal_id = message.get("id")
-            # We don't have symbol here, so we might need a better latch
-            # Let's just rely on the ledger status change
             await self.ledger.confirm_trade(message.get("id"), message.get("tk"), 0, 0, 0)
             return {"t": "ACK"}
 
-elif m_type == "SYNC":
+        elif m_type == "SYNC":
             tickets = message.get("tk", [])
             for t in tickets:
                 await self.ledger.update_trade_from_sync(

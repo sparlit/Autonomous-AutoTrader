@@ -19,3 +19,11 @@
 ## Stability & Migration
 - **Self-Healing Schema:** Implementing automated migration in `init_db` (using `PRAGMA table_info`) is critical for preventing runtime "no such column" errors when the logic evolves faster than the database file.
 - **DPAPI Resilience:** In institutional Windows environments, `pywin32` is mandatory for DPAPI security. Added logic to detect platform-specific mismatches and provide logged warnings.
+
+## Indentation and Syntax Resilience
+- **Indentation Sensitivity:** Python is extremely sensitive to indentation. When programmatically editing files (e.g., using  or ), it is safer to rewrite entire methods or classes to ensure consistent spacing, rather than replacing single lines which might introduce mismatches.
+- **Verification via Compilation:** Running `python3 -m compileall <file>` is a quick way to catch syntax/indentation errors without having to run the entire system.
+
+## Indentation and Syntax Resilience
+- **Indentation Sensitivity:** Python is extremely sensitive to indentation. When programmatically editing files (e.g., using `sed` or `cat <<EOF`), it is safer to rewrite entire methods or classes to ensure consistent spacing, rather than replacing single lines which might introduce mismatches.
+- **Verification via Compilation:** Running 'python3 -m compileall <file>' is a quick way to catch syntax/indentation errors without having to run the entire system.
