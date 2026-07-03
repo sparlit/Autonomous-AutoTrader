@@ -18,16 +18,23 @@ public:
    }
 
    static string BuildDATA_PUSH(string s, ENUM_TIMEFRAMES tf, int c, long seq) {
-      // 10300: Optimized Data Volume - 30 bars LTF, 30 bars H1, 20 bars H4
+      // V3.3.0-ASCENDANT: Mandatory MTF Data (M15, H1, H4, D1)
       string h_ltf = BuildH(s, tf, 30);
-      string h_h1 = BuildH(s, PERIOD_H1, 30);
-      string h_h4 = BuildH(s, PERIOD_H4, 20);
+      string h_m15 = BuildH(s, PERIOD_M15, 30);
+      string h_h1  = BuildH(s, PERIOD_H1, 30);
+      string h_h4  = BuildH(s, PERIOD_H4, 20);
+      string h_d1  = BuildH(s, PERIOD_D1, 15);
+
       double pt = SymbolInfoDouble(s, SYMBOL_POINT);
       double spread = (pt > 0) ? (SymbolInfoDouble(s, SYMBOL_ASK) - SymbolInfoDouble(s, SYMBOL_BID)) / pt : 0;
 
-      return StringFormat("{\"t\":\"DP\",\"s\":\"%s\",\"tf\":%d,\"bi\":%.5f,\"as\":%.5f,\"sp\":%.1f,\"tv\":%.5f,\"ts\":%.5f,\"ltf\":%s,\"h1\":%s,\"h4\":%s,\"seq\":%lld}",
+      // Calculate ATR(14) on LTF for risk calculation in Python
+      double atr = CalculateATR(s, tf, 14);
+
+      return StringFormat("{\"t\":\"DP\",\"s\":\"%s\",\"tf\":%d,\"bi\":%.5f,\"as\":%.5f,\"sp\":%.1f,\"tv\":%.5f,\"ts\":%.5f,\"atr\":%.5f,\"ltf\":%s,\"m15\":%s,\"h1\":%s,\"h4\":%s,\"d1\":%s,\"seq\":%lld}",
                           s, (int)tf, SymbolInfoDouble(s, SYMBOL_BID), SymbolInfoDouble(s, SYMBOL_ASK), spread,
-                          SymbolInfoDouble(s, SYMBOL_TRADE_TICK_VALUE), SymbolInfoDouble(s, SYMBOL_TRADE_TICK_SIZE), h_ltf, h_h1, h_h4, seq);
+                          SymbolInfoDouble(s, SYMBOL_TRADE_TICK_VALUE), SymbolInfoDouble(s, SYMBOL_TRADE_TICK_SIZE),
+                          atr, h_ltf, h_m15, h_h1, h_h4, h_d1, seq);
    }
 
    static string BuildTRADE_ACK(int id, int tk, string err, long seq) {
@@ -105,5 +112,13 @@ private:
       MqlRates r[]; ArraySetAsSeries(r, true); int cp = CopyRates(s, tf, 0, c, r);
       string h = "["; for(int i=cp-1; i>=0; i--) { h += StringFormat("[%.5f,%.5f,%.5f,%.5f,%lld,%lld]", r[i].open, r[i].high, r[i].low, r[i].close, (long)r[i].time, r[i].tick_volume); if(i>0) h += ","; }
       h += "]"; return h;
+   }
+
+   static double CalculateATR(string s, ENUM_TIMEFRAMES tf, int period) {
+      double buffer[]; ArraySetAsSeries(buffer, true);
+      int handle = iATR(s, tf, period);
+      if(handle == INVALID_HANDLE) return 0;
+      if(CopyBuffer(handle, 0, 0, 1, buffer) > 0) return buffer[0];
+      return 0;
    }
 };
