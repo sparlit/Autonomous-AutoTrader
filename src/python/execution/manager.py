@@ -7,138 +7,110 @@ from src.python.execution.risk_manager import RiskManager
 logger = logging.getLogger("AAT_PositionManager")
 
 class PositionManager:
-    """10500: Institutional Position Lifecycle Management (V3.3.0-ASCENDANT)."""
+    """V4.0: Institutional Position Lifecycle & vRR Management."""
     def __init__(self, ledger: TradeLedger, risk_manager: RiskManager):
         self.ledger = ledger
         self.risk_manager = risk_manager
+        self.inst = risk_manager.config.institutional
 
-    async def monitor_and_manage(self, symbol: str, bid: float, ask: float, atr: float, smc_data: Optional[Dict[str, Any]] = None, mtf_trends: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-        """10505: Master management entry point with Scaling logic (V3.3.3 Rules)."""
+    async def monitor_and_manage(self, symbol: str, bid: float, ask: float, atr: float, mtf_trends: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """V4.0: Master management entry point."""
         if bid <= 0 or ask <= 0: return []
-
         current_price = (bid + ask) / 2
 
-        # 1. Trailing and Shared SL Management (Rule 1.d)
-        orders = await self.manage_open_positions(symbol, current_price, atr, smc_data)
+        # 1. Manage existing positions (Profit Locking, TTP, Shared SL)
+        orders = await self.manage_open_positions(symbol, current_price, atr)
 
-        # 2. Scaling Logic: Add 0.01 lots if trade is in profit and trend is in favor (Rule 1.c)
+        # 2. Scaling Logic (Rule 1.c)
         all_trades = await self.ledger.get_all_active_trades()
-        sym_trades = [t for t in all_trades if t['symbol'] == symbol]
+        sym_trades = [t for t in all_trades if t['symbol'] == symbol and t['status'] == 'OPEN']
 
-        # Rule 1.c: Block if there are ANY pending trades for this symbol
-        if any(t['status'] == 'PENDING' for t in sym_trades):
-            return orders
+        if sym_trades and mtf_trends:
+            can_scale = True
+            total_profit = 0.0
 
-        active_trades = [t for t in sym_trades if t['status'] == 'OPEN']
-
-        if active_trades and mtf_trends:
-            # Rule 1.c.ii: if the existing trade is in loss or profit less than 1 USD, no trade
-            all_qualified = True
             s_stats = self.risk_manager.ipc.get_state(f"symbol_stats:{symbol}", {})
             tick_val = float(s_stats.get("tick_val") or 10.0)
             tick_size = float(s_stats.get("tick_size") or 0.0001)
 
-            for t in active_trades:
-                entry = float(t.get("entry_price") or 0.0)
-                if entry == 0:
-                    all_qualified = False; break
+            for t in sym_trades:
+                entry = float(t['entry_price'])
+                diff = (current_price - entry) if t['action'] == "BUY" else (entry - current_price)
 
-                diff = (current_price - entry) if t["action"] == "BUY" else (entry - current_price)
                 pips = diff / tick_size if tick_size > 0 else 0
-                profit_usd = t["lots"] * pips * tick_val if tick_size > 0 else 0
+                trade_profit = t['lots'] * pips * tick_val
+                total_profit += trade_profit
 
-                if profit_usd < 1.0: # Rule 1.c.ii
-                    all_qualified = False; break
+                # Rule 1.c.ii: if existing trade is in loss or profit < 1 USD, no trade
+                if trade_profit < self.inst.min_profit_scaling_usd:
+                    can_scale = False
+                    break
 
-            if all_qualified:
-                # Rule 1.c: Acquire Trading Lock for Scaling (Zero-Tolerance)
-                if not self.risk_manager.ipc.acquire_trading_lock(symbol, cooldown=60):
-                    return orders
-
-                # Use the most recent trade to check if profit is "locked" (SL at or better than Entry)
-                last_trade = sorted(active_trades, key=lambda x: x['timestamp'])[-1]
-                is_locked = False
-                sl_p = float(last_trade.get("sl_price") or 0.0)
-                en_p = float(last_trade.get("entry_price") or 0.0)
-
-                if last_trade["action"] == "BUY" and sl_p >= en_p: is_locked = True
-                if last_trade["action"] == "SELL" and sl_p <= en_p: is_locked = True
-
-                if is_locked:
-                    # PROPOSE SCALING - HiveOrchestrator and RiskBrain will mandate Trend Confirmation
-                    orders.append({
-                        "type": "PROBABILISTIC_SIGNAL",
-                        "symbol": symbol,
-                        "action": last_trade["action"],
-                        "probability": 0.95,
-                        "reason": "SCALING_IN_PROGRESSION",
-                        "atr": atr,
-                        "scaling": True
-                    })
+            if can_scale and total_profit >= self.inst.min_profit_scaling_usd:
+                direction = sym_trades[0]['action']
+                trend = mtf_trends.get("h1", "NEUTRAL")
+                if (direction == "BUY" and trend == "BULLISH") or (direction == "SELL" and trend == "BEARISH"):
+                    # Check if profit is "locked" (SL at BE or better)
+                    if all(float(t.get('sl_price', 0)) >= float(t['entry_price']) if t['action'] == "BUY" else (float(t.get('sl_price', 0)) > 0 and float(t.get('sl_price', 0)) <= float(t['entry_price'])) for t in sym_trades):
+                         orders.append({
+                            "type": "PROBABILISTIC_SIGNAL",
+                            "symbol": symbol,
+                            "action": direction,
+                            "probability": 0.95,
+                            "reason": "SCALING_QUALIFIED",
+                            "atr": atr,
+                            "scaling": True
+                        })
 
         return orders
 
-    async def manage_open_positions(self, symbol: str, current_price: float, atr: float, smc_data: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-        """
-        10501: Shared Trailing SL Management (Rule 1.c.xiii / 1.d).
-        Rule: All trades for same symbol/direction MUST share the same SL.
-        """
+    async def manage_open_positions(self, symbol: str, current_price: float, atr: float) -> List[Dict[str, Any]]:
+        """V4.0: Profit Locking, Trailing SL, and TTP."""
         all_trades = await self.ledger.get_all_active_trades()
         active_trades = [t for t in all_trades if t['symbol'] == symbol and t['status'] == 'OPEN']
         if not active_trades: return []
 
-        # Group by direction
-        buys = [t for t in active_trades if t['action'] == 'BUY']
-        sells = [t for t in active_trades if t['action'] == 'SELL']
-
         management_orders = []
+        s_stats = self.risk_manager.ipc.get_state(f"symbol_stats:{symbol}", {})
+        ts = float(s_stats.get("tick_size") or 0.0001)
+        tv = float(s_stats.get("tick_val") or 10.0)
 
-        for trades in [buys, sells]:
-            if not trades: continue
+        for trade in active_trades:
+            entry = float(trade['entry_price'])
+            action = trade['action']
+            sl_price = float(trade.get('sl_price') or 0.0)
+            tp_price = float(trade.get('tp_price') or 0.0)
+            ticket = int(trade['ticket'])
 
-            direction = trades[0]['action']
-            s_stats = self.risk_manager.ipc.get_state(f"symbol_stats:{symbol}", {})
-            ts = float(s_stats.get("tick_size") or 0.0001)
+            diff = (current_price - entry) if action == "BUY" else (entry - current_price)
+            pips = diff / ts if ts > 0 else 0
+            profit_usd = trade['lots'] * pips * tv
 
-            best_sl = 0.0
+            # Rule: Never Close in Loss (Lock Profit at BE+)
+            if profit_usd >= 1.0:
+                # Lock BE + -bash.10 buffer
+                offset = (0.10 / (trade['lots'] * tv)) * ts if trade['lots'] > 0 else 0
+                be_price = entry + offset if action == "BUY" else entry - offset
 
-            for trade in trades:
-                entry = float(trade['entry_price'])
-                sl_price = float(trade.get('sl_price') or 0.0)
-                sl_pts = trade.get('sl_pts', 0)
+                if (action == "BUY" and sl_price < be_price) or (action == "SELL" and (sl_price == 0 or sl_price > be_price)):
+                     management_orders.append({
+                        "type": "EXECUTION_ORDER", "t": "MODIFY_SL", "tk": ticket,
+                        "s": symbol, "sl": float(be_price), "reason": "PROFIT_LOCKED_V4"
+                    })
 
-                if not sl_pts or sl_pts == 0:
-                    sl_pts = int(abs(entry - sl_price) / ts) if ts > 0 and sl_price > 0 else 100
+            # Trailing Take Profit (TTP) Logic
+            tp_dist = abs(tp_price - entry)
+            if tp_dist > 0:
+                progress = diff / tp_dist
+                if progress >= 0.9:
+                    # Move TP further and activate trailing stop with tight 0.5 ATR buffer
+                    new_tp = current_price + (atr * 2) if action == "BUY" else current_price - (atr * 2)
+                    new_sl = current_price - (atr * 0.5) if action == "BUY" else current_price + (atr * 0.5)
 
-                r_dist = sl_pts * ts
-                if r_dist <= 0: continue
-
-                # RR Levels
-                one_r = entry + r_dist if direction == "BUY" else entry - r_dist
-                two_r = entry + 2 * r_dist if direction == "BUY" else entry - 2 * r_dist
-                three_r = entry + 3 * r_dist if direction == "BUY" else entry - 3 * r_dist
-
-                p_sl = sl_price
-                if direction == "BUY":
-                    if current_price >= three_r: p_sl = entry + 2 * r_dist  # 1:3 RR -> Lock 2R
-                    elif current_price >= two_r: p_sl = entry + r_dist     # 1:2 RR -> Lock 1R
-                    elif current_price >= one_r: p_sl = entry              # 1:1 RR -> Lock BE
-
-                    if best_sl == 0 or p_sl > best_sl: best_sl = p_sl
-                else:
-                    if current_price <= three_r: p_sl = entry - 2 * r_dist # 1:3 RR -> Lock 2R
-                    elif current_price <= two_r: p_sl = entry - r_dist     # 1:2 RR -> Lock 1R
-                    elif current_price <= one_r: p_sl = entry              # 1:1 RR -> Lock BE
-
-                    if best_sl == 0 or (p_sl > 0 and p_sl < best_sl): best_sl = p_sl
-
-            if best_sl > 0:
-                for trade in trades:
-                    current_sl = float(trade.get('sl_price') or 0.0)
-                    if (direction == "BUY" and best_sl > current_sl) or                        (direction == "SELL" and (current_sl == 0 or best_sl < current_sl)):
+                    if (action == "BUY" and new_sl > sl_price) or (action == "SELL" and (sl_price == 0 or new_sl < sl_price)):
                         management_orders.append({
-                            "type": "EXECUTION_ORDER", "t": "MODIFY_SL", "tk": int(trade['ticket']),
-                            "s": symbol, "sl": float(best_sl), "reason": "SHARED_TRAILING_RR"
+                            "type": "EXECUTION_ORDER", "t": "MODIFY_ALL", "tk": ticket,
+                            "s": symbol, "sl": float(new_sl), "tp": float(new_tp), "reason": "TTP_ACTIVATED"
                         })
 
         return management_orders
