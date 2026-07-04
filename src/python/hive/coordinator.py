@@ -24,7 +24,8 @@ class HiveOrchestrator:
     Central event loop for cross-process brain coordination and bridge management.
     """
     def __init__(self, credentials: Optional[Dict[str, Any]] = None):
-        self.config = load_config(); self.credentials = credentials
+        self.config = load_config()
+        self.credentials = credentials
         self.ipc = get_ipc()
         self.server = BridgeServer(
             host=self.config.bridge.host,
@@ -34,7 +35,7 @@ class HiveOrchestrator:
         self.ledger = TradeLedger()
         self.risk_manager = RiskManager(self.ipc)
         self.smc = SMCAnalyst()
-        self.pos_manager = PositionManager(self.ipc, self.ledger)
+        self.pos_manager = PositionManager(self.ledger, self.risk_manager)
         self.registry = BrainRegistry()
         self.hardware = HardwareAnalyst()
         self.running = True
@@ -73,10 +74,10 @@ class HiveOrchestrator:
 
         if m_type == "HB": # Heartbeat
             self.ipc.set_state("account_stats", {
-                "equity": message.get("eq", 0.0),
-                "drawdown": message.get("dd", 0.0),
-                "pos_count": message.get("pc", 0),
-                "spread": message.get("sp", 0.0),
+                "equity": float(message.get("eq", 0.0)),
+                "drawdown": float(message.get("dd", 0.0)),
+                "pos_count": int(message.get("pc", 0)),
+                "spread": float(message.get("sp", 0.0)),
                 "candle_timer": message.get("ct", "--:--"),
                 "last_hb": time.time()
             })
@@ -99,7 +100,7 @@ class HiveOrchestrator:
             tickets = message.get("tk", [])
             for t in tickets:
                 await self.ledger.update_trade_from_sync(
-                    t['tk'], t['s'], t['act'], t['vol'], t.get('en', 0), t['sl'], t['tp']
+                    t['tk'], t['s'], t['act'], t['vol'], float(t.get('en', 0)), float(t.get('sl', 0)), float(t.get('tp', 0))
                 )
             active_tickets = [t["tk"] for t in tickets]
             await self.ledger.prune_trades(active_tickets)
@@ -138,7 +139,13 @@ class HiveOrchestrator:
 
         if e_type == "MARKET_DATA":
             symbol = event.get("symbol")
-            bid, ask, atr = event.get("bid", 0), event.get("ask", 0), event.get("atr", 0)
+            # 10020: Robust value extraction with defaults to prevent None arithmetic errors
+            bid = float(event.get("bid") or 0.0)
+            ask = float(event.get("ask") or 0.0)
+            atr = float(event.get("atr") or 0.0)
+
+            if bid == 0.0 or ask == 0.0: return
+
             ltf_df = pd.DataFrame(event.get("ltf", []))
             smc_data = None
             if not ltf_df.empty:
@@ -181,7 +188,7 @@ class HiveOrchestrator:
             event["magic"] = self.config.system.global_magic
             if event.get("t") == "DEC":
                 internal_id = await self.ledger.record_intent(
-                    event["s"], event["act"], event["lts"], event["sl_p"], event["tp_p"]
+                    event["s"], event["act"], float(event["lts"]), float(event.get("sl_p", 100)), float(event.get("tp_p", 100))
                 )
                 event["id"] = internal_id
                 self.risk_manager.increment_trade_count(event["s"])
@@ -195,9 +202,9 @@ class HiveOrchestrator:
             hw = self.ipc.get_state("hardware_report", {})
             telemetry_msg = {
                 "t": "TLM", "s": event["symbol"], "st": "OPTIMAL" if self.server.clients else "WAITING",
-                "scr": event["scr"], "htf": event["htf"],
-                "dd": self.ipc.get_state("account_stats", {}).get("drawdown", 0.0),
-                "pc": self.ipc.get_state("account_stats", {}).get("pos_count", 0),
+                "scr": float(event.get("scr", 0.0)), "htf": event.get("htf", "NEUTRAL"),
+                "dd": float(self.ipc.get_state("account_stats", {}).get("drawdown", 0.0)),
+                "pc": int(self.ipc.get_state("account_stats", {}).get("pos_count", 0)),
                 "tier": hw.get("tier", "UNKNOWN")
             }
             await self.server.broadcast(telemetry_msg)
@@ -208,9 +215,9 @@ class HiveOrchestrator:
             "active_clients": len(self.server.clients),
             "msgs_rx": self.server.stats["msgs_rx"],
             "msgs_tx": self.server.stats["msgs_tx"],
-            "latency": self.server.stats["last_latency"],
-            "q_depth": q_depth,
-            "throughput": self._msg_counts / (time.time() - self.start_time) if time.time() > self.start_time else 0,
+            "latency": float(self.server.stats["last_latency"]),
+            "q_depth": int(q_depth),
+            "throughput": float(self._msg_counts / (time.time() - self.start_time)) if time.time() > self.start_time else 0.0,
             "server_time": time.time()
         }
         self.ipc.set_state("engine_stats", stats)
@@ -236,21 +243,21 @@ class HiveOrchestrator:
         for t in trades:
             symbol = t['symbol']
             s_stats = self.ipc.get_state(f"symbol_stats:{symbol}", {})
-            bid = s_stats.get("bid", 0)
-            ask = s_stats.get("ask", 0)
-            tick_val = s_stats.get("tick_val", 10.0)
-            tick_size = s_stats.get("tick_size", 0.0001)
+            bid = float(s_stats.get("bid") or 0.0)
+            ask = float(s_stats.get("ask") or 0.0)
+            tick_val = float(s_stats.get("tick_val") or 10.0)
+            tick_size = float(s_stats.get("tick_size") or 0.0001)
 
             if bid > 0 and ask > 0:
                 current_price = bid if t['action'] == "BUY" else ask
-                diff = (current_price - t['entry_price']) if t['action'] == "BUY" else (t['entry_price'] - current_price)
-                t['pl_points'] = diff / tick_size if tick_size > 0 else 0
-                t['pl_currency'] = t['lots'] * t['pl_points'] * tick_val if tick_size > 0 else 0
+                diff = (current_price - float(t['entry_price'])) if t['action'] == "BUY" else (float(t['entry_price']) - current_price)
+                t['pl_points'] = float(diff / tick_size) if tick_size > 0 else 0.0
+                t['pl_currency'] = float(t['lots'] * t['pl_points'] * tick_val) if tick_size > 0 else 0.0
             else:
                 t['pl_points'] = 0.0
                 t['pl_currency'] = 0.0
 
-            t['duration'] = now - t['timestamp']
+            t['duration'] = float(now - t['timestamp'])
             enriched_trades.append(t)
 
         self.ipc.set_state("active_trades", enriched_trades)

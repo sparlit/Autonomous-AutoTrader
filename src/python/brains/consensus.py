@@ -62,14 +62,14 @@ class MetaBrain(BaseBrain):
                 state["received_sources"].add(src)
 
                 # Record evidence
-                direction = event.get("direction", 0)
+                direction = int(event.get("direction") or 0)
                 if "Trend" in src: state["confluence"]["trend"] = direction
                 elif "Indicator" in src: state["confluence"]["momentum"] = direction
 
-                # Bayesian Update
-                p_e_h = event.get("p_e_h", 0.50)
-                p_e = event.get("p_e", 0.50)
-                rel = self.brain_reliability.get(src, 1.0)
+                # 10615: Harden Bayesian Update against NoneType values
+                p_e_h = float(event.get("p_e_h") or 0.50)
+                p_e = float(event.get("p_e") or 0.50)
+                rel = float(self.brain_reliability.get(src) or 1.0)
 
                 # Weighting
                 weighted_p_e_h = 0.50 + (p_e_h - 0.50) * rel
@@ -178,8 +178,8 @@ class MetaBrain(BaseBrain):
                             for e in trail:
                                 src = e.get("src")
                                 if src:
-                                    old_r = self.brain_reliability.get(src, 1.0)
-                                    self.brain_reliability[src] = max(0.1, min(1.0, self.brain_reliability.get(src, 1.0) + adj))
+                                    old_r = float(self.brain_reliability.get(src) or 1.0)
+                                    self.brain_reliability[src] = max(0.1, min(1.0, old_r + adj))
                                     if abs(self.brain_reliability[src] - old_r) > 0.01:
                                          self.ipc.xadd("stream:learning_events", {"type": "RELIABILITY_ADJ", "brain": src, "score": self.brain_reliability[src]})
                         except Exception:

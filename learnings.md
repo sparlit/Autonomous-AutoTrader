@@ -39,3 +39,7 @@
 ### CLI Signature Stability (V3.3.0)
 - **Problem:** Updating the Orchestrator's internal logic can lead to signature mismatches with the supervisor CLI (`aat.py`) if optional arguments are not handled correctly.
 - **Solution:** Always ensure that core orchestrator classes support optional `credentials` or `config` injections to maintain backward compatibility with the bootloader.
+### NoneType Hardening (V3.3.0)
+- **Problem:** Data arriving from MT5 can occasionally contain `null` (None) values for prices or ATR if the symbol is not fully initialized, leading to crash-inducing arithmetic errors.
+- **Solution:** Implement a "Strict Float" pattern in the MarketDataBrain and Orchestrator, where all inputs are explicitly cast via `float(val or 0.0)`.
+- **Pattern:** Always check for zero prices (bid/ask) before calculating mid-prices or P&L to prevent division by zero or nonsensical trading decisions.
