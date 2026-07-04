@@ -29,6 +29,7 @@ void OnTimer() {
    double equity = AccountInfoDouble(ACCOUNT_EQUITY);
    double balance = AccountInfoDouble(ACCOUNT_BALANCE);
    last_dd = (balance > 0) ? (balance - equity) / balance * 100.0 : 0;
+   if(last_dd < 0) last_dd = 0;
    last_pc = PositionsTotal();
 
    bridge.Send(CAATProtocol::BuildHEARTBEAT(_Symbol, equity, last_dd, last_pc, 0));
@@ -65,7 +66,7 @@ void OnTick() {
          if(action == "BUY") trade.Buy(lots, symbol, price, sl, tp, "AAT V4.0");
          else trade.Sell(lots, symbol, price, sl, tp, "AAT V4.0");
 
-         uint ticket = trade.ResultOrder();
+         ulong ticket = trade.ResultOrder();
          bridge.Send(CAATProtocol::BuildTRADE_ACK(internal_id, (int)ticket, "OK", 0));
       }
    }

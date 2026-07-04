@@ -8,12 +8,26 @@ private:
    int x_off;
    int y_off;
    color base_color;
+   bool m_paused;
 
 public:
-   CAATDashboard(int x=10, int y=30) : x_off(x), y_off(y) {
+   CAATDashboard(int x=10, int y=30) : x_off(x), y_off(y), m_paused(false) {
       base_color = clrDodgerBlue;
    }
 
+   bool Create(string name, int w, int h) {
+      // Placeholder for dashboard UI creation logic
+      return true;
+   }
+
+   bool IsPaused() { return m_paused; }
+
+   string OnClick(int x, int y) {
+      // Logic to determine if buttons were clicked
+      return "";
+   }
+
+   // V4.0 Render
    void Render(string symbol, double spread, double pl, int pc, double dd, string version) {
       // Background Header
       CreateLabel("AAT_Header", "AUTONOMOUS AUTOTRADER V" + version, x_off, y_off, 12, "Verdana Bold", clrWhite);
@@ -27,6 +41,11 @@ public:
 
       // Bottom Branding
       CreateLabel("AAT_Footer", "GOD MODE - INSTITUTIONAL PRO", x_off, y_off + 125, 8, "Verdana", clrGray);
+   }
+
+   // V3.3 Legacy/Internal Render
+   void Render(string s, string st, double scr, string htf, double dd) {
+       // Logic for legacy rendering if needed
    }
 
    void Clear() {
