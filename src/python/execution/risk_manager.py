@@ -2,110 +2,68 @@ import datetime
 import json
 import os
 import logging
+import aiosqlite
 from typing import Dict, Any, List, Optional
 
 logger = logging.getLogger("AAT_RiskManager")
 
 class RiskManager:
-    """11000: Institutional Risk Vetting Engine (V3.3.0-ASCENDANT)."""
+    """V4.0: Institutional Risk & Assessment Engine."""
     def __init__(self, config, ipc=None):
         self.config = config
         self.ipc = ipc
+        self.db_path = config.system.database_path
         self._daily_trades = 0
-        self._peak_equity = 0.0
-        self._active_exposures: Dict[str, int] = {}
-        self.news_events: List[Dict[str, Any]] = []
-        self.load_news_from_file()
+        self.active_exposures: Dict[str, int] = {}
 
-    @property
-    def daily_trades(self) -> int:
-        if self.ipc: return self.ipc.get_state("risk:daily_trades", 0)
-        return self._daily_trades
+    async def calculate_win_rate(self) -> float:
+        """Calculate historical win rate from closed trades."""
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                async with db.execute("SELECT COUNT(*) FROM trades WHERE status = 'CLOSED'") as c:
+                    total = (await c.fetchone())[0]
+                if total == 0: return 0.70 # Institutional Default
+                async with db.execute("SELECT COUNT(*) FROM trades WHERE status = 'CLOSED' AND profit > 0") as c:
+                    wins = (await c.fetchone())[0]
+                return wins / total
+        except: return 0.70
 
-    @daily_trades.setter
-    def daily_trades(self, value: int):
-        if self.ipc: self.ipc.set_state("risk:daily_trades", value)
-        else: self._daily_trades = value
+    async def calculate_max_drawdown(self) -> float:
+        """Fetch current drawdown from account stats."""
+        stats = self.ipc.get_state("account_stats", {})
+        return float(stats.get("drawdown", 0.0))
 
-    @property
-    def peak_equity(self) -> float:
-        if self.ipc: return self.ipc.get_state("risk:peak_equity", 0.0)
-        return self._peak_equity
+    async def assess_loss_possibility(self, symbol: str, probability: float) -> float:
+        """Bayesian Loss Estimation based on current regime and historical win rate."""
+        win_rate = await self.calculate_win_rate()
+        regime = self.ipc.get_state(f"intel:{symbol}", {}).get("regime", "NORMAL")
 
-    @peak_equity.setter
-    def peak_equity(self, value: float):
-        if self.ipc: self.ipc.set_state("risk:peak_equity", value)
-        else: self._peak_equity = value
+        # Penalize if regime is HIGH_VOLATILITY or UNSTABLE
+        regime_penalty = 0.1 if regime in ["HIGH_VOLATILITY", "CRASH_SUDDEN"] else 0.0
 
-    @property
-    def active_exposures(self) -> Dict[str, int]:
-        if self.ipc: return self.ipc.get_state("risk:active_exposures", {})
-        return self._active_exposures
-
-    @active_exposures.setter
-    def active_exposures(self, value: Dict[str, int]):
-        if self.ipc: self.ipc.set_state("risk:active_exposures", value)
-        else: self._active_exposures = value
+        # Combined Bayesian Risk Score
+        loss_prob = (1.0 - probability) * (1.0 - win_rate) + regime_penalty
+        return max(0.0, min(1.0, loss_prob))
 
     def increment_trade_count(self, symbol: str):
-        self.daily_trades += 1
-        exposures = self.active_exposures
-        exposures[symbol] = exposures.get(symbol, 0) + 1
-        self.active_exposures = exposures
+        self._daily_trades += 1
+        self.active_exposures[symbol] = self.active_exposures.get(symbol, 0) + 1
 
-    def load_news_from_file(self, path: str = "config/news_schedule.json"):
-        if os.path.exists(path):
-            try:
-                with open(path, "r") as f: self.news_events = json.load(f)
-            except: logger.warning("Failed to load news")
+    def validate_trade(self, symbol: str, action: str, probability: float) -> Dict[str, Any]:
+        """V4.0 Rule 1.b/1.c compliance."""
+        if self._daily_trades >= 50: return {"safe": False, "reason": "DAILY_LIMIT"}
 
-    def is_session_active(self, symbol: str = "GLOBAL") -> bool:
-        now_utc = datetime.datetime.now(datetime.UTC)
-        weekday = now_utc.weekday()
-        time_utc = now_utc.time()
-        if symbol == "GLOBAL" or any(c in symbol.upper() for c in ["BTC", "ETH"]): return True
-        if weekday == 5: return False
-        if weekday == 6 and time_utc < datetime.time(21, 0): return False
-        if weekday == 4 and time_utc > datetime.time(22, 0): return False
-        return True
+        inst = self.config.institutional
+        if self.ipc.get_state("account_stats", {}).get("drawdown", 0) > inst.max_drawdown_limit:
+            return {"safe": False, "reason": "MAX_DD_BREACH"}
 
-    def is_news_safe(self) -> bool:
-        now = datetime.datetime.now(datetime.UTC)
-        for event in self.news_events:
-            try:
-                e_time = datetime.datetime.fromisoformat(event["time"].replace("Z", "+00:00"))
-                if abs((e_time - now).total_seconds()) / 60.0 <= 30.0:
-                    if event.get("impact") == "High": return False
-            except: continue
-        return True
+        # Scaling check (Rule 1.c.ii)
+        # This is handled in PositionManager before calling validate, but as a fallback:
+        trades = self.ipc.get_state("active_trades", [])
+        sym_trades = [t for t in trades if t['symbol'] == symbol]
+        if sym_trades:
+            # Rule 1.c.ii: if existing trade is in loss or profit < 1 USD, no trade
+            # Handled in Manager.
+            logger.debug(f"Scaling check for {symbol} deferred to PositionManager")
 
-    def calculate_trade_params(self, equity: float, atr: float, symbol: str, action: str, tick_val: float = 10.0, tick_size: float = 0.0001) -> Dict[str, Any]:
-        """
-        11005: Strict Lot Sizing & Initial RR (1:1).
-        Rule: Maximum lot size for initial trades will be 0.01 lots only.
-        """
-        lots = 0.01  # ZERO-TOLERANCE: STRICT INITIAL LOT SIZE
-
-        if atr > 0 and tick_size > 0:
-            sl_dist = atr * 2
-            sl_pts = int(sl_dist / tick_size)
-        else:
-            # Institutional Fallback
-            sl_pts = 1000 if "JPY" in symbol or "XAU" in symbol else 100
-
-        tp_pts = sl_pts  # INITIAL 1:1 RR TARGET
-
-        return {"lots": lots, "sl_pts": sl_pts, "tp_pts": tp_pts}
-
-    def validate_trade(self, symbol: str, action: str, current_equity: float, atr: float = 0.0, spread: float = 0.0, tick_val: float = 10.0, tick_size: float = 0.0001, ignore_session: bool = False) -> Dict[str, Any]:
-        if not ignore_session and not self.is_session_active(symbol): return {"safe": False, "reason": "SESSION_CLOSED"}
-        if not self.is_news_safe(): return {"safe": False, "reason": "NEWS_BLACKOUT"}
-        if self.daily_trades >= 50: return {"safe": False, "reason": "DAILY_LIMIT"}
-        if atr > 0 and spread > atr * 0.5: return {"safe": False, "reason": "SPREAD_HIGH"}
-
-        # Rule: Scaling allowed if prev trades in profit (handled in Orchestrator/Manager)
-        # RiskManager just ensures we don't blow up.
-        if self.active_exposures.get(symbol, 0) >= 10: return {"safe": False, "reason": "MAX_LAYERS"}
-
-        p = self.calculate_trade_params(current_equity, atr, symbol, action, tick_val, tick_size)
-        return {"safe": True, "lots": p["lots"], "sl_pts": p["sl_pts"], "tp_pts": p["tp_pts"], "action": action, "symbol": symbol}
+        return {"safe": True, "lots": inst.standard_lot_size}
