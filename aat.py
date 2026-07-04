@@ -115,7 +115,7 @@ def test():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="AAT Phoenix Gauntlet CLI")
-    parser.add_argument("command", choices=["setup", "run", "set-creds", "test"], help="Command to execute")
+    parser.add_argument("command", choices=["setup", "run", "set-creds", "test", "set-lot"], help="Command to execute")
 
     args = parser.parse_args()
 
@@ -125,5 +125,14 @@ if __name__ == "__main__":
         asyncio.run(run())
     elif args.command == "set-creds":
         set_creds()
+    elif args.command == "set-lot":
+        import json
+        lot = float(sys.argv[2]) if len(sys.argv) > 2 else 0.01
+        path = "config/institutional_settings.json"
+        if os.path.exists(path):
+            with open(path, "r") as f: data = json.load(f)
+            data["standard_lot_size"] = lot
+            with open(path, "w") as f: json.dump(data, f, indent=4)
+            print(f"✅ Lot size updated to {lot}")
     elif args.command == "test":
         test()

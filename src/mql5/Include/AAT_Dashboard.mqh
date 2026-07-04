@@ -1,191 +1,50 @@
 #property copyright "Copyright 2024, Jules (God Mode)"
 #property link      "https://github.com/sparlit/Autonomous-AutoTrader"
 #property strict
-#include <Canvas\Canvas.mqh>
-
-struct Rect { int x1, y1, x2, y2; };
 
 class CAATDashboard
 {
 private:
-   CCanvas           m_canvas;
-   int               m_width;
-   int               m_height;
-   string            m_name;
-
-   color             m_clr_bg;
-   color             m_clr_header;
-   color             m_clr_neon_green;
-   color             m_clr_neon_red;
-   color             m_clr_neon_yellow;
-   color             m_clr_text;
-   color             m_clr_dim;
-
-   Rect              m_btn_panic;
-   Rect              m_btn_pause;
-   bool              m_paused;
-
-   double            m_equity_history[];
-   int               m_hist_ptr;
+   int x_off;
+   int y_off;
+   color base_color;
 
 public:
-                     CAATDashboard();
-                    ~CAATDashboard();
-
-   bool              Create(string name, int w, int h);
-   void              Render(string symbol, string status, double score, string htf_trend, double drawdown);
-   void              DrawHeader();
-   void              DrawSection(int x, int y, string title, string val, color clr);
-   void              DrawAccountSection(int y);
-   void              DrawEquityCurve(int x, int y, int w, int h);
-   void              DrawButton(Rect &r, string text, color bg);
-
-   string            OnClick(int x, int y);
-   bool              IsPaused() { return m_paused; }
-};
-
-CAATDashboard::CAATDashboard() : m_name("AAT_Dash"), m_width(320), m_height(550), m_paused(false), m_hist_ptr(0)
-{
-   m_clr_bg = C'15,20,30';
-   m_clr_header = C'30,40,60';
-   m_clr_neon_green = C'57,255,20';
-   m_clr_neon_red = C'FF,49,18';
-   m_clr_neon_yellow = C'FF,E7,00';
-   m_clr_text = clrWhite;
-   m_clr_dim = clrGray;
-   ArrayResize(m_equity_history, 100);
-   ArrayInitialize(m_equity_history, 0);
-}
-
-CAATDashboard::~CAATDashboard()
-{
-   m_canvas.Destroy();
-}
-
-bool CAATDashboard::Create(string name, int w, int h)
-{
-   m_name = name; m_width = w; m_height = h;
-   if(!m_canvas.CreateBitmapLabel(m_name, 10, 30, m_width, m_height, COLOR_FORMAT_ARGB_NORMALIZE)) return false;
-
-   // 10525: Set non-selectable and read-only to allow click-through for CHARTEVENT_CLICK
-   ObjectSetInteger(0, m_name, OBJPROP_SELECTABLE, false);
-   ObjectSetInteger(0, m_name, OBJPROP_READONLY, true);
-
-   return true;
-}
-
-void CAATDashboard::Render(string symbol, string status, double score, string htf_trend, double drawdown)
-{
-   m_canvas.Erase(ColorToARGB(m_clr_bg, 240));
-
-   DrawHeader();
-
-   int y = 60;
-   DrawSection(20, y, "SYMBOL", symbol + " [" + EnumToString(_Period) + "]", m_clr_text); y += 35;
-
-   double spread = (SymbolInfoDouble(symbol, SYMBOL_ASK) - SymbolInfoDouble(symbol, SYMBOL_BID)) / (SymbolInfoDouble(symbol, SYMBOL_POINT) > 0 ? SymbolInfoDouble(symbol, SYMBOL_POINT) : 1);
-   DrawSection(20, y, "SPREAD", DoubleToString(spread, 1) + " pts", (spread > 20 ? m_clr_neon_red : m_clr_text)); y += 35;
-
-   datetime candle_end = (datetime)SeriesInfoInteger(symbol, _Period, SERIES_LASTBAR_DATE) + PeriodSeconds(_Period);
-   long remaining = candle_end - TimeCurrent();
-   if(remaining < 0) remaining = 0;
-   string timer = StringFormat("%02d:%02d", remaining / 60, remaining % 60);
-   DrawSection(20, y, "CANDLE", timer, clrCyan); y += 35;
-
-   m_canvas.Line(10, y, m_width-10, y, ColorToARGB(m_clr_header)); y += 20;
-
-   color signal_clr = (score > 0.5) ? m_clr_neon_green : (score < -0.5 ? m_clr_neon_red : m_clr_text);
-   DrawSection(20, y, "SIGNAL", (score > 0.5 ? "BULLISH BIAS" : (score < -0.5 ? "BEARISH BIAS" : "NEUTRAL")), signal_clr); y += 35;
-   DrawSection(20, y, "CONFIDENCE", DoubleToString(MathAbs(score), 2), signal_clr); y += 35;
-   color htf_clr = (htf_trend == "BULLISH") ? m_clr_neon_green : (htf_trend == "BEARISH" ? m_clr_neon_red : m_clr_text);
-   DrawSection(20, y, "HTF ALIGN", htf_trend, htf_clr); y += 35;
-
-   m_canvas.Line(10, y, m_width-10, y, ColorToARGB(m_clr_header)); y += 20;
-
-   DrawAccountSection(y); y += 65;
-
-   DrawEquityCurve(20, y, m_width - 40, 60); y += 80;
-
-   m_canvas.Line(10, y, m_width-10, y, ColorToARGB(m_clr_header)); y += 15;
-
-   // Interaction Layer: Buttons
-   m_btn_panic.x1 = 20; m_btn_panic.y1 = y; m_btn_panic.x2 = m_width/2 - 10; m_btn_panic.y2 = y + 30;
-   DrawButton(m_btn_panic, "PANIC CLOSE", m_clr_neon_red);
-
-   m_btn_pause.x1 = m_width/2 + 10; m_btn_pause.y1 = y; m_btn_pause.x2 = m_width - 20; m_btn_pause.y2 = y + 30;
-   DrawButton(m_btn_pause, m_paused ? "RESUME" : "PAUSE BRAIN", m_paused ? m_clr_neon_green : m_clr_neon_yellow);
-
-   y += 45;
-   m_canvas.FontSet("Lucida Console", -10, FW_NORMAL);
-   m_canvas.TextOut(m_width/2, m_height - 15, "ENGINE: " + status + (m_paused ? " [PAUSED]" : ""), m_clr_neon_green, TA_CENTER);
-
-   m_canvas.Update();
-}
-
-void CAATDashboard::DrawHeader()
-{
-   m_canvas.FillRectangle(0, 0, m_width, 45, ColorToARGB(m_clr_header, 255));
-   m_canvas.FontSet("Lucida Console", -14, FW_BOLD);
-   m_canvas.TextOut(m_width/2, 22, "PHOENIX GAUNTLET PRO", ColorToARGB(m_clr_text), TA_CENTER|TA_VCENTER);
-}
-
-void CAATDashboard::DrawSection(int x, int y, string title, string val, color clr)
-{
-   m_canvas.FontSet("Lucida Console", -11, FW_NORMAL);
-   m_canvas.TextOut(x, y, title + ":", ColorToARGB(m_clr_dim));
-   m_canvas.FontSet("Lucida Console", -13, FW_BOLD);
-   m_canvas.TextOut(x + 110, y - 1, val, ColorToARGB(clr));
-}
-
-void CAATDashboard::DrawAccountSection(int y)
-{
-   double equity = AccountInfoDouble(ACCOUNT_EQUITY);
-   double balance = AccountInfoDouble(ACCOUNT_BALANCE);
-   double dd = (balance > 0) ? (1.0 - equity/balance) * 100.0 : 0;
-
-   m_equity_history[m_hist_ptr] = equity;
-   m_hist_ptr = (m_hist_ptr + 1) % 100;
-
-   m_canvas.FontSet("Lucida Console", -11, FW_BOLD);
-   m_canvas.TextOut(20, y, "ACCOUNT TELEMETRY", ColorToARGB(m_clr_dim));
-
-   y += 25;
-   m_canvas.TextOut(20, y, "EQUITY:  $" + DoubleToString(equity, 2), ColorToARGB(m_clr_text));
-   y += 20;
-   m_canvas.TextOut(20, y, "DRAWDOWN: " + DoubleToString(dd, 2) + "%", ColorToARGB(dd > 2 ? m_clr_neon_red : m_clr_neon_green));
-}
-
-void CAATDashboard::DrawEquityCurve(int x, int y, int w, int h)
-{
-   m_canvas.Rectangle(x, y, x + w, y + h, ColorToARGB(m_clr_header));
-   double min_e = m_equity_history[0], max_e = m_equity_history[0];
-   bool has_data = false;
-   for(int i=0; i<100; i++) { if(m_equity_history[i]>0) { if(!has_data) { min_e = m_equity_history[i]; max_e = m_equity_history[i]; has_data=true;} else { min_e = MathMin(min_e, m_equity_history[i]); max_e = MathMax(max_e, m_equity_history[i]); } } }
-   if(!has_data || max_e == min_e) return;
-
-   int last_px = -1, last_py = -1;
-   for(int i=0; i<100; i++) {
-      int idx = (m_hist_ptr + i) % 100;
-      if(m_equity_history[idx] == 0) continue;
-      int px = x + (int)((double)i / 100.0 * w);
-      int py = y + h - (int)((m_equity_history[idx] - min_e) / (max_e - min_e) * h);
-      if(last_px != -1) m_canvas.Line(last_px, last_py, px, py, ColorToARGB(m_clr_neon_green));
-      last_px = px; last_py = py;
+   CAATDashboard(int x=10, int y=30) : x_off(x), y_off(y) {
+      base_color = clrDodgerBlue;
    }
-}
 
-void CAATDashboard::DrawButton(Rect &r, string text, color bg)
-{
-   m_canvas.FillRectangle(r.x1, r.y1, r.x2, r.y2, ColorToARGB(bg, 180));
-   m_canvas.FontSet("Lucida Console", -10, FW_BOLD);
-   m_canvas.TextOut((r.x1 + r.x2)/2, (r.y1 + r.y2)/2, text, ColorToARGB(m_clr_text), TA_CENTER|TA_VCENTER);
-}
+   void Render(string symbol, double spread, double pl, int pc, double dd, string version) {
+      // Background Header
+      CreateLabel("AAT_Header", "AUTONOMOUS AUTOTRADER V" + version, x_off, y_off, 12, "Verdana Bold", clrWhite);
+      CreateLabel("AAT_Status", "SYSTEM STATUS: OPTIMAL", x_off, y_off + 25, 10, "Verdana", clrSpringGreen);
 
-string CAATDashboard::OnClick(int x, int y)
-{
-   // Offset from chart corner (10, 30)
-   int ox = x - 10, oy = y - 30;
-   if(ox >= m_btn_panic.x1 && ox <= m_btn_panic.x2 && oy >= m_btn_panic.y1 && oy <= m_btn_panic.y2) return "PANIC";
-   if(ox >= m_btn_pause.x1 && ox <= m_btn_pause.x2 && oy >= m_btn_pause.y1 && oy <= m_btn_pause.y2) { m_paused = !m_paused; return "PAUSE"; }
-   return "";
-}
+      // Telemetry Grid
+      CreateLabel("AAT_L_Spread", "Spread: " + DoubleToString(spread, 1) + " pts", x_off, y_off + 50, 9, "Verdana", clrSkyBlue);
+      CreateLabel("AAT_L_PL", "Total P&L: $" + DoubleToString(pl, 2), x_off, y_off + 65, 11, "Verdana Bold", (pl >= 0 ? clrLime : clrRed));
+      CreateLabel("AAT_L_DD", "Drawdown: " + DoubleToString(dd, 2) + "%", x_off, y_off + 85, 9, "Verdana", (dd < 5 ? clrSkyBlue : clrOrangeRed));
+      CreateLabel("AAT_L_PC", "Positions: " + IntegerToString(pc), x_off, y_off + 100, 9, "Verdana", clrSkyBlue);
+
+      // Bottom Branding
+      CreateLabel("AAT_Footer", "GOD MODE - INSTITUTIONAL PRO", x_off, y_off + 125, 8, "Verdana", clrGray);
+   }
+
+   void Clear() {
+      ObjectsDeleteAll(0, "AAT_");
+   }
+
+private:
+   void CreateLabel(string name, string text, int x, int y, int size, string font, color clr) {
+      if(ObjectFind(0, name) < 0) {
+         ObjectCreate(0, name, OBJ_LABEL, 0, 0, 0);
+         ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+         ObjectSetInteger(0, name, OBJPROP_ANCHOR, ANCHOR_LEFT_UPPER);
+      }
+      ObjectSetString(0, name, OBJPROP_TEXT, text);
+      ObjectSetInteger(0, name, OBJPROP_XDISTANCE, x);
+      ObjectSetInteger(0, name, OBJPROP_YDISTANCE, y);
+      ObjectSetInteger(0, name, OBJPROP_FONTSIZE, size);
+      ObjectSetString(0, name, OBJPROP_FONT, font);
+      ObjectSetInteger(0, name, OBJPROP_COLOR, clr);
+   }
+};
