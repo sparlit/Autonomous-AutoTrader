@@ -6,12 +6,6 @@
 #include "AAT_Protocol.mqh"
 #include "AAT_Dashboard.mqh"
 
-enum ENUM_AAT_ROLE {
-   AAT_ROLE_DATA_COLLECTOR,
-   AAT_ROLE_TRADE_EXECUTOR,
-   AAT_ROLE_MASTER
-};
-
 class CAATBridgeClient
 {
 private:
