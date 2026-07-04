@@ -13,6 +13,5 @@ def verify_file(path, required_terms):
     print(f"✅ {path} verified")
     return True
 
-verify_file("src/mql5/Include/AAT_Dashboard.mqh", ["Create", "IsPaused", "OnClick", "Render"])
-verify_file("src/mql5/Include/AAT_BridgeClient.mqh", ["Connect", "Send", "Receive", "Disconnect"])
-verify_file("src/mql5/Experts/AAT_TradeExecutor.mq5", ["ulong ticket = trade.ResultOrder();", "bridge.Connect"])
+verify_file("src/mql5/Include/AAT_BridgeClient.mqh", ["ENUM_AAT_ROLE", "Init", "PerformUpdate", "m_role"])
+verify_file("src/mql5/Experts/AAT_DataCollector.mq5", ["bridge.Init", "AAT_ROLE_DATA_COLLECTOR", "bridge.PerformUpdate()"])

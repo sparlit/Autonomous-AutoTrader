@@ -10,9 +10,22 @@ class CAATBridgeClient
 {
 private:
    CAATNativeSocket m_socket;
+   ENUM_AAT_ROLE    m_role;
+   string           m_host;
+   int              m_port;
+   uint             m_last_hb;
+   uint             m_last_dp;
+   long             m_seq_tx;
 
 public:
-   CAATBridgeClient() {}
+   CAATBridgeClient() : m_last_hb(0), m_last_dp(0), m_seq_tx(0) {}
+
+   bool Init(string host, int port, ENUM_AAT_ROLE role, long magic=123456) {
+      m_host = host;
+      m_port = port;
+      m_role = role;
+      return m_socket.Connect(m_host, m_port);
+   }
 
    bool Connect(string host, int port) {
       return m_socket.Connect(host, port);
@@ -32,5 +45,28 @@ public:
 
    bool IsConnected() {
       return m_socket.IsConnected();
+   }
+
+   void PerformUpdate() {
+      if(!m_socket.IsConnected()) {
+         m_socket.Connect(m_host, m_port);
+         return;
+      }
+
+      uint now = GetTickCount();
+
+      // Periodic Heartbeat
+      if(now - m_last_hb > 5000) {
+         m_socket.Send(CAATProtocol::BuildHEARTBEAT(_Symbol, AccountInfoDouble(ACCOUNT_EQUITY), 0, PositionsTotal(), ++m_seq_tx));
+         m_last_hb = now;
+      }
+
+      // Role-specific Logic
+      if(m_role == AAT_ROLE_DATA_COLLECTOR || m_role == AAT_ROLE_MASTER) {
+         if(now - m_last_dp > 200) { // 200ms throttle for data push
+            m_socket.Send(CAATProtocol::BuildDATA_PUSH(_Symbol, _Period, 30, ++m_seq_tx));
+            m_last_dp = now;
+         }
+      }
    }
 };
