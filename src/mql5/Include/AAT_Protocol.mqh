@@ -18,23 +18,30 @@ public:
    }
 
    static string BuildDATA_PUSH(string s, ENUM_TIMEFRAMES tf, int c, long seq) {
-      // V3.3.0-ASCENDANT: Mandatory MTF Data (M15, H1, H4, D1)
-      string h_ltf = BuildH(s, tf, 30);
-      string h_m15 = BuildH(s, PERIOD_M15, 30);
-      string h_h1  = BuildH(s, PERIOD_H1, 30);
-      string h_h4  = BuildH(s, PERIOD_H4, 20);
-      string h_d1  = BuildH(s, PERIOD_D1, 15);
+      // V4.0: Parallel MTF Data Map (M1 to MN1)
+      string h_ltf = BuildH(s, tf, 50);
+
+      // Build the MTF Map for the Parallel Engine
+      string mtf_map = "{";
+      mtf_map += "\"m1\":" + BuildH(s, PERIOD_M1, 30) + ",";
+      mtf_map += "\"m5\":" + BuildH(s, PERIOD_M5, 30) + ",";
+      mtf_map += "\"m15\":" + BuildH(s, PERIOD_M15, 30) + ",";
+      mtf_map += "\"m30\":" + BuildH(s, PERIOD_M30, 30) + ",";
+      mtf_map += "\"h1\":" + BuildH(s, PERIOD_H1, 30) + ",";
+      mtf_map += "\"h4\":" + BuildH(s, PERIOD_H4, 20) + ",";
+      mtf_map += "\"d1\":" + BuildH(s, PERIOD_D1, 15) + ",";
+      mtf_map += "\"w1\":" + BuildH(s, PERIOD_W1, 10) + ",";
+      mtf_map += "\"mn1\":" + BuildH(s, PERIOD_MN1, 5);
+      mtf_map += "}";
 
       double pt = SymbolInfoDouble(s, SYMBOL_POINT);
       double spread = (pt > 0) ? (SymbolInfoDouble(s, SYMBOL_ASK) - SymbolInfoDouble(s, SYMBOL_BID)) / pt : 0;
-
-      // Calculate ATR(14) on LTF for risk calculation in Python
       double atr = CalculateATR(s, tf, 14);
 
-      return StringFormat("{\"t\":\"DP\",\"s\":\"%s\",\"tf\":%d,\"bi\":%.5f,\"as\":%.5f,\"sp\":%.1f,\"tv\":%.5f,\"ts\":%.5f,\"atr\":%.5f,\"ltf\":%s,\"m15\":%s,\"h1\":%s,\"h4\":%s,\"d1\":%s,\"seq\":%lld}",
+      return StringFormat("{\"t\":\"DP\",\"s\":\"%s\",\"tf\":%d,\"bi\":%.5f,\"as\":%.5f,\"sp\":%.1f,\"tv\":%.5f,\"ts\":%.5f,\"atr\":%.5f,\"ltf\":%s,\"mtf\":%s,\"seq\":%lld}",
                           s, (int)tf, SymbolInfoDouble(s, SYMBOL_BID), SymbolInfoDouble(s, SYMBOL_ASK), spread,
                           SymbolInfoDouble(s, SYMBOL_TRADE_TICK_VALUE), SymbolInfoDouble(s, SYMBOL_TRADE_TICK_SIZE),
-                          atr, h_ltf, h_m15, h_h1, h_h4, h_d1, seq);
+                          atr, h_ltf, mtf_map, seq);
    }
 
    static string BuildTRADE_ACK(int id, int tk, string err, long seq) {
