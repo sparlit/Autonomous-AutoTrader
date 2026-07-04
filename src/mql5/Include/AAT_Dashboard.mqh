@@ -26,6 +26,7 @@ public:
    // V4.0 Institutional Render
    void RenderV4(string symbol, double spread, double pl, int pc, double dd, string version) {
       CreateLabel("AAT_Header", "AAT V" + version + " PRO", x_off, y_off, 12, "Verdana Bold", clrWhite);
+      CreateLabel("AAT_Status", "STATUS: OPTIMAL", x_off, y_off + 25, 10, "Verdana", clrSpringGreen);
       CreateLabel("AAT_L_PL", "P&L: $" + DoubleToString(pl, 2), x_off, y_off + 65, 11, "Verdana Bold", (pl >= 0 ? clrLime : clrRed));
       CreateLabel("AAT_L_DD", "DD: " + DoubleToString(dd, 2) + "%", x_off, y_off + 85, 9, "Verdana", (dd < 5 ? clrSkyBlue : clrOrangeRed));
    }

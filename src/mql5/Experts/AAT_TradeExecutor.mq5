@@ -25,10 +25,12 @@ int OnInit() {
 }
 
 void OnTimer() {
-   double eq = AccountInfoDouble(ACCOUNT_EQUITY);
-   double bal = AccountInfoDouble(ACCOUNT_BALANCE);
-   double dd = (bal > 0) ? (bal - eq) / bal * 100.0 : 0;
-   bridge.Send(CAATProtocol::BuildHEARTBEAT(_Symbol, eq, dd, PositionsTotal(), 0));
+   double equity = AccountInfoDouble(ACCOUNT_EQUITY);
+   double balance = AccountInfoDouble(ACCOUNT_BALANCE);
+   double dd = (balance > 0) ? (balance - equity) / balance * 100.0 : 0;
+   if(dd < 0) dd = 0;
+
+   bridge.Send(CAATProtocol::BuildHEARTBEAT(_Symbol, equity, dd, PositionsTotal(), 0));
    dash.RenderV4(_Symbol, 0, AccountInfoDouble(ACCOUNT_PROFIT), PositionsTotal(), dd, system_version);
 }
 
@@ -41,12 +43,17 @@ void OnTick() {
          string action = CAATProtocol::GetV(msg, "act");
          double lots = StringToDouble(CAATProtocol::GetV(msg, "lts"));
          int id = (int)StringToInteger(CAATProtocol::GetV(msg, "id"));
+
          if(action == "BUY") trade.Buy(lots, symbol);
          else trade.Sell(lots, symbol);
+
          ulong ticket = trade.ResultOrder();
          bridge.Send(CAATProtocol::BuildTRADE_ACK(id, (int)ticket, "OK", 0));
       }
    }
 }
 
-void OnDeinit(const int r) { dash.Clear(); bridge.Disconnect(); }
+void OnDeinit(const int reason) {
+   dash.Clear();
+   bridge.Disconnect();
+}

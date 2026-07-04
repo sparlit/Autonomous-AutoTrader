@@ -17,6 +17,10 @@ int OnInit() {
    return INIT_SUCCEEDED;
 }
 
-void OnDeinit(const int r) { EventKillTimer(); bridge.Disconnect(); }
+void OnDeinit(const int reason) {
+   EventKillTimer();
+   bridge.Disconnect();
+}
+
 void OnTick() { bridge.PerformUpdate(); }
 void OnTimer() { bridge.PerformUpdate(); }

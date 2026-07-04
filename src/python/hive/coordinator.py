@@ -43,7 +43,7 @@ class HiveOrchestrator:
         await self._spawn_brain_swarm()
         await self._orchestration_loop()
 
-    async def handle_bridge_message(self, message: Dict[str, Any]) -> Dict[str, Any]:
+    async def handle_bridge_message(self, client_id: str, message: Dict[str, Any]) -> Dict[str, Any]:
         m_type = message.get("t")
         if m_type == "HB":
             self.ipc.set_state("account_stats", {
