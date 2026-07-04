@@ -1,12 +1,14 @@
 #property copyright "Copyright 2024, Jules (God Mode)"
 #property link      "https://github.com/sparlit/Autonomous-AutoTrader"
-#property version   "3.00"
+#property version   "4.00"
 #property strict
+
+#include <AAT_Defines.mqh>
 #include <AAT_BridgeClient.mqh>
 
-input string   InpHost   = "127.0.0.1"; // Bridge Host
-input int      InpPort   = 8008;        // Bridge Port
-input long     InpMagic  = 123456;      // Strategy Magic
+input string   InpHost   = "127.0.0.1";
+input int      InpPort   = 8008;
+input long     InpMagic  = 123456;
 
 CAATBridgeClient bridge;
 
@@ -17,9 +19,10 @@ int OnInit() {
    return INIT_SUCCEEDED;
 }
 
-void OnDeinit(const int reason) { EventKillTimer(); }
+void OnDeinit(const int reason) { EventKillTimer(); bridge.Disconnect(); }
 void OnTick() { bridge.PerformUpdate(); }
 void OnTimer() { bridge.PerformUpdate(); }
+
 void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam) {
    bridge.OnChartEvent(id, lparam, dparam, sparam);
 }
