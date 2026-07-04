@@ -1,0 +1,9 @@
+{
+    "version": "4.0.0-PRO",
+    "standard_lot_size": 0.01,
+    "allow_user_override": true,
+    "max_drawdown_limit": 5.0,
+    "min_profit_scaling_usd": 1.0,
+    "profit_lock_threshold_rr": 1.0,
+    "breakeven_buffer_usd": 0.10
+}
