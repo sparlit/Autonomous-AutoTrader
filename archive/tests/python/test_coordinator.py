@@ -20,7 +20,7 @@ async def test_bridge_handling():
     orchestrator.ipc.create_stream("stream:MarketData_1")
 
     msg = {"t": "DP", "s": "EURUSD", "tf": 1, "bi": 1.08, "as": 1.0801}
-    response = await orchestrator.handle_client_message("test_client", msg)
+    response = await orchestrator._handle_bridge_message(msg)
     assert response["t"] == "ACK"
 
     # Check IPC stream for MarketData_1

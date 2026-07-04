@@ -2,6 +2,7 @@ import os
 import json
 import base64
 import logging
+import sys
 from typing import Optional, Dict
 
 # 11050: Windows Data Protection API (DPAPI) wrapper
@@ -14,7 +15,10 @@ try:
     HAS_DPAPI = True
 except ImportError:
     HAS_DPAPI = False
-    logger.warning("win32crypt not found. Falling back to base64 (INSECURE - for non-Windows only).")
+    if sys.platform == "win32":
+        logger.warning("⚠️ Windows detected but 'pywin32' (win32crypt) is missing. Credentials stored in config/vault.bin are NOT encrypted with DPAPI. Install pywin32 for institutional security.")
+    else:
+        logger.debug("Non-Windows platform. DPAPI unavailable.")
 
 class CredentialManager:
     """11051: Secure storage for MT5 and API credentials."""
@@ -31,11 +35,18 @@ class CredentialManager:
         raw_json = json.dumps(data).encode('utf-8')
 
         if HAS_DPAPI:
-            # DPAPI encryption: CryptProtectData
-            encrypted_data = win32crypt.CryptProtectData(raw_json, "AAT_Vault", None, None, None, 0)
+            try:
+                # DPAPI encryption: CryptProtectData
+                encrypted_data = win32crypt.CryptProtectData(raw_json, "AAT_Vault", None, None, None, 0)
+            except Exception as e:
+                logger.error(f"DPAPI Encryption failed: {e}. Falling back to base64.")
+                encrypted_data = base64.b64encode(raw_json)
         else:
-            # Fallback for testing/dev environments (Not for production use)
+            # Fallback for testing/dev environments
             encrypted_data = base64.b64encode(raw_json)
+
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(self.storage_path), exist_ok=True)
 
         with open(self.storage_path, "wb") as f:
             f.write(encrypted_data)
@@ -51,8 +62,12 @@ class CredentialManager:
 
         try:
             if HAS_DPAPI:
-                _, decrypted_data = win32crypt.CryptUnprotectData(encrypted_data, None, None, None, 0)
-                raw_json = decrypted_data.decode('utf-8')
+                try:
+                    _, decrypted_data = win32crypt.CryptUnprotectData(encrypted_data, None, None, None, 0)
+                    raw_json = decrypted_data.decode('utf-8')
+                except:
+                    # Try base64 fallback if DPAPI fails (might happen if saved on another machine/user or before DPAPI was working)
+                    raw_json = base64.b64decode(encrypted_data).decode('utf-8')
             else:
                 raw_json = base64.b64decode(encrypted_data).decode('utf-8')
 

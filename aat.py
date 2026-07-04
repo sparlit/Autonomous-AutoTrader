@@ -98,7 +98,7 @@ async def run():
     except KeyboardInterrupt:
         logging.info("Initiating Graceful Shutdown...")
         orchestrator.stop()
-        logger.info("Phoenix Gauntlet offline.")
+        logging.info("Phoenix Gauntlet offline.")
 
 def test():
     print("🧪 Running AAT Integration Test Suite...")
