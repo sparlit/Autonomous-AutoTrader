@@ -18,6 +18,15 @@ class MetaBrain(BaseBrain):
     async def initialize(self):
         await super().initialize()
         self.reliability = self.ipc.get_state("brain_reliability", {})
+        asyncio.create_task(self._reliability_sync_loop())
+
+    async def _reliability_sync_loop(self):
+        while self.is_running:
+            try:
+                new_rel = self.ipc.get_state("brain_reliability", {})
+                if new_rel: self.reliability = new_rel
+            except: pass
+            await asyncio.sleep(60)
 
     def _new_state(self):
         return {"prior": 0.5, "evidence": [], "ts": time.time()}
@@ -30,23 +39,39 @@ class MetaBrain(BaseBrain):
         state = self.symbol_state[symbol]
 
         if event.get("type") == "EVIDENCE":
-            # Bayesian Update
+            src = event.get("source", "Unknown")
             p_e_h = float(event.get("p_e_h") or 0.5)
+            rel = float(self.reliability.get(src, 0.70))
+
+            # V4.0 Weighted Bayesian Update
+            weighted_p_e_h = 0.5 + (p_e_h - 0.5) * rel
             prior = state["prior"]
-            posterior = (p_e_h * prior) / 0.5 # Simplified Bayesian step
+            posterior = (weighted_p_e_h * prior) / 0.5
             state["prior"] = max(0.01, min(0.99, posterior))
             state["ts"] = time.time()
 
-            # Rule 1.b.iii-vi: Assess Winning % and Drawdown
-            if state["prior"] > 0.75:
-                # Trigger Assessment Signal
+            # Update Intel for Dashboard
+            intel_data = {
+                "prob": state["prior"],
+                "last_src": src,
+                "regime": self.ipc.get_state(f"intel:{symbol}", {}).get("regime", "NORMAL"),
+                "ts": time.time()
+            }
+            self.ipc.set_state(f"intel:{symbol}", intel_data)
+
+            if state["prior"] > 0.80:
                 return {
                     "type": "PROBABILISTIC_SIGNAL",
                     "symbol": symbol,
-                    "action": "BUY" if state["prior"] > 0.5 else "SELL",
+                    "action": "BUY" if p_e_h > 0.5 else "SELL",
                     "probability": state["prior"],
-                    "reason": "BAYESIAN_CONFLUENCE"
+                    "reason": f"BAYESIAN_CONFLUENCE_VIA_{src}"
                 }
+
+        elif event.get("type") == "REGIME_STATUS":
+            intel = self.ipc.get_state(f"intel:{symbol}", {"prob": 0.5})
+            intel["regime"] = event.get("regime", "NORMAL")
+            self.ipc.set_state(f"intel:{symbol}", intel)
 
         self.publish_state(symbol, {"prob": state["prior"]})
         return None

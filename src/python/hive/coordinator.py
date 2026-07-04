@@ -44,14 +44,20 @@ class HiveOrchestrator:
         self.ipc.clear_memory()
         self.ipc.set_state("institutional_settings", self.config.institutional.dict())
 
-        # V4.0: Spawn Dashboard Processes
+        default_reliability = {
+            "MarketData_1": 1.0, "Trend_1": 0.85, "Indicator_1": 0.80, "Regime_1": 1.0,
+            "Risk_1": 1.0, "MetaBrain": 0.95, "Execution_1": 1.0
+        }
+        self.ipc.set_state("brain_reliability", default_reliability)
+
         self.native_dash = NativeDashboard(ipc=self.ipc)
         self.native_dash.start()
 
         self.web_dash = WebDashboard(ipc=self.ipc, port=self.config.bridge.dashboard_port)
         self.web_dash.start()
 
-        await self.server.start()
+        asyncio.create_task(self.server.start())
+
         await self._spawn_brain_swarm()
         await self._orchestration_loop()
 
@@ -118,13 +124,13 @@ class HiveOrchestrator:
         symbol = event.get("symbol")
 
         if e_type == "MARKET_DATA":
-            for b in ["Trend_1", "Indicator_1"]: self.ipc.xadd(f"stream:{b}", event)
+            for b in ["Trend_1", "Indicator_1", "Regime_1"]: self.ipc.xadd(f"stream:{b}", event)
             orders = await self.pos_manager.monitor_and_manage(symbol, event["bid"], event["ask"], event["atr"], mtf_trends=self.ipc.get_state(f"trend_stats:{symbol}"))
             for o in orders:
                 if o.get("type") == "PROBABILISTIC_SIGNAL": self.ipc.xadd("stream:orchestrator", o)
                 else: await self.server.broadcast(o)
 
-        elif e_type == "EVIDENCE":
+        elif e_type in ["EVIDENCE", "REGIME_STATUS"]:
             self.ipc.xadd("stream:MetaBrain", event)
 
         elif e_type == "PROBABILISTIC_SIGNAL":
@@ -144,8 +150,9 @@ class HiveOrchestrator:
             await self.server.broadcast(event)
 
     def _update_system_stats(self):
+        uptime = time.time() - self.start_time
         stats = {"status": "V4.0-PRO_OPTIMAL" if self.server.clients else "WAITING", "active_clients": len(self.server.clients),
-                 "throughput": float(self._msg_counts / (time.time() - self.start_time)) if (time.time() - self.start_time) > 0 else 0, "server_time": time.time()}
+                 "throughput": float(self._msg_counts / uptime) if uptime > 0 else 0, "server_time": time.time()}
         self.ipc.set_state("engine_stats", stats)
         asyncio.create_task(self._sync_trades_to_ipc())
 
@@ -155,7 +162,7 @@ class HiveOrchestrator:
 
     async def _spawn_brain_swarm(self):
         swarm = [(MarketDataBrain, "MarketData_1"), (TrendBrain, "Trend_1"), (IndicatorBrain, "Indicator_1"),
-                 (RiskBrain, "Risk_1"), (ExecutionBrain, "Execution_1"), (MetaBrain, "MetaBrain")]
+                 (RegimeBrain, "Regime_1"), (RiskBrain, "Risk_1"), (ExecutionBrain, "Execution_1"), (MetaBrain, "MetaBrain")]
         for _, name in swarm: self.ipc.create_stream(f"stream:{name}")
         for i, (brain_cls, name) in enumerate(swarm):
             brain = brain_cls(name=name, ipc=self.ipc)

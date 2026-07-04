@@ -9,6 +9,7 @@ from typing import Dict, Any, List, Optional, Union
 from src.python.brains.base import BaseBrain
 from src.python.analyst.indicators import IndicatorAnalyst
 from src.python.analyst.price_action import SMCAnalyst
+from src.python.analyst.volatility import VolatilityAnalyst
 
 logger = logging.getLogger("AAT_Brains")
 
@@ -17,8 +18,8 @@ class MarketDataBrain(BaseBrain):
     async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         if event.get("t") == "DP":
             symbol = event["s"]
-            bid = float(event.get("b") or 0.0)
-            ask = float(event.get("a") or 0.0)
+            bid = float(event.get("bi") or 0.0)
+            ask = float(event.get("as") or 0.0)
             self.ipc.set_state(f"symbol_stats:{symbol}", {
                 "bid": bid, "ask": ask,
                 "tick_val": float(event.get("tv", 10.0)),
@@ -87,6 +88,23 @@ class IndicatorBrain(BaseBrain):
                     "direction": 1 if rsi > 55 else (-1 if rsi < 45 else 0), "p_e_h": 0.75, "p_e": 0.50}
         return None
 
+class RegimeBrain(BaseBrain):
+    """V4.0: Market Regime Classification."""
+    async def initialize(self):
+        await super().initialize()
+        self.vol = VolatilityAnalyst()
+
+    async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if event.get("type") == "MARKET_DATA":
+            symbol = event["symbol"]
+            df = pd.DataFrame(event.get("ltf", []))
+            if df.empty: return None
+            if isinstance(event["ltf"][0], list): df.columns = ["o", "h", "l", "c", "t", "v"]
+
+            regime = self.vol.get_regime(df)
+            return {"type": "REGIME_STATUS", "symbol": symbol, "regime": regime}
+        return None
+
 class RiskBrain(BaseBrain):
     """V4.0: Dynamic Position Sizing & vRR (Variable Risk-to-Reward)."""
     async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -94,16 +112,12 @@ class RiskBrain(BaseBrain):
             symbol = event["symbol"]
             action = event["action"]
 
-            # 1. Institutional Constraints
             stats = self.ipc.get_state("account_stats", {})
             if float(stats.get("drawdown", 0)) > 5.0: return {"type": "VETO", "symbol": symbol, "reason": "MAX_DD"}
 
-            # 2. Variable Risk-to-Reward (vRR)
-            # Use ADX to determine regime strength
             trends = self.ipc.get_state(f"trend_stats:{symbol}", {})
             regime_strength = sum(1 for tf in trends.values() if (tf == "BULLISH" if action == "BUY" else "BEARISH"))
 
-            # 1:1.5 for weak confluence, 1:3 for strong MTF alignment
             rr_ratio = 1.5 if regime_strength < 5 else 3.0
 
             s_stats = self.ipc.get_state(f"symbol_stats:{symbol}", {})
@@ -136,6 +150,4 @@ class ExecutionBrain(BaseBrain):
 class MomentumBrain(BaseBrain):
     async def process(self, e): return None
 class StructureBrain(BaseBrain):
-    async def process(self, e): return None
-class RegimeBrain(BaseBrain):
     async def process(self, e): return None
