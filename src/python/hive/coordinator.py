@@ -1,74 +1,54 @@
 import asyncio
 import logging
-import multiprocessing
-import os
-import signal
-import sys
-import psutil
 import time
 import ujson as json
 import pandas as pd
 from typing import Dict, Any, List, Optional
-from src.python.hive.ipc import HiveIPC
-from src.python.bridge.dashboards.native_gui import NativeDashboard
-from src.python.bridge.dashboards.web_server import WebDashboard
-from src.python.bridge.watchdog import L99Watchdog
+from src.python.hive.ipc import get_ipc
 from src.python.bridge.server import BridgeServer
-from src.python.hive.config import AATConfig, load_config
-from src.python.analyst.price_action import SMCAnalyst
-from src.python.brains.registry import BrainRegistry
-from src.python.hive.hardware_analyst import HardwareAnalyst
-
-# Strategy Brains
-from src.python.brains.strategies.swing_master import SwingMaster
-from src.python.brains.strategies.scalp_master import ScalpMaster
-from src.python.brains.strategies.vsa_master import VSAMaster
-from src.python.brains.strategies.wyckoff_master import WyckoffMaster
-from src.python.brains.strategies.ict_killzone import ICTKillzone
-from src.python.brains.consensus import MetaBrain
-
-# Specialized / Analyst Brains
-from src.python.brains.specialized import (
-    MarketDataBrain, TrendBrain, IndicatorBrain, LiquidityBrain, RegimeBrain,
-    ContrarianBrain, NewsRiskBrain, MemoryBrain, RiskBrain,
-    ExecutionBrain, AnomalyBrain, PortfolioBrain, CorrelationBrain,
-    MomentumBrain, StructureBrain, MonitoringBrain
-)
-
-# Execution Managers
 from src.python.execution.ledger import TradeLedger
 from src.python.execution.risk_manager import RiskManager
 from src.python.execution.manager import PositionManager
+from src.python.analyst.price_action import SMCAnalyst
+from src.python.brains.registry import BrainRegistry
+from src.python.brains.specialized import *
+from src.python.brains.consensus import MetaBrain
+from src.python.hive.config import load_config
+from src.python.hive.hardware_analyst import HardwareAnalyst
 
-logger = logging.getLogger("AAT_Supervisor")
+logger = logging.getLogger("AAT_Orchestrator")
 
 class HiveOrchestrator:
     """
-    10001: The Supervisor (Process 0).
-    Responsible for the 23-brain process lifecycle and dynamic affinity mapping.
+    10000: The Institutional Core (V3.3.0-ASCENDANT).
+    Central event loop for cross-process brain coordination and bridge management.
     """
     def __init__(self, credentials: Optional[Dict[str, Any]] = None):
         self.config = load_config()
         self.credentials = credentials
-        self.ipc = HiveIPC()
-        self.registry = BrainRegistry()
-        self.hardware = HardwareAnalyst(self.config.system.database_path)
-
-        # Core Components
-        self.server = BridgeServer(self.config.bridge.host, self.config.bridge.port, self.handle_client_message)
-        self.ledger = TradeLedger(self.config.system.database_path)
-        self.risk_manager = RiskManager(self.config, ipc=self.ipc)
-        self.pos_manager = PositionManager(self.ledger, self.risk_manager)
-        self.watchdog = L99Watchdog(self)
+        self.ipc = get_ipc()
+        self.server = BridgeServer(
+            host=self.config.bridge.host,
+            port=self.config.bridge.port,
+            on_message_cb=self._bridge_callback_wrapper
+        )
+        self.ledger = TradeLedger()
+        self.risk_manager = RiskManager(self.ipc)
         self.smc = SMCAnalyst()
-
+        self.pos_manager = PositionManager(self.ledger, self.risk_manager)
+        self.registry = BrainRegistry()
+        self.hardware = HardwareAnalyst()
         self.running = True
-        self.brains = []
+        self.start_time = time.time()
+        self._msg_counts = 0
+
+    async def _bridge_callback_wrapper(self, client_id: str, message: Dict[str, Any]) -> Dict[str, Any]:
+        """Wrapper to match BridgeServer callback signature."""
+        return await self._handle_bridge_message(message)
 
     async def run(self):
-        """10002: Orchestration Entry Point."""
-        logger.info("Initializing Phoenix Gauntlet V3.3.0...")
-        self.hardware.log_capabilities()
+        """10010: Orchestrator entry point."""
+        logger.info("Initializing V3.3.0-ASCENDANT Core...")
 
         # 1. Database and Shared Memory
         await self.ledger.init_db()
@@ -76,6 +56,7 @@ class HiveOrchestrator:
 
         # Pre-initialize MUST-HAVE streams
         self.ipc.create_stream("stream:orchestrator")
+        self.ipc.create_stream("stream:learning_events")
 
         # 2. Start Brains
         await self._spawn_brain_swarm()
@@ -83,60 +64,20 @@ class HiveOrchestrator:
         # 3. Start Bridge Server
         asyncio.create_task(self.server.start())
 
-        # 4. Start Watchdog
-        asyncio.create_task(self.watchdog.run())
-
-        # 10450: Launch Monitoring Dashboards
-        self.web_dash = WebDashboard(ipc=self.ipc, port=self.config.bridge.dashboard_port)
-        self.web_dash.start()
-
-        self.native_dash = NativeDashboard(ipc=self.ipc)
-        self.native_dash.start()
-
-        logger.info("AAT V3.3.0 Fully Operational.")
-
-        # Pin orchestrator to Core 1 if available
-        self._setup_affinity()
-
-        # 5. Main Orchestration Loop
+        # 4. Start Event Loop
+        logger.info("AAT Orchestrator fully operational.")
         await self._orchestration_loop()
 
-    def _setup_affinity(self):
-        try:
-            p = psutil.Process(os.getpid())
-            if psutil.cpu_count() > 1:
-                p.cpu_affinity([1])
-                logger.info("Orchestrator pinned to CPU 1")
-        except Exception as e:
-            logger.debug(f"Orchestrator affinity fail: {e}")
-
-    async def handle_client_message(self, client_id: str, message: Dict[str, Any]) -> Dict[str, Any]:
-        """10010: Inbound message router for MT5 Clients."""
+    async def _handle_bridge_message(self, message: Dict[str, Any]) -> Dict[str, Any]:
+        """10011: Protocol bridge handler for MT5 packets."""
         m_type = message.get("t")
 
         if m_type == "HB": # Heartbeat
-            self.watchdog.heartbeat()
-            equity = message.get("eq", message.get("e", 0.0))
-
-            # 10025: Global peak tracking for drawdown enforcement
-            if equity > self.risk_manager.peak_equity:
-                self.risk_manager.peak_equity = equity
-
-            # 10026: Institutional Equity Guard (Auto-Flatten on DD breach)
-            if self.risk_manager.peak_equity > 0:
-                dd_pct = (self.risk_manager.peak_equity - equity) / self.risk_manager.peak_equity * 100.0
-                if dd_pct > self.config.risk.max_drawdown_pct:
-                    logger.critical(f"⚠️ DRAWDOWN BREACH DETECTED: {dd_pct:.2f}% (Limit: {self.config.risk.max_drawdown_pct}%). TRIGGERING GLOBAL FLATTEN.")
-                    await self.server.broadcast({
-                        "t": "DECISION", "s": "GLOBAL", "act": "MGMT", "mgmt": "CLOSE_ALL",
-                        "reason": f"EQUITY_GUARD_BREACH_{dd_pct:.2f}PCT"
-                    })
-
             self.ipc.set_state("account_stats", {
-                "equity": equity,
-                "drawdown": message.get("dd", message.get("d", 0.0)),
-                "pos_count": message.get("pc", 0),
-                "spread": message.get("sp", 0.0),
+                "equity": float(message.get("eq", 0.0)),
+                "drawdown": float(message.get("dd", 0.0)),
+                "pos_count": int(message.get("pc", 0)),
+                "spread": float(message.get("sp", 0.0)),
                 "candle_timer": message.get("ct", "--:--"),
                 "last_hb": time.time()
             })
@@ -148,13 +89,19 @@ class HiveOrchestrator:
             self.ipc.xadd("stream:MarketData_1", message)
             return {"t": "ACK"}
 
+        elif m_type == "T_ACK":
+            internal_id = message.get("id")
+            ticket = message.get("tk")
+            if ticket and ticket > 0:
+                await self.ledger.confirm_trade(internal_id, ticket, 0, 0, 0)
+            return {"t": "ACK"}
+
         elif m_type == "SYNC":
             tickets = message.get("tk", [])
             for t in tickets:
                 await self.ledger.update_trade_from_sync(
-                    t['tk'], t['s'], t['act'], t['vol'], t['sl'], t['tp']
+                    t['tk'], t['s'], t['act'], t['vol'], float(t.get('en', 0)), float(t.get('sl', 0)), float(t.get('tp', 0))
                 )
-            # Prune closed trades
             active_tickets = [t["tk"] for t in tickets]
             await self.ledger.prune_trades(active_tickets)
             return {"t": "SYNC_ACK"}
@@ -166,17 +113,22 @@ class HiveOrchestrator:
         logger.info("Event Bus listener active.")
         while self.running:
             try:
+                # Telemetry: Check Queue Depth
+                q = self.ipc.get_queue("stream:orchestrator")
+                q_depth = q.qsize() if hasattr(q, "qsize") else 0
+
                 messages = self.ipc.xread({"stream:orchestrator": "0"}, count=50)
                 if messages:
                     for stream, msgs in messages:
                         for msg_id, data in msgs:
+                            self._msg_counts += 1
                             event = json.loads(data[b'payload'])
                             await self._process_orchestrator_event(event)
                     await asyncio.sleep(0.005)
                 else:
                     await asyncio.sleep(0.02)
 
-                self._update_system_stats()
+                self._update_system_stats(q_depth)
             except Exception as e:
                 logger.error(f"Orchestration Loop Error: {e}")
                 await asyncio.sleep(0.1)
@@ -186,21 +138,29 @@ class HiveOrchestrator:
         e_type = event.get("type")
 
         if e_type == "MARKET_DATA":
-            # 1. Run Position Management (Trailing SL, etc)
             symbol = event.get("symbol")
-            bid, ask, atr = event.get("bid", 0), event.get("ask", 0), event.get("atr", 0)
+            # 10020: Robust value extraction with defaults to prevent None arithmetic errors
+            bid = float(event.get("bid") or 0.0)
+            ask = float(event.get("ask") or 0.0)
+            atr = float(event.get("atr") or 0.0)
+
+            if bid == 0.0 or ask == 0.0: return
+
             ltf_df = pd.DataFrame(event.get("ltf", []))
             smc_data = None
             if not ltf_df.empty:
                 if isinstance(event["ltf"][0], list): ltf_df.columns = ["o", "h", "l", "c", "t", "v"]
                 smc_data = self.smc.detect_market_structure(ltf_df, atr)
 
-            orders = await self.pos_manager.monitor_and_manage(symbol, bid, ask, atr, smc_data=smc_data)
+            mtf_trends = self.ipc.get_state(f"trend_stats:{symbol}", {})
+            orders = await self.pos_manager.monitor_and_manage(symbol, bid, ask, atr, smc_data=smc_data, mtf_trends=mtf_trends)
             for order in orders:
-                order["magic"] = self.config.system.global_magic
-                await self.server.broadcast(order)
+                if order.get("type") == "PROBABILISTIC_SIGNAL":
+                    self.ipc.xadd("stream:orchestrator", order)
+                else:
+                    order["magic"] = self.config.system.global_magic
+                    await self.server.broadcast(order)
 
-            # 2. Fan out to Strategy/Analyst Brains
             strategy_swarm = [
                 "Trend_1", "Indicator_1", "Momentum_1", "Structure_1", "Liquidity_1",
                 "Regime_1", "Anomaly_1", "SwingMaster", "ScalpMaster",
@@ -217,6 +177,7 @@ class HiveOrchestrator:
                 self.ipc.xadd(f"stream:{b}", event)
 
         elif e_type in ["VETO", "NEWS_VETO"]:
+            self.ipc.set_state("last_decision", {"msg": f"VETO: {event.get('reason')} for {event.get('symbol')}", "time": time.time()})
             self.ipc.xadd("stream:MetaBrain", event)
             self.ipc.xadd("stream:Risk_1", event)
 
@@ -224,38 +185,54 @@ class HiveOrchestrator:
             self.ipc.xadd("stream:Execution_1", event)
 
         elif e_type == "EXECUTION_ORDER":
-            # Final output to MT5
             event["magic"] = self.config.system.global_magic
             if event.get("t") == "DEC":
                 internal_id = await self.ledger.record_intent(
-                    event["s"], event["act"], event["lts"], event["sl_p"], event["tp_p"]
+                    event["s"], event["act"], float(event["lts"]), float(event.get("sl_p", 100)), float(event.get("tp_p", 100))
                 )
                 event["id"] = internal_id
-                # 10020: Increment shared trade count globally
                 self.risk_manager.increment_trade_count(event["s"])
 
+            self.ipc.set_state("last_decision", {"msg": f"{event.get('act')} {event.get('s')} at {event.get('lts')} lots", "time": time.time()})
             await self.server.broadcast(event)
 
         elif e_type == "TELEMETRY":
+            hw = self.ipc.get_state("hardware_report", {})
             telemetry_msg = {
                 "t": "TLM", "s": event["symbol"], "st": "OPTIMAL" if self.server.clients else "WAITING",
-                "scr": event["scr"], "htf": event["htf"],
-                "dd": self.ipc.get_state("account_stats", {}).get("drawdown", 0.0),
-                "pc": self.ipc.get_state("account_stats", {}).get("pos_count", 0)
+                "scr": float(event.get("scr", 0.0)), "htf": event.get("htf", "NEUTRAL"),
+                "dd": float(self.ipc.get_state("account_stats", {}).get("drawdown", 0.0)),
+                "pc": int(self.ipc.get_state("account_stats", {}).get("pos_count", 0)),
+                "tier": hw.get("tier", "UNKNOWN")
             }
             await self.server.broadcast(telemetry_msg)
 
-    def _update_system_stats(self):
+    def _update_system_stats(self, q_depth: int):
         stats = {
             "status": "OPTIMAL" if self.server.clients else "WAITING",
             "active_clients": len(self.server.clients),
             "msgs_rx": self.server.stats["msgs_rx"],
             "msgs_tx": self.server.stats["msgs_tx"],
-            "latency": self.server.stats["last_latency"],
+            "latency": float(self.server.stats["last_latency"]),
+            "q_depth": int(q_depth),
+            "throughput": float(self._msg_counts / (time.time() - self.start_time)) if time.time() > self.start_time else 0.0,
             "server_time": time.time()
         }
         self.ipc.set_state("engine_stats", stats)
         asyncio.create_task(self._sync_trades_to_ipc())
+        asyncio.create_task(self._process_learning_events())
+
+    async def _process_learning_events(self):
+        try:
+            msgs = self.ipc.xread({"stream:learning_events": "0"}, count=10)
+            if msgs:
+                for stream, stream_msgs in msgs:
+                    for _, data in stream_msgs:
+                        event = json.loads(data[b'payload'])
+                        history = self.ipc.get_state("learning_history", [])
+                        history.append({**event, "ts": time.time()})
+                        self.ipc.set_state("learning_history", history[-50:])
+        except: logger.debug("Learning history sync skipped")
 
     async def _sync_trades_to_ipc(self):
         trades = await self.ledger.get_all_active_trades()
@@ -264,30 +241,24 @@ class HiveOrchestrator:
         for t in trades:
             symbol = t['symbol']
             s_stats = self.ipc.get_state(f"symbol_stats:{symbol}", {})
-            bid = s_stats.get("bid", 0)
-            ask = s_stats.get("ask", 0)
-            tick_val = s_stats.get("tick_val", 10.0)
-            tick_size = s_stats.get("tick_size", 0.0001)
+            bid = float(s_stats.get("bid") or 0.0)
+            ask = float(s_stats.get("ask") or 0.0)
+            tick_val = float(s_stats.get("tick_val") or 10.0)
+            tick_size = float(s_stats.get("tick_size") or 0.0001)
 
             if bid > 0 and ask > 0:
                 current_price = bid if t['action'] == "BUY" else ask
-                diff = (current_price - t['entry_price']) if t['action'] == "BUY" else (t['entry_price'] - current_price)
-                t['pl_points'] = diff / tick_size if tick_size > 0 else 0
-                t['pl_currency'] = t['lots'] * t['pl_points'] * tick_val if tick_size > 0 else 0
+                diff = (current_price - float(t['entry_price'])) if t['action'] == "BUY" else (float(t['entry_price']) - current_price)
+                t['pl_points'] = float(diff / tick_size) if tick_size > 0 else 0.0
+                t['pl_currency'] = float(t['lots'] * t['pl_points'] * tick_val) if tick_size > 0 else 0.0
             else:
                 t['pl_points'] = 0.0
                 t['pl_currency'] = 0.0
 
-            t['duration'] = now - t['timestamp']
-            if t.get('partial_tp_hit') == 1:
-                t['status'] = "PARTIAL_HIT"
-
+            t['duration'] = float(now - t['timestamp'])
             enriched_trades.append(t)
 
         self.ipc.set_state("active_trades", enriched_trades)
-
-    async def broadcast_command(self, cmd: Dict[str, Any]):
-        await self.server.broadcast(cmd)
 
     async def _spawn_brain_swarm(self):
         """10015: Stabilized parallel process spawning."""
@@ -316,27 +287,20 @@ class HiveOrchestrator:
             (MetaBrain, "MetaBrain")
         ]
 
+        self.ipc.create_stream("stream:orchestrator")
         for _, name in swarm_classes:
             self.ipc.create_stream(f"stream:{name}")
 
         affinity_map = self.hardware.get_optimized_affinity_map(len(swarm_classes))
 
         for i, (brain_cls, name) in enumerate(swarm_classes):
-            if name in ["MetaBrain", "Trend_1", "Indicator_1", "MarketData_1"]:
-                 brain = brain_cls(name=name, ipc=self.ipc, cpu_affinity=affinity_map.get(i))
-            else:
-                 brain = brain_cls(name=name, ipc=self.ipc)
-                 brain.cpu_affinity = affinity_map.get(i)
-
+            brain = brain_cls(name=name, ipc=self.ipc)
+            brain.cpu_affinity = affinity_map.get(i)
             self.registry.register(brain)
             brain.start()
             await asyncio.sleep(0.1)
 
-        self.brains = list(self.registry._brains.values())
-
     def stop(self, *args):
         self.running = False
-        if hasattr(self, 'web_dash'): self.web_dash.terminate()
-        if hasattr(self, 'native_dash'): self.native_dash.terminate()
         self.registry.stop_all()
         logger.info("AAT V3.3.0 Shutdown Complete.")

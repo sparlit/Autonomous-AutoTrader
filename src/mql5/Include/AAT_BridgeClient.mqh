@@ -126,6 +126,7 @@ public:
       int id=(int)StringToInteger(CAATProtocol::GetV(m, "id")); string s=CAATProtocol::GetV(m, "s"); if(s=="") s=_Symbol;
       string a=CAATProtocol::GetV(m, "act"); double l=StringToDouble(CAATProtocol::GetV(m, "lts"));
       int slp=(int)StringToInteger(CAATProtocol::GetV(m, "sl_p")), tpp=(int)StringToInteger(CAATProtocol::GetV(m, "tp_p"));
+      if(slp <= 0 || tpp <= 0) { Print("AAT: INVALID STOPS FROM PYTHON. Using safe defaults."); slp=100; tpp=100; }
 
       // 13100: Use TickSize for consistent price reconstruction with Python
       double ts=SymbolInfoDouble(s, SYMBOL_TRADE_TICK_SIZE);
