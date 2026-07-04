@@ -36,19 +36,52 @@ void OnTimer() {
 
 void OnTick() {
    string msg = bridge.Receive();
-   if(msg != "") {
-      string type = CAATProtocol::GetMsgType(msg);
-      if(type == "DECISION") {
-         string symbol = CAATProtocol::GetV(msg, "s");
+   if(msg == "") return;
+
+   string type = CAATProtocol::GetMsgType(msg);
+
+   if(type == "EXECUTION_ORDER" || type == "DECISION") {
+      string sub_type = CAATProtocol::GetV(msg, "t");
+      string symbol = CAATProtocol::GetV(msg, "s");
+      if(symbol == "") symbol = _Symbol;
+
+      if(sub_type == "DEC") {
          string action = CAATProtocol::GetV(msg, "act");
          double lots = StringToDouble(CAATProtocol::GetV(msg, "lts"));
+         double sl_pts = StringToDouble(CAATProtocol::GetV(msg, "sl_p"));
+         double tp_pts = StringToDouble(CAATProtocol::GetV(msg, "tp_p"));
          int id = (int)StringToInteger(CAATProtocol::GetV(msg, "id"));
 
-         if(action == "BUY") trade.Buy(lots, symbol);
-         else trade.Sell(lots, symbol);
+         double price = (action == "BUY") ? SymbolInfoDouble(symbol, SYMBOL_ASK) : SymbolInfoDouble(symbol, SYMBOL_BID);
+         double pt = SymbolInfoDouble(symbol, SYMBOL_POINT);
+         double sl = (action == "BUY") ? price - sl_pts * pt : price + sl_pts * pt;
+         double tp = (action == "BUY") ? price + tp_pts * pt : price - tp_pts * pt;
+
+         // Ensure prices are normalized
+         int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+         sl = NormalizeDouble(sl, digits);
+         tp = NormalizeDouble(tp, digits);
+
+         if(action == "BUY") trade.Buy(lots, symbol, price, sl, tp, "AAT V4.0");
+         else trade.Sell(lots, symbol, price, sl, tp, "AAT V4.0");
 
          ulong ticket = trade.ResultOrder();
          bridge.Send(CAATProtocol::BuildTRADE_ACK(id, (int)ticket, "OK", 0));
+      }
+      else if(sub_type == "MODIFY_SL") {
+         ulong ticket = (ulong)StringToInteger(CAATProtocol::GetV(msg, "tk"));
+         double sl = StringToDouble(CAATProtocol::GetV(msg, "sl"));
+         if(PositionSelectByTicket(ticket)) {
+            trade.PositionModify(ticket, sl, PositionGetDouble(POSITION_TP));
+         }
+      }
+      else if(sub_type == "MODIFY_ALL") {
+         ulong ticket = (ulong)StringToInteger(CAATProtocol::GetV(msg, "tk"));
+         double sl = StringToDouble(CAATProtocol::GetV(msg, "sl"));
+         double tp = StringToDouble(CAATProtocol::GetV(msg, "tp"));
+         if(PositionSelectByTicket(ticket)) {
+            trade.PositionModify(ticket, sl, tp);
+         }
       }
    }
 }
