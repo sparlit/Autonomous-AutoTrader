@@ -15,6 +15,8 @@ from src.python.brains.specialized import *
 from src.python.brains.consensus import MetaBrain
 from src.python.hive.config import load_config
 from src.python.hive.hardware_analyst import HardwareAnalyst
+from src.python.bridge.dashboards.web_server import WebDashboard
+from src.python.bridge.dashboards.native_gui import NativeDashboard
 
 logger = logging.getLogger("AAT_Orchestrator")
 
@@ -41,6 +43,8 @@ class HiveOrchestrator:
         self.running = True
         self.start_time = time.time()
         self._msg_counts = 0
+        self.web_dash = None
+        self.native_dash = None
 
     async def _bridge_callback_wrapper(self, client_id: str, message: Dict[str, Any]) -> Dict[str, Any]:
         """Wrapper to match BridgeServer callback signature."""
@@ -58,13 +62,21 @@ class HiveOrchestrator:
         self.ipc.create_stream("stream:orchestrator")
         self.ipc.create_stream("stream:learning_events")
 
-        # 2. Start Brains
+        # 2. Start Dashboards
+        logger.info("Launching System Dashboards...")
+        self.web_dash = WebDashboard(ipc=self.ipc, port=self.config.bridge.dashboard_port)
+        self.web_dash.start()
+
+        self.native_dash = NativeDashboard(ipc=self.ipc)
+        self.native_dash.start()
+
+        # 3. Start Brains
         await self._spawn_brain_swarm()
 
-        # 3. Start Bridge Server
+        # 4. Start Bridge Server
         asyncio.create_task(self.server.start())
 
-        # 4. Start Event Loop
+        # 5. Start Event Loop
         logger.info("AAT Orchestrator fully operational.")
         await self._orchestration_loop()
 
@@ -304,5 +316,7 @@ class HiveOrchestrator:
 
     def stop(self, *args):
         self.running = False
+        if self.web_dash: self.web_dash.terminate()
+        if self.native_dash: self.native_dash.terminate()
         self.registry.stop_all()
         logger.info("AAT V3.3.0 Shutdown Complete.")
