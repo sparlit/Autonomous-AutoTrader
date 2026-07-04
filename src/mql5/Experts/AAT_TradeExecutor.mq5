@@ -4,6 +4,7 @@
 #property strict
 
 #include <Trade\Trade.mqh>
+#include <AAT_Defines.mqh>
 #include <AAT_BridgeClient.mqh>
 #include <AAT_Protocol.mqh>
 #include <AAT_Dashboard.mqh>

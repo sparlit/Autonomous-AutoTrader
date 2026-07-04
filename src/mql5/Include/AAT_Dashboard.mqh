@@ -16,36 +16,30 @@ public:
    }
 
    bool Create(string name, int w, int h) {
-      // Placeholder for dashboard UI creation logic
       return true;
    }
 
    bool IsPaused() { return m_paused; }
 
    string OnClick(int x, int y) {
-      // Logic to determine if buttons were clicked
       return "";
    }
 
    // V4.0 Render
    void Render(string symbol, double spread, double pl, int pc, double dd, string version) {
-      // Background Header
       CreateLabel("AAT_Header", "AUTONOMOUS AUTOTRADER V" + version, x_off, y_off, 12, "Verdana Bold", clrWhite);
       CreateLabel("AAT_Status", "SYSTEM STATUS: OPTIMAL", x_off, y_off + 25, 10, "Verdana", clrSpringGreen);
-
-      // Telemetry Grid
       CreateLabel("AAT_L_Spread", "Spread: " + DoubleToString(spread, 1) + " pts", x_off, y_off + 50, 9, "Verdana", clrSkyBlue);
       CreateLabel("AAT_L_PL", "Total P&L: $" + DoubleToString(pl, 2), x_off, y_off + 65, 11, "Verdana Bold", (pl >= 0 ? clrLime : clrRed));
       CreateLabel("AAT_L_DD", "Drawdown: " + DoubleToString(dd, 2) + "%", x_off, y_off + 85, 9, "Verdana", (dd < 5 ? clrSkyBlue : clrOrangeRed));
       CreateLabel("AAT_L_PC", "Positions: " + IntegerToString(pc), x_off, y_off + 100, 9, "Verdana", clrSkyBlue);
-
-      // Bottom Branding
       CreateLabel("AAT_Footer", "GOD MODE - INSTITUTIONAL PRO", x_off, y_off + 125, 8, "Verdana", clrGray);
    }
 
-   // V3.3 Legacy/Internal Render
+   // V3.3/Internal Status Render
    void Render(string s, string st, double scr, string htf, double dd) {
-       // Logic for legacy rendering if needed
+       CreateLabel("AAT_Status", "SYNC STATUS: " + st, x_off, y_off + 25, 10, "Verdana", clrSpringGreen);
+       CreateLabel("AAT_L_DD", "Drawdown: " + DoubleToString(dd, 2) + "%", x_off, y_off + 85, 9, "Verdana", (dd < 5 ? clrSkyBlue : clrOrangeRed));
    }
 
    void Clear() {

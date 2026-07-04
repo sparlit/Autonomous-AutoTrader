@@ -1,7 +1,9 @@
 #property copyright "Copyright 2024, Jules (God Mode)"
 #property link      "https://github.com/sparlit/Autonomous-AutoTrader"
-#property version   "3.00"
+#property version   "4.00"
 #property strict
+
+#include <AAT_Defines.mqh>
 #include <AAT_BridgeClient.mqh>
 
 input string   InpHost   = "127.0.0.1"; // Bridge Host
