@@ -59,11 +59,7 @@ public:
    void PerformUpdate() { OnTick(); }
 
    void OnTick() {
-      if(!m_s.IsConnected()) {
-         m_s.Connect(m_h, m_p);
-         m_syn = false;
-         return;
-      }
+      if(!m_s.IsConnected()) { m_s.Connect(m_h, m_p); m_syn = false; return; }
       if(m_d.IsPaused()) return;
 
       uint now = GetTickCount();
@@ -94,6 +90,13 @@ public:
    void HandleTlm(string j) {
       if(!m_u_d) return;
       m_d.RenderV3(_Symbol, CAATProtocol::GetV(j, "st"), StringToDouble(CAATProtocol::GetV(j, "scr")), CAATProtocol::GetV(j, "htf"), StringToDouble(CAATProtocol::GetV(j, "dd")));
+   }
+
+   void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam) {
+      if(id == CHARTEVENT_CLICK) {
+         string cmd = m_d.OnClick((int)lparam, (int)dparam);
+         if(cmd == "PAUSE") m_d.SetPaused(!m_d.IsPaused());
+      }
    }
 };
 #endif

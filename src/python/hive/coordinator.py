@@ -16,6 +16,8 @@ from src.python.analyst.price_action import SMCAnalyst
 from src.python.brains.specialized import *
 from src.python.brains.consensus import MetaBrain
 from src.python.hive.config import load_config
+from src.python.bridge.dashboards.native_gui import NativeDashboard
+from src.python.bridge.dashboards.web_server import WebDashboard
 
 logger = logging.getLogger("AAT_HiveOrchestrator")
 
@@ -33,12 +35,22 @@ class HiveOrchestrator:
         self.running = True
         self.start_time = time.time()
         self._msg_counts = 0
+        self.native_dash = None
+        self.web_dash = None
 
     async def run(self):
         logger.info("🌌 AAT V4.0-PRO Phoenix Core Online.")
         await self.ledger.init_db()
         self.ipc.clear_memory()
         self.ipc.set_state("institutional_settings", self.config.institutional.dict())
+
+        # V4.0: Spawn Dashboard Processes
+        self.native_dash = NativeDashboard(ipc=self.ipc)
+        self.native_dash.start()
+
+        self.web_dash = WebDashboard(ipc=self.ipc, port=self.config.bridge.dashboard_port)
+        self.web_dash.start()
+
         await self.server.start()
         await self._spawn_brain_swarm()
         await self._orchestration_loop()
@@ -56,7 +68,6 @@ class HiveOrchestrator:
             return {"t": "HB_ACK", "lot": self.config.institutional.standard_lot_size, "v": self.config.institutional.version}
 
         elif m_type == "DP":
-            # Rule 1: High-throughput Data Injection
             symbol = message.get("s")
             bid = float(message.get("bi", 0))
             ask = float(message.get("as", 0))
@@ -107,10 +118,7 @@ class HiveOrchestrator:
         symbol = event.get("symbol")
 
         if e_type == "MARKET_DATA":
-            # 1. Parallel Analysis
             for b in ["Trend_1", "Indicator_1"]: self.ipc.xadd(f"stream:{b}", event)
-
-            # 2. Sequential Position Management (Rule 1.c/1.d)
             orders = await self.pos_manager.monitor_and_manage(symbol, event["bid"], event["ask"], event["atr"], mtf_trends=self.ipc.get_state(f"trend_stats:{symbol}"))
             for o in orders:
                 if o.get("type") == "PROBABILISTIC_SIGNAL": self.ipc.xadd("stream:orchestrator", o)
@@ -120,14 +128,11 @@ class HiveOrchestrator:
             self.ipc.xadd("stream:MetaBrain", event)
 
         elif e_type == "PROBABILISTIC_SIGNAL":
-            # Rule 1.b/1.c assessment pipeline
             self.ipc.xadd("stream:Risk_1", event)
 
         elif e_type == "VALIDATED_TRADE":
-            # Rule 1.a: Duplicate Check
             active = await self.ledger.get_active_trades_db(symbol)
             if any(t['action'] == event['action'] for t in active) and not event.get("scaling"):
-                logger.warning(f"Duplicate trade blocked for {symbol}")
                 return
             self.ipc.xadd("stream:Execution_1", event)
 
@@ -140,7 +145,7 @@ class HiveOrchestrator:
 
     def _update_system_stats(self):
         stats = {"status": "V4.0-PRO_OPTIMAL" if self.server.clients else "WAITING", "active_clients": len(self.server.clients),
-                 "throughput": float(self._msg_counts / (time.time() - self.start_time)), "server_time": time.time()}
+                 "throughput": float(self._msg_counts / (time.time() - self.start_time)) if (time.time() - self.start_time) > 0 else 0, "server_time": time.time()}
         self.ipc.set_state("engine_stats", stats)
         asyncio.create_task(self._sync_trades_to_ipc())
 
@@ -160,5 +165,7 @@ class HiveOrchestrator:
 
     def stop(self, *args):
         self.running = False
+        if self.native_dash: self.native_dash.terminate()
+        if self.web_dash: self.web_dash.terminate()
         self.registry.stop_all()
         logger.info("AAT V4.0-PRO Shutdown Complete.")
