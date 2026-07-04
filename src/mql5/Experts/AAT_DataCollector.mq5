@@ -6,19 +6,17 @@
 #include <AAT_Defines.mqh>
 #include <AAT_BridgeClient.mqh>
 
-input string   InpHost   = "127.0.0.1"; // Bridge Host
-input int      InpPort   = 8008;        // Bridge Port
-input long     InpMagic  = 123456;      // Strategy Magic
+input string   InpHost = "127.0.0.1";
+input int      InpPort = 8008;
 
 CAATBridgeClient bridge;
 
 int OnInit() {
-   if(!bridge.Init(InpHost, InpPort, AAT_ROLE_DATA_COLLECTOR, InpMagic))
-      return INIT_FAILED;
+   if(!bridge.Init(InpHost, InpPort, AAT_ROLE_DATA_COLLECTOR)) return INIT_FAILED;
    EventSetTimer(1);
    return INIT_SUCCEEDED;
 }
 
-void OnDeinit(const int reason) { EventKillTimer(); }
+void OnDeinit(const int r) { EventKillTimer(); bridge.Disconnect(); }
 void OnTick() { bridge.PerformUpdate(); }
 void OnTimer() { bridge.PerformUpdate(); }
