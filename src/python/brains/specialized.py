@@ -1,3 +1,4 @@
+import os
 import asyncio
 import logging
 import time
@@ -40,7 +41,7 @@ class TrendBrain(BaseBrain):
     """Brain 3 - 10503: Multi-Timeframe Trend Evidence."""
     async def initialize(self):
         await super().initialize()
-        self.smc = SMCAnalyst()
+        self.analyst = IndicatorAnalyst()
 
     async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         if event.get("type") == "MARKET_DATA":

@@ -196,6 +196,8 @@ class HiveOrchestrator:
             self.ipc.set_state("last_decision", {"msg": f"{event.get('act')} {event.get('s')} at {event.get('lts')} lots", "time": time.time()})
             await self.server.broadcast(event)
 
+        elif e_type in ["REGIME_STATUS", "ANOMALY_STATUS", "STRUCTURE_STATUS"]:
+            self.ipc.set_state("last_decision", {"msg": f"SYSTEM: {e_type} for {event.get("symbol")}", "time": time.time()})
         elif e_type == "TELEMETRY":
             hw = self.ipc.get_state("hardware_report", {})
             telemetry_msg = {
