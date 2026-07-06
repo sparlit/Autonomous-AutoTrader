@@ -17,6 +17,7 @@ class BridgeConfig(BaseModel):
     host: str = "127.0.0.1"
     port: int = 8008
     dashboard_port: int = 8009
+    timeout: float = 30.0
 
 class RiskConfig(BaseModel):
     daily_loss_limit_pct: float = 2.0
@@ -38,6 +39,7 @@ def load_config(path: str = "config/main_config.json") -> AATConfig:
     if os.path.exists(path):
         with open(path, "r") as f:
             data = json.load(f)
+            # Ensure pydantic model gets the data correctly
             config = AATConfig(**data)
 
     # Overlay institutional settings from its own hardened file

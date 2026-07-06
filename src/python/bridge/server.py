@@ -17,6 +17,7 @@ class BridgeServer:
         self.client_seqs: Dict[str, int] = {}
         self.stats = {"msgs_rx": 0, "msgs_tx": 0, "last_latency": 0.0}
         self.throttle_threshold = 0.05 # 50ms processing limit
+        self._server = None
 
     async def handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         try:
@@ -44,7 +45,7 @@ class BridgeServer:
                 try:
                     data = await reader.read(16384) # 16KB buffer for heavy MTF/warmup pushes
                     if not data: break
-                except (ConnectionResetError, BrokenPipeError):
+                except (ConnectionResetError, BrokenPipeError, asyncio.CancelledError):
                     break
 
                 buffer.extend(data)
@@ -118,7 +119,32 @@ class BridgeServer:
         """
         Start the TCP server and listen indefinitely for client connections.
         """
-        server = await asyncio.start_server(self.handle_client, self.host, self.port)
-        async with server:
+        try:
+            self._server = await asyncio.start_server(self.handle_client, self.host, self.port, reuse_address=True)
+        except OSError as e:
+            logger.error(f"Failed to bind to {self.host}:{self.port} - Port may be in use: {e}")
+            raise e
+
+        async with self._server:
             logger.info(f"Ultra-Parallel Bridge active at {self.host}:{self.port}")
-            await server.serve_forever()
+            try:
+                await self._server.serve_forever()
+            except asyncio.CancelledError:
+                logger.info("Bridge server task cancelled.")
+
+    async def stop(self):
+        """Stop the bridge server and close all client connections."""
+        logger.info("Stopping Bridge Server...")
+        if self._server:
+            self._server.close()
+            await self._server.wait_closed()
+
+        # Close all active clients
+        for client_id, writer in list(self.clients.items()):
+            try:
+                writer.close()
+                await writer.wait_closed()
+            except Exception:
+                pass
+        self.clients.clear()
+        logger.info("Bridge Server stopped.")
