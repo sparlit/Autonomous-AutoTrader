@@ -128,8 +128,7 @@ public:
          string err_msg = "OK";
 
          if(success) {
-            ticket = m_t.ResultPosition();
-            if(ticket == 0) ticket = m_t.ResultOrder();
+            ticket = m_t.ResultOrder();
          } else {
             err_msg = m_t.ResultRetcodeDescription();
             Print("AAT: [CRITICAL] Trade Failed: ", err_msg, " Symbol: ", symbol, " Action: ", action);
