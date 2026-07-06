@@ -17,6 +17,7 @@ class BridgeServer:
         self.client_seqs: Dict[str, int] = {}
         self.stats = {"msgs_rx": 0, "msgs_tx": 0, "last_latency": 0.0}
         self.throttle_threshold = 0.05 # 50ms processing limit
+        self._server = None
 
     async def handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         try:
@@ -44,7 +45,7 @@ class BridgeServer:
                 try:
                     data = await reader.read(16384) # 16KB buffer for heavy MTF/warmup pushes
                     if not data: break
-                except (ConnectionResetError, BrokenPipeError):
+                except (ConnectionResetError, BrokenPipeError, asyncio.CancelledError):
                     break
 
                 buffer.extend(data)
@@ -57,7 +58,11 @@ class BridgeServer:
 
                     try:
                         start_time = time.perf_counter()
-                        message = json.loads(line)
+                        # 13010: Strip null bytes and whitespace to prevent decoding errors
+                        clean_line = line.replace(b'\x00', b'').strip()
+                        if not clean_line: continue
+
+                        message = json.loads(clean_line)
                         self.stats["msgs_rx"] += 1
 
                         response = await self.on_message_cb(client_id, message)
@@ -70,8 +75,8 @@ class BridgeServer:
                             await writer.drain()
                             self.stats["msgs_tx"] += 1
                             self.stats["last_latency"] = (time.perf_counter() - start_time)
-                    except json.JSONDecodeError:
-                        logger.error(f"Corruption in stream from {client_id}")
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Corruption in stream from {client_id}: {e} (Raw: {line[:50]!r})")
                     except (ConnectionResetError, BrokenPipeError):
                         logger.info(f"Connection Reset by {client_id} during write")
                         return
@@ -92,8 +97,9 @@ class BridgeServer:
 
     async def broadcast(self, message: Dict[str, Any]):
         """13006: Broadcast message to all connected clients."""
+        # 13007: Use list(items()) to prevent "dictionary changed size during iteration"
         dead_clients = []
-        for client_id, writer in self.clients.items():
+        for client_id, writer in list(self.clients.items()):
             try:
                 # Per-client sequence for broadcast too
                 self.client_seqs[client_id] += 1
@@ -118,7 +124,32 @@ class BridgeServer:
         """
         Start the TCP server and listen indefinitely for client connections.
         """
-        server = await asyncio.start_server(self.handle_client, self.host, self.port)
-        async with server:
+        try:
+            self._server = await asyncio.start_server(self.handle_client, self.host, self.port, reuse_address=True)
+        except OSError as e:
+            logger.error(f"Failed to bind to {self.host}:{self.port} - Port may be in use: {e}")
+            raise e
+
+        async with self._server:
             logger.info(f"Ultra-Parallel Bridge active at {self.host}:{self.port}")
-            await server.serve_forever()
+            try:
+                await self._server.serve_forever()
+            except asyncio.CancelledError:
+                logger.info("Bridge server task cancelled.")
+
+    async def stop(self):
+        """Stop the bridge server and close all client connections."""
+        logger.info("Stopping Bridge Server...")
+        if self._server:
+            self._server.close()
+            await self._server.wait_closed()
+
+        # 13008: Use list(items()) to prevent "dictionary changed size during iteration"
+        for client_id, writer in list(self.clients.items()):
+            try:
+                writer.close()
+                await writer.wait_closed()
+            except Exception:
+                pass
+        self.clients.clear()
+        logger.info("Bridge Server stopped.")

@@ -93,7 +93,8 @@ class HiveIPC:
     def xread(self, streams: Dict[str, str], count: int = 50, block: int = 0) -> List[Any]:
         """Emulate Redis XREAD with batch processing."""
         results = []
-        for stream_name in streams.keys():
+        # 10259: Copy streams keys to avoid iteration error if it was shared (though here it is local)
+        for stream_name in list(streams.keys()):
             try:
                 q = self.get_queue(stream_name)
                 msgs = []
@@ -131,10 +132,14 @@ class HiveIPC:
         return self._shared_state.get(key, default)
 
     def get_all_state(self) -> Dict[str, Any]:
-        try:
-            return dict(self._shared_state)
-        except Exception:
-            return {}
+        """10261: Safely retrieve all state, handling concurrent modifications."""
+        for _ in range(3):
+            try:
+                return dict(self._shared_state)
+            except RuntimeError:
+                time.sleep(0.01)
+                continue
+        return {}
 
 _ipc_instance = None
 
