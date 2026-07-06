@@ -101,7 +101,17 @@ class HiveOrchestrator:
             return {"t": "ACK"}
 
         elif m_type == "T_ACK":
-            await self.ledger.confirm_trade(int(message.get("id")), int(message.get("tk")), 0, 0, 0)
+            internal_id = int(message.get("id"))
+            ticket = int(message.get("tk", 0))
+            error = message.get("err", "UNKNOWN")
+
+            if ticket > 0:
+                await self.ledger.confirm_trade(internal_id, ticket, 0, 0, 0)
+                logger.info(f"Trade Confirmed: ID {internal_id} -> Ticket {ticket}")
+            else:
+                await self.ledger.fail_trade(internal_id, error)
+                logger.error(f"Trade FAILED: ID {internal_id} -> Reason: {error}")
+                self.ipc.set_state("last_decision", {"ts": time.time(), "msg": f"FAILED: {error} (ID: {internal_id})"})
             return {"t": "ACK"}
 
         elif m_type == "SYNC":
@@ -161,7 +171,7 @@ class HiveOrchestrator:
 
         elif e_type == "EXECUTION_ORDER":
             event["magic"] = self.config.system.global_magic
-            event["comment"] = f"AAT{time.strftime('%d%m')}{time.strftime('%H%M%S')}"
+            event["comment"] = f"AAT+{time.strftime('%d%m')}+{time.strftime('%H%M%S')}"
             if event.get("t") == "DEC":
                 event["id"] = await self.ledger.record_intent(event["s"], event["act"], event["lts"], int(event["sl_p"]), int(event["tp_p"]))
                 self.risk_manager.increment_trade_count(event["s"])

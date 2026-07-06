@@ -44,8 +44,8 @@ public:
                           atr, h_ltf, mtf_map, seq);
    }
 
-   static string BuildTRADE_ACK(int id, int tk, string err, long seq) {
-      return StringFormat("{\"t\":\"T_ACK\",\"id\":%d,\"tk\":%d,\"err\":\"%s\",\"seq\":%lld}", id, tk, err, seq);
+   static string BuildTRADE_ACK(int id, long tk, string err, long seq) {
+      return StringFormat("{\"t\":\"T_ACK\",\"id\":%d,\"tk\":%lld,\"err\":\"%s\",\"seq\":%lld}", id, tk, err, seq);
    }
 
    static string BuildSYNC(string s, long seq) {
