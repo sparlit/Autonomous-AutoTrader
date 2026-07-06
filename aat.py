@@ -63,6 +63,18 @@ def set_creds():
     vault.save_credentials(account, password, server)
     print("✅ Credentials encrypted and stored.")
 
+def cleanup_ports(ports=[8008, 8009]):
+    print(f"Checking for processes on ports {ports}...")
+    for proc in psutil.process_iter(['pid', 'name']):
+        try:
+            for conn in proc.net_connections(kind='inet'):
+                if conn.laddr.port in ports:
+                    print(f"⚠️ Killing process {proc.pid} ({proc.info['name']}) on port {conn.laddr.port}")
+                    proc.terminate()
+                    proc.wait(timeout=3)
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, Exception):
+            pass
+
 def setup_os_optimization():
     p = psutil.Process(os.getpid())
     try:
@@ -81,6 +93,7 @@ async def run():
 
     if not os.path.exists("logs"): os.makedirs("logs")
 
+    cleanup_ports()
     print("🌌 Launching Autonomous AutoTrader: Phoenix Gauntlet V3.3.0")
     setup_os_optimization()
 
@@ -95,9 +108,10 @@ async def run():
 
     try:
         await orchestrator.run()
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, asyncio.CancelledError):
         logging.info("Initiating Graceful Shutdown...")
-        orchestrator.stop()
+    finally:
+        await orchestrator.stop()
         logging.info("Phoenix Gauntlet offline.")
 
 def test():
@@ -122,7 +136,10 @@ if __name__ == "__main__":
     if args.command == "setup":
         setup()
     elif args.command == "run":
-        asyncio.run(run())
+        try:
+            asyncio.run(run())
+        except KeyboardInterrupt:
+            pass
     elif args.command == "set-creds":
         set_creds()
     elif args.command == "set-lot":

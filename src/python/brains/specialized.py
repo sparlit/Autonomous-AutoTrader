@@ -16,10 +16,10 @@ logger = logging.getLogger("AAT_Brains")
 class MarketDataBrain(BaseBrain):
     """V4.0: High-throughput Data Normalization."""
     async def process(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        if event.get("t") == "DP":
-            symbol = event["s"]
-            bid = float(event.get("bi") or 0.0)
-            ask = float(event.get("as") or 0.0)
+        if event.get("t") == "DP" or event.get("type") == "MARKET_DATA_RAW":
+            symbol = event.get("s") or event.get("symbol")
+            bid = float(event.get("bi") or event.get("bid") or 0.0)
+            ask = float(event.get("as") or event.get("ask") or 0.0)
             self.ipc.set_state(f"symbol_stats:{symbol}", {
                 "bid": bid, "ask": ask,
                 "tick_val": float(event.get("tv", 10.0)),
@@ -29,6 +29,7 @@ class MarketDataBrain(BaseBrain):
             })
             return {
                 "type": "MARKET_DATA", "symbol": symbol, "bid": bid, "ask": ask,
+                "tf": event.get("tf"),
                 "atr": float(event.get("atr", 0.0)), "sp": float(event.get("sp", 0.0)),
                 "ltf": event.get("ltf", []),
                 "mtf": event.get("mtf", {})

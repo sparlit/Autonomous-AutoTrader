@@ -15,9 +15,10 @@ logger = logging.getLogger("AAT_WebDashboard")
 def to_dict(obj):
     """Recursively convert multiprocessing proxies to real dicts."""
     if isinstance(obj, (DictProxy, dict)):
-        return {k: to_dict(v) for k, v in obj.items()}
+        # 10409: Use list(obj.items()) to handle concurrent size changes
+        return {k: to_dict(v) for k, v in list(obj.items())}
     elif isinstance(obj, (ListProxy, list)):
-        return [to_dict(v) for v in obj]
+        return [to_dict(v) for v in list(obj)]
     else:
         return obj
 
