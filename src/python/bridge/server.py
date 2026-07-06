@@ -58,7 +58,11 @@ class BridgeServer:
 
                     try:
                         start_time = time.perf_counter()
-                        message = json.loads(line)
+                        # 13010: Strip null bytes and whitespace to prevent decoding errors
+                        clean_line = line.replace(b'\x00', b'').strip()
+                        if not clean_line: continue
+
+                        message = json.loads(clean_line)
                         self.stats["msgs_rx"] += 1
 
                         response = await self.on_message_cb(client_id, message)
@@ -71,8 +75,8 @@ class BridgeServer:
                             await writer.drain()
                             self.stats["msgs_tx"] += 1
                             self.stats["last_latency"] = (time.perf_counter() - start_time)
-                    except json.JSONDecodeError:
-                        logger.error(f"Corruption in stream from {client_id}")
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Corruption in stream from {client_id}: {e} (Raw: {line[:50]!r})")
                     except (ConnectionResetError, BrokenPipeError):
                         logger.info(f"Connection Reset by {client_id} during write")
                         return
@@ -93,8 +97,9 @@ class BridgeServer:
 
     async def broadcast(self, message: Dict[str, Any]):
         """13006: Broadcast message to all connected clients."""
+        # 13007: Use list(items()) to prevent "dictionary changed size during iteration"
         dead_clients = []
-        for client_id, writer in self.clients.items():
+        for client_id, writer in list(self.clients.items()):
             try:
                 # Per-client sequence for broadcast too
                 self.client_seqs[client_id] += 1
@@ -139,7 +144,7 @@ class BridgeServer:
             self._server.close()
             await self._server.wait_closed()
 
-        # Close all active clients
+        # 13008: Use list(items()) to prevent "dictionary changed size during iteration"
         for client_id, writer in list(self.clients.items()):
             try:
                 writer.close()

@@ -17,7 +17,7 @@
     "consensus_threshold": 0.7
   },
   "system": {
-    "global_magic": 445566,
+    "global_magic": 778899,
     "database_path": "audit_records.db"
   }
 }

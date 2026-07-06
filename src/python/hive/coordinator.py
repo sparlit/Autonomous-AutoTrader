@@ -211,7 +211,7 @@ class HiveOrchestrator:
         # Cancel all background tasks
         if self._background_tasks:
             logger.info(f"Cancelling {len(self._background_tasks)} background tasks...")
-            for task in self._background_tasks:
+            for task in list(self._background_tasks):
                 task.cancel()
             await asyncio.gather(*self._background_tasks, return_exceptions=True)
 
