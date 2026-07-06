@@ -15,9 +15,7 @@ async def test_v3_3_architecture_integrity():
 
     # In some environments, the decorator or mocking might cause issues.
     # We ensure we are awaiting a coroutine.
-    coro = orchestrator._spawn_brain_swarm()
-    if coro is not None:
-        await coro
+    await orchestrator._spawn_brain_swarm()
 
     assert len(orchestrator.registry._brains) >= 18
     assert len(orchestrator.brains) >= 18
@@ -25,7 +23,7 @@ async def test_v3_3_architecture_integrity():
     # Verify MetaBrain is present
     assert "MetaBrain" in orchestrator.registry._brains
 
-    orchestrator.stop()
+    await orchestrator.stop()
 
 @pytest.mark.asyncio
 async def test_ipc_stability():

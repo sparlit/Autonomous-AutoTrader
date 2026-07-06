@@ -38,12 +38,12 @@ public:
       m_d_created = false;
       m_syn = false;
       m_role = AAT_ROLE_MASTER;
-      m_magic = 123456;
+      m_magic = 778899;
       m_seq_tx = 0;
       m_t.SetExpertMagicNumber(m_magic);
    }
 
-   bool Init(string h, int p, ENUM_AAT_ROLE role, long magic=123456, bool d=true) {
+   bool Init(string h, int p, ENUM_AAT_ROLE role, long magic=778899, bool d=true) {
       m_h = h; m_p = p; m_role = role; m_u_d = d; m_magic = magic;
       m_t.SetExpertMagicNumber(m_magic);
       if(m_u_d) m_d_created = m_d.Create("AAT_Dash", 320, 500);
@@ -65,7 +65,12 @@ public:
       uint now = GetTickCount();
 
       if(now - m_l_hb > 5000) {
-         if(m_s.Send(CAATProtocol::BuildHEARTBEAT(_Symbol, AccountInfoDouble(ACCOUNT_EQUITY), 0, PositionsTotal(), ++m_seq_tx))) {
+         double equity = AccountInfoDouble(ACCOUNT_EQUITY);
+         double balance = AccountInfoDouble(ACCOUNT_BALANCE);
+         double dd = (balance > 0) ? (balance - equity) / balance * 100.0 : 0;
+         if(dd < 0) dd = 0;
+
+         if(m_s.Send(CAATProtocol::BuildHEARTBEAT(_Symbol, equity, dd, PositionsTotal(), ++m_seq_tx))) {
             m_l_hb = now;
          }
       }
@@ -76,20 +81,82 @@ public:
          }
       }
 
-      Proc();
+      string msg;
+      while((msg = m_s.Receive()) != "") {
+         ProcMsg(msg);
+      }
    }
 
-   void Proc() {
-      string m = m_s.Receive();
-      if(m == "") return;
+   void ProcMsg(string m) {
       string t = CAATProtocol::GetMsgType(m);
       if(t == "TLM") HandleTlm(m);
       else if(t == "SYNC_REQ") m_s.Send(CAATProtocol::BuildSYNC(_Symbol, ++m_seq_tx));
+      else if(t == "DECISION" || t == "EXECUTION_ORDER") HandleDecision(m);
+   }
+
+   void HandleDecision(string j) {
+      if(m_role != AAT_ROLE_TRADE_EXECUTOR && m_role != AAT_ROLE_MASTER) return;
+
+      string sub_type = CAATProtocol::GetV(j, "t");
+      string symbol = CAATProtocol::GetV(j, "s");
+      if(symbol == "") symbol = _Symbol;
+
+      if(sub_type == "DEC") {
+         string action = CAATProtocol::GetV(j, "act");
+         double lots = StringToDouble(CAATProtocol::GetV(j, "lts"));
+         double sl_pts = StringToDouble(CAATProtocol::GetV(j, "sl_p"));
+         double tp_pts = StringToDouble(CAATProtocol::GetV(j, "tp_p"));
+         int internal_id = (int)StringToInteger(CAATProtocol::GetV(j, "id"));
+         string comment = CAATProtocol::GetV(j, "comment");
+
+         double price = (action == "BUY") ? SymbolInfoDouble(symbol, SYMBOL_ASK) : SymbolInfoDouble(symbol, SYMBOL_BID);
+         double pt = SymbolInfoDouble(symbol, SYMBOL_POINT);
+         double sl = (action == "BUY") ? price - sl_pts * pt : price + sl_pts * pt;
+         double tp = (action == "BUY") ? price + tp_pts * pt : price - tp_pts * pt;
+
+         int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+         sl = NormalizeDouble(sl, digits);
+         tp = NormalizeDouble(tp, digits);
+
+         m_t.SetTypeFillingBySymbol(symbol);
+
+         bool success = false;
+         if(action == "BUY") success = m_t.Buy(lots, symbol, price, sl, tp, comment);
+         else success = m_t.Sell(lots, symbol, price, sl, tp, comment);
+
+         ulong ticket = 0;
+         string err_msg = "OK";
+
+         if(success) {
+            ticket = m_t.ResultPosition();
+            if(ticket == 0) ticket = m_t.ResultOrder();
+         } else {
+            err_msg = m_t.ResultRetcodeDescription();
+            Print("AAT: [CRITICAL] Trade Failed: ", err_msg, " Symbol: ", symbol, " Action: ", action);
+         }
+
+         m_s.Send(CAATProtocol::BuildTRADE_ACK(internal_id, (long)ticket, err_msg, ++m_seq_tx));
+      }
+      else if(sub_type == "MODIFY_SL") {
+         ulong ticket = (ulong)StringToInteger(CAATProtocol::GetV(j, "tk"));
+         double sl = StringToDouble(CAATProtocol::GetV(j, "sl"));
+         if(PositionSelectByTicket(ticket)) {
+            m_t.PositionModify(ticket, sl, PositionGetDouble(POSITION_TP));
+         }
+      }
+      else if(sub_type == "CLOSE_ALL") {
+         for(int i=PositionsTotal()-1; i>=0; i--) {
+            ulong tk = PositionGetTicket(i);
+            if(PositionSelectByTicket(tk) && PositionGetInteger(POSITION_MAGIC) == m_magic) {
+               m_t.PositionClose(tk);
+            }
+         }
+      }
    }
 
    void HandleTlm(string j) {
       if(!m_u_d) return;
-      m_d.RenderV3(_Symbol, CAATProtocol::GetV(j, "st"), StringToDouble(CAATProtocol::GetV(j, "scr")), CAATProtocol::GetV(j, "htf"), StringToDouble(CAATProtocol::GetV(j, "dd")));
+      m_d.RenderV4(_Symbol, 0, AccountInfoDouble(ACCOUNT_PROFIT), PositionsTotal(), StringToDouble(CAATProtocol::GetV(j, "dd")), "V4.0-PRO");
    }
 
    void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam) {

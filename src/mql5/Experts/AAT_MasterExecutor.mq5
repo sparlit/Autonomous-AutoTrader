@@ -8,7 +8,7 @@
 
 input string   InpHost   = "127.0.0.1";
 input int      InpPort   = 8008;
-input long     InpMagic  = 123456;
+input long     InpMagic  = 778899;
 
 CAATBridgeClient bridge;
 
