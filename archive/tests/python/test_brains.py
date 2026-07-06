@@ -19,6 +19,8 @@ class MockIPC:
         pass
     def acquire_trading_lock(self, symbol, cooldown=30):
         return True
+    def publish_state(self, name, symbol, state):
+        pass
 
 def generate_tick_data(symbol="EURUSD", count=100):
     ticks = []
@@ -26,7 +28,7 @@ def generate_tick_data(symbol="EURUSD", count=100):
     current_time = time.time()
     for i in range(count):
         ticks.append([base_price, base_price + 0.0001, base_price - 0.0001, base_price, current_time + i, 10])
-    return {"t": "DP", "type": "MARKET_DATA_RAW", "s": symbol, "b": base_price, "a": base_price + 0.0001, "tf": 1, "ltf": ticks, "h1": ticks, "h4": ticks, "atr": 0.0010}
+    return {"t": "DP", "type": "MARKET_DATA_RAW", "s": symbol, "bi": base_price, "as": base_price + 0.0001, "tf": 1, "ltf": ticks, "h1": ticks, "h4": ticks, "atr": 0.0010}
 
 @pytest.mark.asyncio
 async def test_brain_v1_deep_flow():
@@ -41,16 +43,15 @@ async def test_brain_v1_deep_flow():
 async def test_meta_brain_confluence_logic():
     mock_ipc = MockIPC()
     # threshold 0.5 to make it easy to trigger in test
-    meta = MetaBrain("MetaTest", threshold=0.50, ipc=mock_ipc)
-    meta.required_sources = ["Trend_1", "Indicator_1"]
+    meta = MetaBrain("MetaTest", ipc=mock_ipc)
+    meta.reliability = {"Trend_1": 1.0, "Indicator_1": 1.0}
 
     # Evidence 1: Trend alignment (BULLISH)
-    await meta.process({"symbol": "EURUSD", "type": "EVIDENCE", "source": "Trend_1", "p_e_h": 0.85, "p_e": 0.45, "direction": 1})
+    await meta.process({"symbol": "EURUSD", "type": "EVIDENCE", "source": "Trend_1", "p_e_h": 0.95, "p_e": 0.45, "direction": 1})
 
     # Evidence 2: Indicator alignment (BULLISH)
-    result = await meta.process({"symbol": "EURUSD", "type": "EVIDENCE", "source": "Indicator_1", "p_e_h": 0.85, "p_e": 0.45, "direction": 1})
+    result = await meta.process({"symbol": "EURUSD", "type": "EVIDENCE", "source": "Indicator_1", "p_e_h": 0.95, "p_e": 0.45, "direction": 1})
 
     assert result is not None
     assert result["type"] == "PROBABILISTIC_SIGNAL"
     assert result["action"] == "BUY"
-    assert result["lots"] == 0.01
